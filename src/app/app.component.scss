@@ -1,0 +1,15 @@
+// login.component.scss or global styles
+.full-width {
+  width: 100%;
+}
+
+mat-card {
+  max-width: 400px;
+  margin: 50px auto;
+  padding: 20px;
+}
+
+.error {
+  color: red;
+  margin-top: 10px;
+}
