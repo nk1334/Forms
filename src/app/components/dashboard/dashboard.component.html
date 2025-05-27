@@ -1,0 +1,54 @@
+<div class="dashboard-container">
+
+  <mat-toolbar color="primary">
+    <span>Dashboard</span>
+    <span class="spacer"></span>
+
+    <!-- User Menu -->
+    <button mat-icon-button [matMenuTriggerFor]="userMenu">
+      <mat-icon>account_circle</mat-icon>
+    </button>
+
+    <mat-menu #userMenu="matMenu">
+      <div style="padding: 8px 16px; font-weight: bold;">
+        Role: {{ user?.role || 'Unknown' }}
+      </div>
+      <button mat-menu-item (click)="logout()">
+        <mat-icon>logout</mat-icon>
+        <span>Logout</span>
+      </button>
+    </mat-menu>
+  </mat-toolbar>
+
+
+  <div class="dashboard-content">
+    <mat-card *ngIf="user" class="dashboard-card">
+      <mat-card-title>Welcome, {{ user.username | titlecase }}</mat-card-title>
+      <mat-card-content>
+        <p><strong>Role:</strong> {{ user.role | titlecase}}</p>
+        <p><strong>Logged in at:</strong> {{ currentTime }}</p>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="dashboard-card">
+      <mat-card-title>Total Users</mat-card-title>
+      <mat-card-content>
+        <h2>125</h2>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="dashboard-card">
+      <mat-card-title>Total Bookings</mat-card-title>
+      <mat-card-content>
+        <h2>45</h2>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="dashboard-card">
+      <mat-card-title>Pending Approvals</mat-card-title>
+      <mat-card-content>
+        <h2>7</h2>
+      </mat-card-content>
+    </mat-card>
+  </div>
+</div>

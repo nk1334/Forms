@@ -1,0 +1,33 @@
+<div class="login-container">
+  <!-- Left Image -->
+  <div class="login-image">
+    <img src="assets/login1.jpg" alt="Random" />
+  </div>
+
+  <!-- Right Form -->
+  <div class="login-form">
+    <mat-card>
+      <h2>Login</h2>
+      <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Username</mat-label>
+          <input matInput formControlName="username">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Password</mat-label>
+          <input matInput type="password" formControlName="password">
+        </mat-form-field>
+
+        <button mat-raised-button color="primary" type="submit" class="full-width">Login</button>
+        <div class="error" *ngIf="error">{{ error }}</div>
+      </form>
+
+      <!-- Sign Up Link -->
+      <div class="signup-link">
+        Don't have an account?
+        <a routerLink="/signup">Sign Up</a>
+      </div>
+    </mat-card>
+  </div>
+</div>
