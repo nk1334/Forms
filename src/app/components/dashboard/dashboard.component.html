@@ -10,9 +10,9 @@
     </button>
 
     <mat-menu #userMenu="matMenu">
-      <div style="padding: 8px 16px; font-weight: bold;">
+      <!-- <div style="padding: 8px 16px; font-weight: bold;">
         Role: {{ user?.role || 'Unknown' }}
-      </div>
+      </div> -->
       <button mat-menu-item (click)="logout()">
         <mat-icon>logout</mat-icon>
         <span>Logout</span>
@@ -21,34 +21,64 @@
   </mat-toolbar>
 
 
-  <div class="dashboard-content">
-    <mat-card *ngIf="user" class="dashboard-card">
-      <mat-card-title>Welcome, {{ user.username | titlecase }}</mat-card-title>
-      <mat-card-content>
-        <p><strong>Role:</strong> {{ user.role | titlecase}}</p>
-        <p><strong>Logged in at:</strong> {{ currentTime }}</p>
-      </mat-card-content>
-    </mat-card>
+  <div class="container">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="logo">Avante forms</div>
+      <button mat-button class="menu-button" color="primary">
+        <mat-icon>description</mat-icon> Templates
+      </button>
+      <button mat-button class="menu-button" color="primary">
+        <mat-icon>assignment</mat-icon> Forms
+      </button>
+    </div>
 
-    <mat-card class="dashboard-card">
-      <mat-card-title>Total Users</mat-card-title>
-      <mat-card-content>
-        <h2>125</h2>
-      </mat-card-content>
-    </mat-card>
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Toolbar -->
+      <mat-toolbar color="primary" class="toolbar">
+        <span>Templates</span>
+        <span class="spacer"></span>
+        <mat-form-field appearance="fill" class="search-box">
+          <mat-label>Search</mat-label>
+          <input matInput (keyup)="applyFilter($event)" placeholder="Search Templates">
+        </mat-form-field>
+        <button mat-icon-button color="accent" (click)="addNew()">
+          <mat-icon>add</mat-icon>
+        </button>
+      </mat-toolbar>
 
-    <mat-card class="dashboard-card">
-      <mat-card-title>Total Bookings</mat-card-title>
-      <mat-card-content>
-        <h2>45</h2>
-      </mat-card-content>
-    </mat-card>
+      <!-- Table -->
+      <table mat-table [dataSource]="dataSource" class="mat-elevation-z8 full-width-table">
 
-    <mat-card class="dashboard-card">
-      <mat-card-title>Pending Approvals</mat-card-title>
-      <mat-card-content>
-        <h2>7</h2>
-      </mat-card-content>
-    </mat-card>
+        <!-- Template Column -->
+        <ng-container matColumnDef="template">
+          <th mat-header-cell *matHeaderCellDef> Template </th>
+          <td mat-cell *matCellDef="let element"> {{element.template}} </td>
+        </ng-container>
+
+        <!-- Description Column -->
+        <ng-container matColumnDef="description">
+          <th mat-header-cell *matHeaderCellDef> Description </th>
+          <td mat-cell *matCellDef="let element"> {{element.description}} </td>
+        </ng-container>
+
+        <!-- Group Column -->
+        <ng-container matColumnDef="group">
+          <th mat-header-cell *matHeaderCellDef> Group </th>
+          <td mat-cell *matCellDef="let element"> {{element.group}} </td>
+        </ng-container>
+
+        <!-- Edit Date Column -->
+        <ng-container matColumnDef="editDate">
+          <th mat-header-cell *matHeaderCellDef> Edit Date </th>
+          <td mat-cell *matCellDef="let element"> {{element.editDate | date:'short'}} </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+      </table>
+    </div>
   </div>
+
 </div>

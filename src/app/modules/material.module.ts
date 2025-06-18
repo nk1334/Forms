@@ -11,7 +11,10 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatMenuModule } from '@angular/material/menu';
-
+import { MatSidenavModule } from '@angular/material/sidenav';
+import { MatTableModule } from '@angular/material/table';
+import { MatListModule } from '@angular/material/list';
+import { FormsModule } from '@angular/forms';
 @NgModule({
   exports: [
     CommonModule,
@@ -23,6 +26,10 @@ import { MatMenuModule } from '@angular/material/menu';
     MatToolbarModule,
     MatSnackBarModule,
     MatMenuModule,
+    MatSidenavModule,
+    MatTableModule,
+    MatListModule,
+    FormsModule
   ],
 })
 export class MaterialModule {}
