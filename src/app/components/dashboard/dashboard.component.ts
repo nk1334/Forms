@@ -1,6 +1,10 @@
 import { Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { MatTableDataSource } from '@angular/material/table';
+import { MatDialog } from '@angular/material/dialog';
+import { Inject } from '@angular/core';
+import { MAT_DIALOG_DATA } from '@angular/material/dialog';
+import { AddNewTemplateModalComponent } from '../add-new-template-modal/add-new-template-modal.component';
 
 @Component({
   selector: 'app-dashboard',
@@ -16,14 +20,14 @@ export class DashboardComponent implements OnInit {
       template: 'Notification Of Repairs Required',
       description: '17551',
       group: 'Avante Linemarking NSW',
-      editDate: new Date('2025-03-27T16:04:58')
+      editDate: new Date('2025-03-27T16:04:58'),
     },
     {
       template: 'FRM-Q-326',
       description: 'INSPECTION AND TEST REPORT FORM...',
       group: 'Avante Linemarking NSW',
-      editDate: new Date('2025-06-05T14:40:58')
-    }
+      editDate: new Date('2025-06-05T14:40:58'),
+    },
   ]);
 
   applyFilter(event: Event) {
@@ -33,8 +37,13 @@ export class DashboardComponent implements OnInit {
 
   addNew() {
     console.log('Add new template clicked');
+    this.dialog.open(AddNewTemplateModalComponent, {
+      width: '400px',
+      data: { message: '' },
+    });
   }
-  constructor(private router: Router) {}
+
+  constructor(private router: Router, private dialog: MatDialog) {}
 
   ngOnInit(): void {
     const userData = localStorage.getItem('user');

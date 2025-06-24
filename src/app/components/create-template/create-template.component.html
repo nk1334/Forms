@@ -1,0 +1,60 @@
+<div class="form-builder">
+  <div class="top-section">
+    <h2>Form Builder</h2>
+    <button (click)="backToDashboard()">Back to Dashboard</button>
+  </div>
+  <div class="main-content">
+    <div class="field-palette">
+      <h3>Field Palette</h3>
+      <div class="draggable-field" *ngFor="let field of paletteFields" draggable="true"
+        (dragstart)="onDragStart(field.type)">{{ field.label }}</div>
+    </div>
+
+    <div class="form-canvas" (dragover)="allowDrop($event)" (drop)="dropField($event)">
+      <ng-container *ngFor="let page of formPages; let pi = index">
+        <div class="form-page" *ngIf="currentPage === pi">
+          <div class="form-grid">
+            <div *ngFor="let field of page.fields" class="form-field" [ngClass]="field.width" draggable="true"
+              (dragstart)="onFieldDragStart(field, pi)">
+              <label>{{ field.label }}</label>
+              <input [type]="field.type" [placeholder]="field.placeholder">
+              <button type="button" (click)="removeField(pi, field)">X</button>
+            </div>
+          </div>
+        </div>
+      </ng-container>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button (click)="generateJSON()">Generate JSON</button>
+    <button (click)="saveForm()">Save Form</button>
+    <button (click)="loadForm()">Load Saved</button>
+    <button (click)="exportToPDF()">Save as PDF</button>
+  </div>
+
+  <div class="pagination">
+    <span>Page {{ currentPage + 1 }} of {{ formPages.length }}</span>
+    <button (click)="prevPage()">Previous</button>
+    <button (click)="nextPage()">Next</button>
+  </div>
+</div>
+
+<div *ngIf="fieldConfigVisible" class="popup-overlay">
+  <div class="popup">
+    <h3>Configure Field</h3>
+    <form (ngSubmit)="createField()">
+      <input type="text" [(ngModel)]="newField.label" name="label" placeholder="Label" required>
+      <select [(ngModel)]="newField.type" name="type" required>
+        <option *ngFor="let type of inputTypes" [value]="type">{{ type }}</option>
+      </select>
+      <input type="text" [(ngModel)]="newField.placeholder" name="placeholder" placeholder="Placeholder">
+      <select [(ngModel)]="newField.width" name="width">
+        <option value="small">Small</option>
+        <option value="full">Full Width</option>
+      </select>
+      <button type="submit">Create</button>
+      <button type="button" (click)="cancelFieldConfig()">Cancel</button>
+    </form>
+  </div>
+</div>

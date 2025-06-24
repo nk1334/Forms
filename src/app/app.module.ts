@@ -8,6 +8,9 @@ import { SignupComponent } from './components/signup/signup.component';
 import { DashboardComponent } from './components/dashboard/dashboard.component';
 import { MaterialModule } from './modules/material.module';
 import { ReactiveFormsModule } from '@angular/forms';
+import { AddNewTemplateModalComponent } from './components/add-new-template-modal/add-new-template-modal.component';
+import { CreateTemplateComponent } from './components/create-template/create-template.component';
+import { CreateFormComponent } from './components/create-form/create-form.component';
 
 @NgModule({
   declarations: [
@@ -15,6 +18,9 @@ import { ReactiveFormsModule } from '@angular/forms';
     LoginComponent,
     SignupComponent,
     DashboardComponent,
+    AddNewTemplateModalComponent,
+    CreateTemplateComponent,
+    CreateFormComponent,
   ],
   imports: [
     BrowserModule,
