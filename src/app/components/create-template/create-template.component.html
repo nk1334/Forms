@@ -1,7 +1,11 @@
 <div class="form-builder">
   <div class="top-section">
     <h2>Form Builder</h2>
-    <button (click)="backToDashboard()">Back to Dashboard</button>
+    <div class="top-actions">
+      <button mat-raised-button color="primary" (click)="backToDashboard()">Back to Dashboard</button>
+      <button mat-raised-button color="primary" (click)="saveForm()">Save Form</button>
+      <button mat-raised-button color="primary" (click)="exportToPDF()">Save as PDF</button>
+    </div>
   </div>
   <div class="main-content">
     <div class="field-palette">
@@ -11,13 +15,16 @@
     </div>
 
     <div class="form-canvas" (dragover)="allowDrop($event)" (drop)="dropField($event)">
-      <ng-container *ngFor="let page of formPages; let pi = index">
+      <ng-container *ngFor="let page of formPages || []; let pi = index">
         <div class="form-page" *ngIf="currentPage === pi">
           <div class="form-grid">
-            <div *ngFor="let field of page.fields" class="form-field" [ngClass]="field.width" draggable="true"
-              (dragstart)="onFieldDragStart(field, pi)">
+            <div *ngFor="let field of page.fields" class="form-field form-grid-item" [ngClass]="field.width"
+              draggable="true" (dragstart)="onFieldDragStart(field, pi)">
               <label>{{ field.label }}</label>
-              <input [type]="field.type" [placeholder]="field.placeholder">
+              <input *ngIf="field.type!=='branch'" [type]="field.type" [placeholder]="field.placeholder">
+              <select *ngIf="field.type==='branch'" [ngModel]="field.options" (ngModelChange)="field.options = $event">
+                <option *ngFor="let option of field.options || []" [value]="option.value">{{ option.label }}</option>
+              </select>
               <button type="button" (click)="removeField(pi, field)">X</button>
             </div>
           </div>
@@ -26,18 +33,18 @@
     </div>
   </div>
 
-  <div class="actions">
+  <!-- <div class="actions">
     <button (click)="generateJSON()">Generate JSON</button>
-    <button (click)="saveForm()">Save Form</button>
+    <button mat-raised-button color="primary" (click)="saveForm()">Save Form</button>
     <button (click)="loadForm()">Load Saved</button>
-    <button (click)="exportToPDF()">Save as PDF</button>
-  </div>
+    <button mat-raised-button color="primary" (click)="exportToPDF()">Save as PDF</button>
+  </div> -->
 
-  <div class="pagination">
+  <!-- <div class="pagination">
     <span>Page {{ currentPage + 1 }} of {{ formPages.length }}</span>
     <button (click)="prevPage()">Previous</button>
     <button (click)="nextPage()">Next</button>
-  </div>
+  </div> -->
 </div>
 
 <div *ngIf="fieldConfigVisible" class="popup-overlay">

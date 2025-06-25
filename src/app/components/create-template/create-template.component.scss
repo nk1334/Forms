@@ -1,4 +1,17 @@
 /* form-builder.component.css */
+.top-section {
+  display: flex;
+  justify-content: space-between;
+  background-color: #2196f3;
+  padding: 10px;
+  color: white;
+  align-items: center;
+  .top-actions{
+    display: flex;
+    gap: 10px;
+  }
+}
+
 .search-bar {
   padding: 20px;
   display: flex;
@@ -43,14 +56,18 @@
   width: 200px;
   border: 1px solid #ccc;
   background-color: #f9f9f9;
+  h3 {
+    font-size: 18px;
+  }
 }
 
 .draggable-field {
-  padding: 8px;
+  background: #e3f2fd;
+  padding: 10px;
   margin: 5px 0;
-  background: #e0e0e0;
   cursor: grab;
-  border-radius: 4px;
+  border: 1px solid #90caf9;
+  user-select: none;
 }
 
 .form-canvas {
@@ -109,4 +126,39 @@
 .main-content {
   display: inline-flex;
   width: 95vw;
+}
+
+.form-page {
+  width: fit-content;
+}
+
+.form-grid {
+  display: inline-flex;
+  flex-wrap: wrap; /* allows items to wrap like grid rows */
+  gap: 10px; /* space between items */
+  align-items: stretch; /* aligns items vertically */
+  justify-content: flex-start; /* aligns items horizontally */
+  max-width: 100%; /* prevents overflow */
+}
+.form-grid-item {
+  width: 100%; //calc(27.333% - 5px); //flex: 1 1 150px; /* grow, shrink, base width */
+  min-width: fit-content; /* minimum width per item */
+  box-sizing: border-box;
+  border: 1px solid #ccc;
+  padding: 10px;
+
+  input, select {
+    margin: 10px;
+  }
+  button {
+    background: red;
+    border: 0;
+    padding: 7px;
+    color: #fff;
+    border-radius: 35%;
+    font-weight: 600;
+    font-size: 12px;
+    width: 25px;
+    cursor: pointer;
+  }
 }

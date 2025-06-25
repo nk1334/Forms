@@ -14,21 +14,14 @@ import { AddNewTemplateModalComponent } from '../add-new-template-modal/add-new-
 export class DashboardComponent implements OnInit {
   user: any;
   currentTime = new Date().toLocaleString();
-  displayedColumns: string[] = ['template', 'description', 'group', 'editDate'];
-  dataSource = new MatTableDataSource([
-    {
-      template: 'Notification Of Repairs Required',
-      description: '17551',
-      group: 'Avante Linemarking NSW',
-      editDate: new Date('2025-03-27T16:04:58'),
-    },
-    {
-      template: 'FRM-Q-326',
-      description: 'INSPECTION AND TEST REPORT FORM...',
-      group: 'Avante Linemarking NSW',
-      editDate: new Date('2025-06-05T14:40:58'),
-    },
-  ]);
+  formListData: any;
+  displayedColumns: string[] = [
+    'serialNo',
+    'template',
+    'description',
+    'actions',
+  ];
+  dataSource = new MatTableDataSource<any>([]);
 
   applyFilter(event: Event) {
     const value = (event.target as HTMLInputElement).value;
@@ -47,11 +40,33 @@ export class DashboardComponent implements OnInit {
 
   ngOnInit(): void {
     const userData = localStorage.getItem('user');
+    const savedFormPages: any = localStorage.getItem('savedFormPages');
+    this.formListData = JSON.parse(savedFormPages) || [];
+    this.dataSource.data = this.formListData; // Set data for filtering
     this.user = userData ? JSON.parse(userData) : null;
+
+    // Optional: Custom filter predicate for filtering by template or description
+    this.dataSource.filterPredicate = (data: any, filter: string) => {
+      const template = data.template ? data.template.toLowerCase() : '';
+      const description = data.description ? data.description.toLowerCase() : '';
+      return template.includes(filter) || description.includes(filter);
+    };
   }
 
   logout(): void {
     localStorage.removeItem('user');
     this.router.navigate(['/login']);
+  }
+
+  editTemplate(template: any): void {
+    console.log('Edit template clicked', template);
+    this.router.navigate(['/create-template'], {
+      queryParams: { templateId: template.id },
+    });
+  }
+
+  deleteTemplate(template: any): void {
+    console.log('Delete template clicked', template);
+    // Logic to delete the template
   }
 }

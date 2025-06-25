@@ -1,10 +1,13 @@
 import { Component } from '@angular/core';
 import { Router } from '@angular/router';
+import html2pdf from 'html2pdf.js';
+
 interface FormField {
   label: string;
   type: string;
   placeholder?: string;
   width?: 'small' | 'full';
+  options?: { value: string; label: string }[];
 }
 
 interface FormPage {
@@ -32,7 +35,7 @@ export class CreateTemplateComponent {
     { label: 'Branch Field', type: 'branch' },
     { label: 'Phone Field', type: 'tel' },
     { label: 'Radio Field', type: 'radio' },
-    { label: 'Photo', type: 'photo' },
+    { label: 'Photo', type: 'file' },
     { label: 'Empty Box', type: 'empty' },
     { label: 'Submit Button', type: 'submit' },
   ];
@@ -44,7 +47,7 @@ export class CreateTemplateComponent {
     'email',
     'radio',
     'tel',
-    'photo',
+    'file',
     'branch',
     'id',
     'description',
@@ -58,7 +61,7 @@ export class CreateTemplateComponent {
     placeholder: '',
     width: 'small',
   };
-  formPages: FormPage[] = [{ fields: [] }];
+  formPages: FormPage[] = new Array({ fields: [] });
   currentPage = 0;
 
   draggedType: string | null = null;
@@ -92,9 +95,11 @@ export class CreateTemplateComponent {
     this.draggedField = field;
     this.draggedType = null;
     const idx = this.formPages[pageIndex].fields.indexOf(field);
-    if (idx > -1) {
-      this.formPages[pageIndex].fields.splice(idx, 1);
-    }
+    // if (idx > -1) {
+    //   setTimeout(() => {
+    //     this.formPages[pageIndex].fields.splice(idx, 1);
+    //   }, 200);
+    // }
   }
 
   allowDrop(e: DragEvent) {
@@ -129,7 +134,52 @@ export class CreateTemplateComponent {
   }
 
   createField() {
-    this.formPages[this.currentPage].fields.push({ ...this.newField });
+    // if (this.newField.type === 'branch') {
+    //   const inputEl: HTMLSelectElement = document.createElement('select');
+    //   const id = this.generateId(); // Make sure you define this or pass `id` as a parameter
+
+    //   inputEl.id = `field-${id}`;
+    //   inputEl.name = 'branch_' + id;
+
+    //   const defaultOpt: HTMLOptionElement = document.createElement('option');
+    //   defaultOpt.value = '';
+    //   defaultOpt.textContent = 'Select your option';
+    //   inputEl.appendChild(defaultOpt);
+
+    //   const options: { value: string; label: string }[] = [
+    //     { value: '0', label: 'NSW' },
+    //     { value: '1', label: 'Branch 0 - YATALA' },
+    //     { value: '2', label: 'Branch 3 - MACKAY' },
+    //   ];
+
+    //   options.forEach((opt) => {
+    //     const option: HTMLOptionElement = document.createElement('option');
+    //     option.value = opt.value;
+    //     option.textContent = opt.label;
+    //     inputEl.appendChild(option);
+    //   });
+
+    //   // Append to the DOM or form wrapper
+    //   // const container = document.getElementById('dynamic-form-container');
+    //   // if (container) {
+    //   // this.newField = inputEl;
+    //   // }
+    // }
+    if (this.newField.type === 'branch') {
+      this.formPages[this.currentPage].fields.push({
+        label: this.newField.label,
+        type: this.newField.type,
+        placeholder: this.newField.placeholder,
+        width: this.newField.width,
+        options: [
+          { value: '0', label: 'NSW' },
+          { value: '1', label: 'Branch 0 - YATALA' },
+          { value: '2', label: 'Branch 3 - MACKAY' },
+        ],
+      });
+    } else {
+      this.formPages[this.currentPage].fields.push({ ...this.newField });
+    }
     this.cancelFieldConfig();
   }
 
@@ -140,26 +190,56 @@ export class CreateTemplateComponent {
     }
   }
 
-  prevPage() {
-    if (this.currentPage > 0) {
-      this.currentPage--;
-    }
-  }
+  // prevPage() {
+  //   if (this.currentPage > 0) {
+  //     this.currentPage--;
+  //   }
+  // }
 
-  nextPage() {
-    if (this.currentPage === this.formPages.length - 1) {
-      this.formPages.push({ fields: [] });
-    }
-    this.currentPage++;
-  }
+  // nextPage() {
+  //   if (this.currentPage === this.formPages.length - 1) {
+  //     this.formPages.push({ fields: [] });
+  //   }
+  //   this.currentPage++;
+  // }
 
   generateJSON() {
     alert(JSON.stringify(this.formPages, null, 2));
   }
 
   saveForm() {
-    localStorage.setItem('savedFormPages', JSON.stringify(this.formPages));
-    alert('Form saved to local storage');
+    if (this.formPages[0].fields.length !== 0) {
+      const filename = prompt('Enter filename for the PDF', 'form');
+      if (!filename) {
+        alert('Cannot save form without a filename');
+        return;
+      }
+      var formData: any[] = [];
+      const existingData = localStorage.getItem('savedFormPages');
+      if (existingData) {
+        const existingFormData = JSON.parse(existingData);
+        if (existingFormData.length > 0) {
+          formData.push(...existingFormData);
+          formData.push({
+            formId: this.generateId(),
+            formName: filename,
+            formPages: this.formPages,
+          });
+        } else {
+          formData = [];
+          formData.push({
+            formId: this.generateId(),
+            formName: filename,
+            formPages: this.formPages,
+          });
+        }
+      }
+      localStorage.setItem('savedFormPages', JSON.stringify(formData));
+      alert('Form saved to local storage');
+      this.router.navigate(['/dashboard']);
+    } else {
+      alert('Cannot save an empty form');
+    }
   }
 
   loadForm() {
@@ -174,14 +254,21 @@ export class CreateTemplateComponent {
   }
 
   exportToPDF() {
-    import('html2pdf.js').then((html2pdf) => {
+    const filename = prompt('Enter filename for the PDF', 'form');
+
+    if (!filename) {
+      alert('PDF export canceled');
+      return;
+    }
+    import('html2pdf.js').then((module) => {
+      const html2pdf = module.default;
       const content = document.querySelector('.form-canvas');
       if (content) {
         html2pdf()
           .from(content)
           .set({
             margin: 1,
-            filename: 'form.pdf',
+            filename: `${filename}.pdf`,
             html2canvas: { scale: 2 },
             jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
           })
@@ -192,5 +279,9 @@ export class CreateTemplateComponent {
 
   private capitalize(str: string): string {
     return str.charAt(0).toUpperCase() + str.slice(1);
+  }
+
+  private generateId(): string {
+    return Math.random().toString(36).substr(2, 9);
   }
 }
