@@ -26,8 +26,9 @@ export class CreateTemplateComponent {
   fieldConfigVisible = false;
 
   paletteFields = [
+    { label: 'Project Title', type: 'project-title' },
     { label: 'ID Field', type: 'id' },
-    { label: 'Description Field', type: 'description' },
+    { label: 'Description Field', type: 'textarea' },
     { label: 'Date Field', type: 'date' },
     { label: 'Text Field', type: 'text' },
     { label: 'Number Field', type: 'number' },
@@ -134,37 +135,6 @@ export class CreateTemplateComponent {
   }
 
   createField() {
-    // if (this.newField.type === 'branch') {
-    //   const inputEl: HTMLSelectElement = document.createElement('select');
-    //   const id = this.generateId(); // Make sure you define this or pass `id` as a parameter
-
-    //   inputEl.id = `field-${id}`;
-    //   inputEl.name = 'branch_' + id;
-
-    //   const defaultOpt: HTMLOptionElement = document.createElement('option');
-    //   defaultOpt.value = '';
-    //   defaultOpt.textContent = 'Select your option';
-    //   inputEl.appendChild(defaultOpt);
-
-    //   const options: { value: string; label: string }[] = [
-    //     { value: '0', label: 'NSW' },
-    //     { value: '1', label: 'Branch 0 - YATALA' },
-    //     { value: '2', label: 'Branch 3 - MACKAY' },
-    //   ];
-
-    //   options.forEach((opt) => {
-    //     const option: HTMLOptionElement = document.createElement('option');
-    //     option.value = opt.value;
-    //     option.textContent = opt.label;
-    //     inputEl.appendChild(option);
-    //   });
-
-    //   // Append to the DOM or form wrapper
-    //   // const container = document.getElementById('dynamic-form-container');
-    //   // if (container) {
-    //   // this.newField = inputEl;
-    //   // }
-    // }
     if (this.newField.type === 'branch') {
       this.formPages[this.currentPage].fields.push({
         label: this.newField.label,

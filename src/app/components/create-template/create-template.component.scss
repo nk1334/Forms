@@ -6,7 +6,7 @@
   padding: 10px;
   color: white;
   align-items: center;
-  .top-actions{
+  .top-actions {
     display: flex;
     gap: 10px;
   }
@@ -140,6 +140,9 @@
   justify-content: flex-start; /* aligns items horizontally */
   max-width: 100%; /* prevents overflow */
 }
+.element-card {
+  max-width: 400px;
+}
 .form-grid-item {
   width: 100%; //calc(27.333% - 5px); //flex: 1 1 150px; /* grow, shrink, base width */
   min-width: fit-content; /* minimum width per item */
@@ -147,7 +150,9 @@
   border: 1px solid #ccc;
   padding: 10px;
 
-  input, select {
+  input,
+  select,
+  textarea {
     margin: 10px;
   }
   button {
