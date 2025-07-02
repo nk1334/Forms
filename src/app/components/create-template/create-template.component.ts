@@ -1,13 +1,16 @@
 import { Component } from '@angular/core';
 import { Router } from '@angular/router';
-import html2pdf from 'html2pdf.js';
+import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
+import SignaturePad from 'signature_pad';
 
 interface FormField {
+  id: string;
   label: string;
   type: string;
   placeholder?: string;
-  width?: 'small' | 'full';
+  width?: '150' | '300' | '400';
   options?: { value: string; label: string }[];
+  signaturePadOptions?: any;
 }
 
 interface FormPage {
@@ -25,22 +28,30 @@ export class CreateTemplateComponent {
   plusPopupVisible = false;
   fieldConfigVisible = false;
 
-  paletteFields = [
-    { label: 'Project Title', type: 'project-title' },
-    { label: 'ID Field', type: 'id' },
-    { label: 'Description Field', type: 'textarea' },
-    { label: 'Date Field', type: 'date' },
-    { label: 'Text Field', type: 'text' },
-    { label: 'Number Field', type: 'number' },
-    { label: 'Email Field', type: 'email' },
-    { label: 'Branch Field', type: 'branch' },
-    { label: 'Phone Field', type: 'tel' },
-    { label: 'Radio Field', type: 'radio' },
-    { label: 'Photo', type: 'file' },
-    { label: 'Empty Box', type: 'empty' },
-    { label: 'Submit Button', type: 'submit' },
+  paletteFields: FormField[] = [
+    { id: 'project-title', label: 'Project Name', type: 'text' },
+    { id: 'id', label: 'ID Field', type: 'id' },
+    { id: 'description', label: 'Description Field', type: 'textarea' },
+    { id: 'date', label: 'Date Field', type: 'date' },
+    { id: 'text', label: 'Text Field', type: 'text' },
+    { id: 'number', label: 'Number Field', type: 'number' },
+    { id: 'email', label: 'Email Field', type: 'email' },
+    { id: 'branch', label: 'Branch Field', type: 'branch' },
+    { id: 'tel', label: 'Phone Field', type: 'tel' },
+    { id: 'radio', label: 'Radio Field', type: 'radio' },
+    { id: 'file', label: 'Photo', type: 'file' },
+    { id: 'empty', label: 'Empty Box', type: 'empty' },
+    { id: 'signature', label: 'Signature', type: 'signature' },
+    { id: 'submit', label: 'Submit Button', type: 'submit' },
   ];
 
+  signaturePadOptions = {
+    minWidth: 1,
+    maxWidth: 3,
+    penColor: 'rgb(0, 0, 0)',
+    backgroundColor: 'rgba(255,255,255,0)',
+    velocityFilterWeight: 0.7,
+  };
   inputTypes = [
     'text',
     'number',
@@ -53,20 +64,39 @@ export class CreateTemplateComponent {
     'id',
     'description',
     'empty',
+    'signature',
     'submit',
   ];
 
   newField: FormField = {
+    id: '',
     label: '',
     type: 'text',
     placeholder: '',
-    width: 'small',
+    width: '150',
+    signaturePadOptions: this.signaturePadOptions,
   };
   formPages: FormPage[] = new Array({ fields: [] });
   currentPage = 0;
 
   draggedType: string | null = null;
   draggedField: FormField | null = null;
+
+  getInputSwitchType(type: string): string | null {
+    const allowedTypes = [
+      'text',
+      'number',
+      'email',
+      'date',
+      'radio',
+      'tel',
+      'file',
+      'id',
+      'empty',
+      'submit',
+    ];
+    return allowedTypes.includes(type) ? type : null;
+  }
 
   openPlusPopup() {
     this.plusPopupVisible = true;
@@ -87,9 +117,10 @@ export class CreateTemplateComponent {
     this.router.navigate(['/dashboard']);
   }
 
-  onDragStart(type: string) {
-    this.draggedType = type;
-    this.draggedField = null;
+  onDragStart(field: FormField) {
+    this.draggedType = field.type;
+    this.draggedField = field;
+    // this.draggedField = null;
   }
 
   onFieldDragStart(field: FormField, pageIndex: number) {
@@ -109,34 +140,69 @@ export class CreateTemplateComponent {
 
   dropField(e: DragEvent) {
     e.preventDefault();
+    // if (this.draggedField && this.draggedType === 'signature') {
+    //   const canvas = document.getElementById(
+    //     'signature-canvas' + this.draggedField?.id
+    //   ) as HTMLCanvasElement;
+    //   const signaturePad = new SignaturePad(canvas, {
+    //     minWidth: 1,
+    //     maxWidth: 3,
+    //     penColor: 'rgb(66, 133, 244)',
+    //   });
+    // } else
     if (this.draggedType) {
       this.newField = {
-        label: this.capitalize(this.draggedType),
+        id: this.generateId(),
+        label: this.capitalize(this.draggedField?.label || this.draggedType),
         type: this.draggedType,
         placeholder: '',
-        width: 'small',
+        width: '150',
+        signaturePadOptions: this.signaturePadOptions,
       };
       this.fieldConfigVisible = true;
       this.draggedType = null;
     } else if (this.draggedField) {
-      this.formPages[this.currentPage].fields.push(this.draggedField);
+      // this.formPages[this.currentPage].fields.push(this.draggedField);
       this.draggedField = null;
+    }
+  }
+
+  drop(event: CdkDragDrop<any[]>) {
+    if (this.draggedType) {
+      this.newField = {
+        id: this.generateId(),
+        label: this.capitalize(this.draggedField?.label || this.draggedType),
+        type: this.draggedType,
+        placeholder: '',
+        width: '150',
+        signaturePadOptions: this.signaturePadOptions,
+      };
+      this.fieldConfigVisible = true;
+      this.draggedType = null;
+    } else if (this.draggedField) {
+      moveItemInArray(
+        this.formPages[this.currentPage].fields,
+        event.previousIndex,
+        event.currentIndex
+      );
     }
   }
 
   cancelFieldConfig() {
     this.fieldConfigVisible = false;
     this.newField = {
+      id: this.generateId(),
       label: '',
       type: 'text',
       placeholder: '',
-      width: 'small',
+      width: '150',
     };
   }
 
   createField() {
     if (this.newField.type === 'branch') {
       this.formPages[this.currentPage].fields.push({
+        id: this.newField.id,
         label: this.newField.label,
         type: this.newField.type,
         placeholder: this.newField.placeholder,
@@ -173,6 +239,14 @@ export class CreateTemplateComponent {
   //   this.currentPage++;
   // }
 
+  clearSignature(field: FormField) {
+    if (field.type === 'signature') {
+      field.signaturePadOptions = {
+        ...field.signaturePadOptions,
+        signature: null, // Assuming you have a way to clear the signature
+      };
+    }
+  }
   generateJSON() {
     alert(JSON.stringify(this.formPages, null, 2));
   }

@@ -11,7 +11,7 @@ import { ReactiveFormsModule } from '@angular/forms';
 import { AddNewTemplateModalComponent } from './components/add-new-template-modal/add-new-template-modal.component';
 import { CreateTemplateComponent } from './components/create-template/create-template.component';
 import { CreateFormComponent } from './components/create-form/create-form.component';
-
+import { DragDropModule } from '@angular/cdk/drag-drop';
 @NgModule({
   declarations: [
     AppComponent,
@@ -27,7 +27,8 @@ import { CreateFormComponent } from './components/create-form/create-form.compon
     AppRoutingModule,
     BrowserAnimationsModule,
     MaterialModule,
-    ReactiveFormsModule
+    ReactiveFormsModule,
+    DragDropModule
   ],
   providers: [],
   bootstrap: [AppComponent],
