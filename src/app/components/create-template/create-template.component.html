@@ -18,30 +18,34 @@
       <ng-container *ngFor="let page of formPages || []; let pi = index">
         <div class="form-page" *ngIf="currentPage === pi">
           <div class="form-grid">
-            <div *ngFor="let field of page.fields" class="form-field form-row" [ngClass]="field.width" draggable="true"
-              (dragstart)="onFieldDragStart(field, pi)">
+            <div *ngFor="let field of page.fields" class="form-field form-row" [ngClass]="field.width"
+              [draggable]="!isSigning" (dragstart)="onFieldDragStart(field, pi)">
               <!-- <span>{{field | json}}</span> -->
               <label class="form-label">{{ field.label }}</label>
               <ng-container [ngSwitch]="field.type">
                 <input *ngSwitchCase="getInputSwitchType(field.type)" [type]="field.type" class="form-input"
-                  [style.width.px]="field.width" [placeholder]="field.placeholder || ''" />
+                  [style.min-width.px]="field.width" [placeholder]="field.placeholder || ''" />
                 <select *ngSwitchCase="'branch'" [ngModel]="field.options" (ngModelChange)="field.options = $event"
-                  [style.width.px]="field.width" class="form-input">
+                  [style.min-width.px]="field.width" class="form-input">
                   <option *ngFor="let option of field.options || []" [value]="option.value">{{ option.label }}</option>
                 </select>
                 <textarea *ngSwitchCase="'textarea'" [placeholder]="field.placeholder || ''"
-                  [style.width.px]="field.width" class="form-input"></textarea>
+                  [style.min-width.px]="field.width" class="form-input"></textarea>
                 <div *ngSwitchCase="'signature'" class="signature-pad-container form-input"
-                  [style.width.px]="field.width">
-                  <canvas [id]="'signature-canvas'+field.id" [style.width.px]="field.width" height="100"
-                    style="border: 1px solid #ccc;"></canvas>
+                  [style.min-width.px]="field.width">
+                  <canvas #canvasElement [style.width.px]="field.width" height="100" (mousedown)="startDrawing($event)"
+                    (mouseup)="stopDrawing($event)" (mouseleave)="stopDrawing($event)" (mousemove)="draw($event)"
+                    style="border: 1px solid #ccc; touch-action: none; position: relative;"></canvas>
+                  <button mat-fab matTooltip="Clear signature" aria-label="Clear signature" class="clear-sign-btn"
+                    (click)="clearCanvas()">
+                    <mat-icon>clear</mat-icon>
+                  </button>
                 </div>
               </ng-container>
               <button title="Remove field" matFab aria-label="Remove field icon button with a delete icon"
                 (click)="removeField(pi, field)" class="delete-btn">
                 <mat-icon>delete</mat-icon>
               </button>
-              <!-- <button type="button" (click)="removeField(pi, field)">X</button> -->
             </div>
           </div>
         </div>
@@ -70,7 +74,7 @@
 
       <mat-form-field appearance="outline" class="full-width">
         <mat-label>Label</mat-label>
-        <input matInput [(ngModel)]="newField.label" name="label" required>
+        <input matInput [disabled]="newField.label === ''" [(ngModel)]="newField.label" name="label" required>
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="full-width">
@@ -82,8 +86,8 @@
         <mat-label>Width</mat-label>
         <mat-select [(ngModel)]="newField.width" name="width">
           <mat-option value="150">Small</mat-option>
-          <mat-option value="300">Medium Width</mat-option>
-          <mat-option value="400">Full Width</mat-option>
+          <mat-option value="300">Medium</mat-option>
+          <mat-option value="400">Large</mat-option>
         </mat-select>
       </mat-form-field>
 

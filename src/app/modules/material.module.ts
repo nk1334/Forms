@@ -17,6 +17,7 @@ import { MatListModule } from '@angular/material/list';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule  } from '@angular/material/dialog';
 import { MatSelectModule } from '@angular/material/select';
+import { MatTooltipModule } from '@angular/material/tooltip';
 @NgModule({
   exports: [
     CommonModule,
@@ -33,7 +34,8 @@ import { MatSelectModule } from '@angular/material/select';
     MatListModule,
     FormsModule,
     MatDialogModule,
-    MatSelectModule
+    MatSelectModule,
+    MatTooltipModule
   ],
 })
 export class MaterialModule {}

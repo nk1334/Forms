@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ElementRef, ViewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import SignaturePad from 'signature_pad';
@@ -10,7 +10,6 @@ interface FormField {
   placeholder?: string;
   width?: '150' | '300' | '400';
   options?: { value: string; label: string }[];
-  signaturePadOptions?: any;
 }
 
 interface FormPage {
@@ -23,6 +22,12 @@ interface FormPage {
   styleUrls: ['./create-template.component.scss'],
 })
 export class CreateTemplateComponent {
+  @ViewChild('canvasElement', { static: false })
+  canvasRef!: ElementRef<HTMLCanvasElement>;
+  private ctx?: CanvasRenderingContext2D;
+  private drawing = false;
+  isSigning = false;
+
   dashboardVisible = true;
   formBuilderVisible = true;
   plusPopupVisible = false;
@@ -45,13 +50,6 @@ export class CreateTemplateComponent {
     { id: 'submit', label: 'Submit Button', type: 'submit' },
   ];
 
-  signaturePadOptions = {
-    minWidth: 1,
-    maxWidth: 3,
-    penColor: 'rgb(0, 0, 0)',
-    backgroundColor: 'rgba(255,255,255,0)',
-    velocityFilterWeight: 0.7,
-  };
   inputTypes = [
     'text',
     'number',
@@ -73,8 +71,7 @@ export class CreateTemplateComponent {
     label: '',
     type: 'text',
     placeholder: '',
-    width: '150',
-    signaturePadOptions: this.signaturePadOptions,
+    width: '150'
   };
   formPages: FormPage[] = new Array({ fields: [] });
   currentPage = 0;
@@ -106,6 +103,57 @@ export class CreateTemplateComponent {
     this.plusPopupVisible = false;
   }
   constructor(private router: Router) {}
+
+  startDrawing(event: MouseEvent) {
+    const canvas = this.canvasRef?.nativeElement;
+    const context = canvas.getContext('2d');
+
+    if (!context) {
+      console.error('Failed to get canvas 2D context.');
+      return;
+    }
+
+    this.ctx = context;
+    if (!this.ctx) return;
+
+    this.drawing = true;
+    this.isSigning = true;
+    this.ctx.beginPath(); // Always start a new path
+    this.draw(event);
+  }
+
+  stopDrawing(event: MouseEvent) {
+    this.drawing = false;
+    this.isSigning = false;
+    this.ctx?.beginPath(); // reset path to avoid artifact lines
+  }
+
+  draw(event: MouseEvent) {
+    if (!this.drawing || !this.ctx) return;
+
+    const canvas = this.canvasRef.nativeElement;
+    const rect = canvas.getBoundingClientRect();
+
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+
+    this.ctx.lineWidth = 2;
+    this.ctx.lineCap = 'round';
+    this.ctx.strokeStyle = '#000';
+
+    this.ctx.lineTo(x, y);
+    this.ctx.stroke();
+    this.ctx.beginPath();
+    this.ctx.moveTo(x, y);
+  }
+
+  clearCanvas() {
+    if (!this.ctx) return;
+
+    const canvas = this.canvasRef.nativeElement;
+    this.ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
   startTemplate(e: Event) {
     e.preventDefault();
     this.plusPopupVisible = false;
@@ -140,24 +188,16 @@ export class CreateTemplateComponent {
 
   dropField(e: DragEvent) {
     e.preventDefault();
-    // if (this.draggedField && this.draggedType === 'signature') {
-    //   const canvas = document.getElementById(
-    //     'signature-canvas' + this.draggedField?.id
-    //   ) as HTMLCanvasElement;
-    //   const signaturePad = new SignaturePad(canvas, {
-    //     minWidth: 1,
-    //     maxWidth: 3,
-    //     penColor: 'rgb(66, 133, 244)',
-    //   });
-    // } else
     if (this.draggedType) {
       this.newField = {
         id: this.generateId(),
-        label: this.capitalize(this.draggedField?.label || this.draggedType),
+        label:
+          this.draggedField?.label !== 'Project Name'
+            ? this.capitalize(this.draggedField?.label || this.draggedType)
+            : '',
         type: this.draggedType,
         placeholder: '',
-        width: '150',
-        signaturePadOptions: this.signaturePadOptions,
+        width: '150'
       };
       this.fieldConfigVisible = true;
       this.draggedType = null;
@@ -174,8 +214,7 @@ export class CreateTemplateComponent {
         label: this.capitalize(this.draggedField?.label || this.draggedType),
         type: this.draggedType,
         placeholder: '',
-        width: '150',
-        signaturePadOptions: this.signaturePadOptions,
+        width: '150'
       };
       this.fieldConfigVisible = true;
       this.draggedType = null;
@@ -239,14 +278,6 @@ export class CreateTemplateComponent {
   //   this.currentPage++;
   // }
 
-  clearSignature(field: FormField) {
-    if (field.type === 'signature') {
-      field.signaturePadOptions = {
-        ...field.signaturePadOptions,
-        signature: null, // Assuming you have a way to clear the signature
-      };
-    }
-  }
   generateJSON() {
     alert(JSON.stringify(this.formPages, null, 2));
   }
