@@ -1,0 +1,62 @@
+textarea {
+  width: 100%;
+  max-width: 350px;
+  height: 80px;
+  resize: both;
+  margin-bottom: 10px;
+  padding: 10px;
+  font-size: 16px;
+  border-radius: 5px;
+  border: 1.5px solid #ccc;
+}
+
+button {
+  margin-top: 10px;
+  padding: 10px 20px;
+  font-size: 16px;
+  cursor: pointer;
+  border-radius: 5px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+}
+
+table {
+  width: 100%;
+  margin-top: 20px;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 12px 15px;
+  border: 1px solid #ddd;
+  text-align: left;
+}
+
+tbody tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+/* Resizable table styles */
+.resizable-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.resizable-table th, .resizable-table td {
+  border: 1px solid #ccc;
+  padding: 10px;
+  overflow: hidden;
+  position: relative;
+}
+
+.resizable-table th .resizer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 5px;
+  cursor: col-resize;
+  user-select: none;
+  height: 100%;
+  background-color: transparent;
+}

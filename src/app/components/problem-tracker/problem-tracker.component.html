@@ -1,0 +1,112 @@
+<h2>Problem Tracker for Vehicles</h2>
+<h1 style="color: darkblue;"></h1>
+
+<!-- Problem input area -->
+<textarea
+  [(ngModel)]="newDescription"
+  placeholder="Enter problem description"
+  rows="4"
+  style="width: 300px; height: 60px; resize: both; margin-right: 10px;"
+></textarea>
+
+<!-- Add Problem button -->
+<button
+  (click)="addProblem()"
+  style="margin-top: 10px; padding: 10px 20px; font-size: 16px;"
+>
+  Add Problem
+</button>
+
+<!-- JSON Import -->
+<input
+  type="file"
+  (change)="importProblems($event)"
+  accept=".json"
+  style="margin-left: 15px;"
+/>
+
+<!-- Problem Table -->
+<table
+  style="width: 100%; margin-top: 20px; border-collapse: collapse;"
+  border="1"
+  class="resizable-table"
+>
+  <thead>
+    <tr>
+      <th style="width: 5%; padding: 10px; text-align: center;">
+        Id <div class="resizer"></div>
+      </th>
+      <th style="width: 60%; padding: 10px; text-align: left;">
+        Description <div class="resizer"></div>
+      </th>
+      <th style="width: 25%; padding: 10px; text-align: left;">
+        Status <div class="resizer"></div>
+      </th>
+      <th style="width: 10%; padding: 10px; text-align: center;">
+        Actions
+      </th>
+    </tr>
+  </thead>
+
+  <tbody
+    cdkDropList
+    [cdkDropListData]="problems"
+    (cdkDropListDropped)="drop($event)"
+  >
+    <tr *ngFor="let problem of problems" cdkDrag style="cursor: move;">
+      <!-- ID Column -->
+      <td style="text-align: center; padding: 10px;">
+        {{ problem.id }}
+      </td>
+
+      <!-- Description Column -->
+      <td style="padding: 10px; word-wrap: break-word; white-space: pre-wrap;">
+        {{ problem.description }}
+      </td>
+
+      <!-- Status Column -->
+      <td style="padding: 10px;">
+        <label style="margin-right: 15px; cursor: pointer;">
+          <input
+            type="radio"
+            name="status-{{ problem.id }}"
+            [value]="'Pending'"
+            [(ngModel)]="problem.status"
+            (change)="updateStatus()"
+          />
+          Pending
+        </label>
+
+        <label style="cursor: pointer;">
+          <input
+            type="radio"
+            name="status-{{ problem.id }}"
+            [value]="'Completed'"
+            [(ngModel)]="problem.status"
+            (change)="updateStatus()"
+          />
+          Completed
+        </label>
+      </td>
+
+      <!-- Actions Column -->
+      <td style="text-align: center; padding: 10px;">
+        <button
+          (click)="deleteProblem(problem.id)"
+          style="padding: 6px 12px; font-size: 14px; background-color: red; color: white; border: none; border-radius: 4px; cursor: pointer;"
+        >
+          Delete
+        </button>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- Export Buttons -->
+<button (click)="exportToExcel()" style="margin-top: 20px; margin-right: 10px;">
+  Save as Excel
+</button>
+
+<button (click)="exportToPDF()" style="margin-top: 20px;">
+  Save as PDF
+</button>

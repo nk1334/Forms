@@ -12,6 +12,8 @@ import { AddNewTemplateModalComponent } from './components/add-new-template-moda
 import { CreateTemplateComponent } from './components/create-template/create-template.component';
 import { CreateFormComponent } from './components/create-form/create-form.component';
 import { DragDropModule } from '@angular/cdk/drag-drop';
+import { ProblemTrackerComponent } from './components/problem-tracker/problem-tracker.component';
+import { FormsModule } from '@angular/forms'; // Needed for ngModel
 @NgModule({
   declarations: [
     AppComponent,
@@ -21,6 +23,7 @@ import { DragDropModule } from '@angular/cdk/drag-drop';
     AddNewTemplateModalComponent,
     CreateTemplateComponent,
     CreateFormComponent,
+    ProblemTrackerComponent,
   ],
   imports: [
     BrowserModule,
@@ -28,7 +31,8 @@ import { DragDropModule } from '@angular/cdk/drag-drop';
     BrowserAnimationsModule,
     MaterialModule,
     ReactiveFormsModule,
-    DragDropModule
+    DragDropModule,
+     FormsModule
   ],
   providers: [],
   bootstrap: [AppComponent],
