@@ -55,36 +55,46 @@
       <table *ngIf="formListData.length" mat-table [dataSource]="formListData"
         class="mat-elevation-z8 full-width-table">
 
+        <!-- Serial No Column -->
         <ng-container matColumnDef="serialNo">
           <th mat-header-cell *matHeaderCellDef> Serial No </th>
-          <td mat-cell *matCellDef="let element; let i = index"> {{i + 1}} </td>
+          <td mat-cell *matCellDef="let element; let i = index"> {{ i + 1 }} </td>
         </ng-container>
 
+        <!-- Template Name Column -->
         <ng-container matColumnDef="template">
           <th mat-header-cell *matHeaderCellDef> Template Name </th>
-          <td mat-cell *matCellDef="let element"> {{element.formName}} </td>
+          <td mat-cell *matCellDef="let element"> {{ element.formName }} </td>
         </ng-container>
 
+        <!-- No of Fields Column -->
         <ng-container matColumnDef="description">
           <th mat-header-cell *matHeaderCellDef> No of Fields </th>
-          <td mat-cell *matCellDef="let element"> {{element.formPages[0].fields.length}} </td>
+          <td mat-cell *matCellDef="let element"> {{ element.formPages[0]?.fields?.length || 0 }} </td>
         </ng-container>
 
+        <!-- Actions Column -->
         <ng-container matColumnDef="actions">
           <th mat-header-cell *matHeaderCellDef> Actions </th>
           <td mat-cell *matCellDef="let element">
-            <button mat-icon-button (click)="editTemplate(element)">
+            <button mat-icon-button color="primary" (click)="editTemplate(element)">
               <mat-icon>edit</mat-icon>
             </button>
-            <button mat-icon-button (click)="deleteTemplate(element)">
+            <button mat-icon-button color="warn" (click)="deleteTemplate(element)">
               <mat-icon>delete</mat-icon>
             </button>
           </td>
         </ng-container>
 
+        <!-- Header and Row Definitions -->
         <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
         <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
       </table>
+
+      <!-- Optional: Show message if no templates -->
+      <div *ngIf="!dataSource.data.length" class="no-templates-message">
+        No templates found. Please add a new template.
+      </div>
     </div>
   </div>
 

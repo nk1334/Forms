@@ -91,15 +91,21 @@ interface SavedForm {
   // Inject ActivatedRoute here
  constructor(private router: Router, private route: ActivatedRoute) { }
 ngOnInit(): void {
-this.route.queryParams.subscribe(params => {
-  console.log('Query Params:', params); // ✅ ADD THIS LINE
+  this.route.queryParams.subscribe(params => {
+    console.log('Query Params:', params); // ✅ Good for debugging
 
-      const templateId = params['templateId'];
-      if (templateId) {
-         const saved = localStorage.getItem('savedFormPages');
+    const templateId = params['templateId'];
+    if (templateId) {
+      const saved = localStorage.getItem('savedFormPages');
       if (saved) {
         this.savedForms = JSON.parse(saved);
-        this.loadFormById(templateId);
+        if (this.savedForms && this.savedForms.length > 0) {
+          this.loadFormById(templateId);
+        } else {
+          console.warn('No saved forms found.');
+        }
+      } else {
+        console.warn('No savedFormPages in localStorage.');
       }
     }
   });

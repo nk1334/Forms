@@ -63,7 +63,7 @@ export class DashboardComponent implements OnInit {
   editTemplate(template: any): void {
     console.log('Edit template clicked', template);
     this.router.navigate(['/create-template'], {
-      queryParams: { templateId: template.formid }
+      queryParams: { templateId: template.formId }
     });
   }
 
