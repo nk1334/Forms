@@ -1,49 +1,103 @@
-<div class="form-builder">
-  <div class="top-section">
-    <h2>Form Builder</h2>
-    <div class="top-actions">
-      <button mat-raised-button color="primary" (click)="backToDashboard()">Back to Dashboard</button>
-      <button mat-raised-button color="primary" (click)="saveForm()">Save Form</button>
-      <button mat-raised-button color="primary" (click)="exportToPDF()">Save as PDF</button>
-    </div>
+<div class="top-section">
+  <h2>Form Builder</h2>
+  <div class="top-actions">
+    <button mat-raised-button color="primary" (click)="backToDashboard()">Back to Dashboard</button>
+    <button mat-raised-button color="primary" (click)="saveForm()">Save Form</button>
+    <button mat-raised-button color="primary" (click)="exportToPDF()">Save as PDF</button>
+    <button mat-raised-button color="accent" (click)="loadSavedFormsList()">Load Saved Forms</button>
   </div>
+</div>
+
+<div *ngIf="formListVisible" class="saved-forms-list" style="padding: 10px; border: 1px solid #ccc; margin-top: 20px;">
+  <h2>Saved Forms</h2>
+  <ul>
+    <li *ngFor="let form of savedForms" style="margin-bottom: 10px;">
+      <strong>{{ form.formName }}</strong>
+      <button mat-raised-button color="primary" style="margin-left: 10px;" (click)="loadFormById(form.formId)">Edit</button>
+    </li>
+  </ul>
+  <button mat-button color="warn" (click)="formListVisible = false; formBuilderVisible = true;">Back to Form Builder</button>
+</div>
+
+<div *ngIf="formBuilderVisible" class="form-builder">
   <div class="main-content">
     <div class="field-palette">
       <h3>Field Palette</h3>
-      <div class="draggable-field" *ngFor="let field of paletteFields" draggable="true"
-        (dragstart)="onDragStart(field)">{{ field.label }}</div>
+      <div class="draggable-field" *ngFor="let field of paletteFields" draggable="true" (dragstart)="onDragStart(field)">
+        {{ field.label }}
+      </div>
     </div>
 
     <div class="form-canvas" (dragover)="allowDrop($event)" (drop)="dropField($event)">
       <ng-container *ngFor="let page of formPages || []; let pi = index">
         <div class="form-page" *ngIf="currentPage === pi">
           <div class="form-grid">
-            <div *ngFor="let field of page.fields" class="form-field form-row" [ngClass]="field.width"
-              [draggable]="!isSigning" (dragstart)="onFieldDragStart(field, pi)">
-              <!-- <span>{{field | json}}</span> -->
+            <div
+              *ngFor="let field of page.fields; let i = index"
+              class="form-field form-row"
+              [ngClass]="field.width"
+              [draggable]="!isSigning"
+              (dragstart)="onFieldDragStart(field, pi)"
+            >
               <label class="form-label">{{ field.label }}</label>
               <ng-container [ngSwitch]="field.type">
-                <input *ngSwitchCase="getInputSwitchType(field.type)" [type]="field.type" class="form-input"
-                  [style.min-width.px]="field.width" [placeholder]="field.placeholder || ''" />
-                <select *ngSwitchCase="'branch'" [ngModel]="field.options" (ngModelChange)="field.options = $event"
-                  [style.min-width.px]="field.width" class="form-input">
-                  <option *ngFor="let option of field.options || []" [value]="option.value">{{ option.label }}</option>
+                <input
+                  *ngSwitchCase="getInputSwitchType(field.type)"
+                  [type]="field.type"
+                  class="form-input"
+                  [style.min-width.px]="field.width"
+                  [placeholder]="field.placeholder || ''"
+                />
+                <select
+                  *ngSwitchCase="'branch'"
+                  [ngModel]="field.options"
+                  (ngModelChange)="field.options = $event"
+                  [style.min-width.px]="field.width"
+                  class="form-input"
+                >
+                  <option *ngFor="let option of field.options || []" [value]="option.value">
+                    {{ option.label }}
+                  </option>
                 </select>
-                <textarea *ngSwitchCase="'textarea'" [placeholder]="field.placeholder || ''"
-                  [style.min-width.px]="field.width" class="form-input"></textarea>
-                <div *ngSwitchCase="'signature'" class="signature-pad-container form-input"
-                  [style.min-width.px]="field.width">
-                  <canvas #canvasElement [style.width.px]="field.width" height="100" (mousedown)="startDrawing($event)"
-                    (mouseup)="stopDrawing($event)" (mouseleave)="stopDrawing($event)" (mousemove)="draw($event)"
-                    style="border: 1px solid #ccc; touch-action: none; position: relative;"></canvas>
-                  <button mat-fab matTooltip="Clear signature" aria-label="Clear signature" class="clear-sign-btn"
-                    (click)="clearCanvas()">
+                <textarea
+                  *ngSwitchCase="'textarea'"
+                  [placeholder]="field.placeholder || ''"
+                  [style.min-width.px]="field.width"
+                  class="form-input"
+                ></textarea>
+                <div
+                  *ngSwitchCase="'signature'"
+                  class="signature-pad-container form-input"
+                  [style.min-width.px]="field.width"
+                >
+                  <canvas
+                    #canvasElement
+                    [style.width.px]="field.width"
+                    height="100"
+                   (pointerdown)="startDrawing($event, i)"
+                    (pointerup)="stopDrawing($event, i)"
+                    (pointerleave)="stopDrawing($event, i)"
+                    (pointermove)="draw($event, i)"
+                    style="border: 1px solid #ccc; touch-action: none; position: relative;"
+                  ></canvas>
+                  <button
+                    mat-fab
+                    matTooltip="Clear signature"
+                    aria-label="Clear signature"
+                    class="clear-sign-btn"
+                    (click)="clearCanvas(i)"
+                  >
                     <mat-icon>clear</mat-icon>
                   </button>
                 </div>
               </ng-container>
-              <button title="Remove field" matFab aria-label="Remove field icon button with a delete icon"
-                (click)="removeField(pi, field)" class="delete-btn">
+              <button
+                title="Remove field"
+                mat-fab
+                aria-label="Remove field icon button with a delete icon"
+                (click)="removeField(pi, field)"
+                class="delete-btn"
+              >
                 <mat-icon>delete</mat-icon>
               </button>
             </div>
@@ -52,34 +106,20 @@
       </ng-container>
     </div>
   </div>
-
-  <!-- <div class="actions">
-    <button (click)="generateJSON()">Generate JSON</button>
-    <button mat-raised-button color="primary" (click)="saveForm()">Save Form</button>
-    <button (click)="loadForm()">Load Saved</button>
-    <button mat-raised-button color="primary" (click)="exportToPDF()">Save as PDF</button>
-  </div> -->
-
-  <!-- <div class="pagination">
-    <span>Page {{ currentPage + 1 }} of {{ formPages.length }}</span>
-    <button (click)="prevPage()">Previous</button>
-    <button (click)="nextPage()">Next</button>
-  </div> -->
 </div>
 
 <div *ngIf="fieldConfigVisible" class="popup-overlay mat-dialog-overlay">
   <div class="popup mat-elevation-z4">
     <h3 class="form-title">Configure Field</h3>
     <form (ngSubmit)="createField()" class="field-form" #form="ngForm">
-
       <mat-form-field appearance="outline" class="full-width">
         <mat-label>Label</mat-label>
-        <input matInput [disabled]="newField.label === ''" [(ngModel)]="newField.label" name="label" required>
+        <input matInput [disabled]="newField.label === ''" [(ngModel)]="newField.label" name="label" required />
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="full-width">
         <mat-label>Placeholder</mat-label>
-        <input matInput [(ngModel)]="newField.placeholder" name="placeholder">
+        <input matInput [(ngModel)]="newField.placeholder" name="placeholder" />
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="full-width">
@@ -95,7 +135,6 @@
         <button mat-raised-button color="primary" type="submit">Create</button>
         <button mat-button color="warn" type="button" (click)="cancelFieldConfig()">Cancel</button>
       </div>
-
     </form>
   </div>
 </div>
