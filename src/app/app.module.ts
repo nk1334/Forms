@@ -13,7 +13,8 @@ import { CreateTemplateComponent } from './components/create-template/create-tem
 import { CreateFormComponent } from './components/create-form/create-form.component';
 import { DragDropModule } from '@angular/cdk/drag-drop';
 import { ProblemTrackerComponent } from './components/problem-tracker/problem-tracker.component';
-import { FormsModule } from '@angular/forms'; // Needed for ngModel
+import { FormsModule } from '@angular/forms';
+
 @NgModule({
   declarations: [
     AppComponent,
@@ -24,6 +25,7 @@ import { FormsModule } from '@angular/forms'; // Needed for ngModel
     CreateTemplateComponent,
     CreateFormComponent,
     ProblemTrackerComponent,
+   
   ],
   imports: [
     BrowserModule,

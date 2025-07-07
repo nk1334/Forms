@@ -1,7 +1,6 @@
-import { Component, ElementRef, ViewChildren, QueryList, AfterViewInit } from '@angular/core';
-import { Router } from '@angular/router';
+import { Component, ElementRef, ViewChildren, QueryList, AfterViewInit,OnInit } from '@angular/core';
 import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
-import { DragDropService } from 'src/app/service/drag-drop.service';
+import { Router,ActivatedRoute } from '@angular/router';
 
 
 export interface FormField {
@@ -13,23 +12,22 @@ export interface FormField {
   options?: { value: string; label: string }[];
 }
 
-export interface FormPage {
+ interface FormPage {
   fields: FormField[];
 }
 
-export interface SavedForm {
+interface SavedForm {
   formId: string;
   formName: string;
   formPages: FormPage[];
 }
-
 
 @Component({
   selector: 'app-create-template',
   templateUrl: './create-template.component.html',
   styleUrls: ['./create-template.component.scss'],
 })
-export class CreateTemplateComponent implements AfterViewInit {
+ export class CreateTemplateComponent implements OnInit, AfterViewInit {
   @ViewChildren('canvasElement') canvasRefs!: QueryList<ElementRef<HTMLCanvasElement>>;
   ctxList: CanvasRenderingContext2D[] = [];
   drawingList: boolean[] = [];
@@ -40,6 +38,7 @@ export class CreateTemplateComponent implements AfterViewInit {
   plusPopupVisible = false;
   fieldConfigVisible = false;
   formListVisible = false;
+  
 
   paletteFields: FormField[] = [
     { id: 'project-title', label: 'Project Name', type: 'text' },
@@ -89,19 +88,26 @@ export class CreateTemplateComponent implements AfterViewInit {
   savedForms: SavedForm[] = [];
   currentFormId: string | null = null;
 
-  constructor(private router: Router,private dragDropService:DragDropService) {
-this.dragDropService.draggedField$.subscribe((field) => {
-    if (field) {
-      this.newField = {
-        ...field,
-        id: this.generateId(),
-      };
-      this.fieldConfigVisible = true;
+  // Inject ActivatedRoute here
+ constructor(private router: Router, private route: ActivatedRoute) { }
+ngOnInit(): void {
+this.route.queryParams.subscribe(params => {
+  console.log('Query Params:', params); // ✅ ADD THIS LINE
+
+      const templateId = params['templateId'];
+      if (templateId) {
+         const saved = localStorage.getItem('savedFormPages');
+      if (saved) {
+        this.savedForms = JSON.parse(saved);
+        this.loadFormById(templateId);
+      }
     }
   });
+}
 
-
-
+  ngAfterViewInit(): void {
+    this.initCanvases();
+    this.canvasRefs.changes.subscribe(() => this.initCanvases());
   }
 
   getInputSwitchType(type: string): string | null {
@@ -140,7 +146,7 @@ this.dragDropService.draggedField$.subscribe((field) => {
   }
 
   onDragStart(field: FormField) {
-    this.dragDropService.setDraggedField(field); // Notify the service about the dragged field
+   
     this.draggedType = field.type;
     this.draggedField = field;
   }
@@ -254,8 +260,10 @@ this.dragDropService.draggedField$.subscribe((field) => {
       this.formPages = JSON.parse(JSON.stringify(formToLoad.formPages));
       this.currentPage = 0;
       this.currentFormId = formToLoad.formId;
+         // 🟡 This ensures the form builder is shown and dashboard is hidden
       this.formListVisible = false;
       this.formBuilderVisible = true;
+       this.dashboardVisible = false;
       alert(`Loaded form "${formToLoad.formName}" for editing.`);
     } else {
       alert('Form not found.');
@@ -335,10 +343,6 @@ this.dragDropService.draggedField$.subscribe((field) => {
 
   // Signature pad drawing methods modified to support multiple canvases
 
-  ngAfterViewInit() {
-    this.initCanvases();
-    this.canvasRefs.changes.subscribe(() => this.initCanvases());
-  }
 
   private initCanvases() {
     this.ctxList = [];

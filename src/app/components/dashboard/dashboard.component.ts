@@ -12,6 +12,7 @@ import { AddNewTemplateModalComponent } from '../add-new-template-modal/add-new-
   styleUrls: ['./dashboard.component.scss'],
 })
 export class DashboardComponent implements OnInit {
+  dashboardVisible = true;
   user: any;
   currentTime = new Date().toLocaleString();
   formListData: any;
@@ -22,6 +23,22 @@ export class DashboardComponent implements OnInit {
     'actions',
   ];
   dataSource = new MatTableDataSource<any>([]);
+
+  constructor(private router: Router, private dialog: MatDialog) {}
+
+  ngOnInit(): void {
+    const userData = localStorage.getItem('user');
+    const savedFormPages = localStorage.getItem('savedFormPages');
+    this.formListData = savedFormPages ? JSON.parse(savedFormPages) : [];
+    this.dataSource.data = this.formListData;
+    this.user = userData ? JSON.parse(userData) : null;
+
+    this.dataSource.filterPredicate = (data: any, filter: string) => {
+      const template = data.formName ? data.formName.toLowerCase() : '';
+      const description = data.description ? data.description.toLowerCase() : '';
+      return template.includes(filter) || description.includes(filter);
+    };
+  }
 
   applyFilter(event: Event) {
     const value = (event.target as HTMLInputElement).value;
@@ -36,22 +53,7 @@ export class DashboardComponent implements OnInit {
     });
   }
 
-  constructor(private router: Router, private dialog: MatDialog) {}
-
-  ngOnInit(): void {
-    const userData = localStorage.getItem('user');
-    const savedFormPages: any = localStorage.getItem('savedFormPages');
-    this.formListData = JSON.parse(savedFormPages) || [];
-    this.dataSource.data = this.formListData; // Set data for filtering
-    this.user = userData ? JSON.parse(userData) : null;
-
-    // Optional: Custom filter predicate for filtering by template or description
-    this.dataSource.filterPredicate = (data: any, filter: string) => {
-      const template = data.template ? data.template.toLowerCase() : '';
-      const description = data.description ? data.description.toLowerCase() : '';
-      return template.includes(filter) || description.includes(filter);
-    };
-  }
+  
 
   logout(): void {
     localStorage.removeItem('user');
@@ -61,7 +63,7 @@ export class DashboardComponent implements OnInit {
   editTemplate(template: any): void {
     console.log('Edit template clicked', template);
     this.router.navigate(['/create-template'], {
-      queryParams: { templateId: template.id },
+      queryParams: { templateId: template.formid }
     });
   }
 
