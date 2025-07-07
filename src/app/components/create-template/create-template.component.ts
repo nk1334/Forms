@@ -359,6 +359,7 @@ ngOnInit(): void {
       this.resizeCanvas(canvas, ctx);
       this.ctxList[i] = ctx;
       this.drawingList[i] = false;
+       ctx.clearRect(0, 0, canvas.width, canvas.height);
     });
   }
 
@@ -408,12 +409,5 @@ private getPointerPos(event: PointerEvent, i: number) {
     this.ctxList[i].clearRect(0, 0, canvas.width, canvas.height);
   }
 
-  private getMousePos(event: MouseEvent, i: number) {
-    const canvas = this.canvasRefs.toArray()[i].nativeElement;
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: event.clientX - rect.left,
-      y: event.clientY - rect.top,
-    };
+
   }
-}

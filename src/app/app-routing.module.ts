@@ -21,7 +21,7 @@ const routes: Routes = [
   {
     path: 'template',
     component: CreateTemplateComponent,
-    canActivate: [authGuard],
+   // canActivate: [authGuard],
   },
   {
     path: 'forms',
