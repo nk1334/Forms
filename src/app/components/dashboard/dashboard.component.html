@@ -52,7 +52,7 @@
       </mat-toolbar>
 
       <!-- Table -->
-      <table *ngIf="formListData.length" mat-table [dataSource]="formListData"
+   <table *ngIf="dataSource.data.length" mat-table [dataSource]="dataSource"
         class="mat-elevation-z8 full-width-table">
 
         <!-- Serial No Column -->

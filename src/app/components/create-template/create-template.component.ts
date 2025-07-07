@@ -313,8 +313,7 @@ ngOnInit(): void {
 
     localStorage.setItem('savedFormPages', JSON.stringify(formData));
     alert('Form saved to local storage');
-    this.router.navigate(['/dashboard']);
-  }
+    this.router.navigate(['/dashboard'],{ state: { formSaved: true ,formId: this.currentFormId } });}
 
   exportToPDF() {
     const filename = prompt('Enter filename for the PDF', 'form');
