@@ -25,8 +25,8 @@ import { FormsModule } from '@angular/forms';
     CreateTemplateComponent,
     CreateFormComponent,
     ProblemTrackerComponent,
-   
-  ],
+     
+   ],
   imports: [
     BrowserModule,
     AppRoutingModule,

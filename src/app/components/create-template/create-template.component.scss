@@ -95,7 +95,30 @@
   text-align: center;
   margin-top: 15px;
 }
+.drag-preview {
+  padding: 8px;
+  background-color: #ffffff;
+  border: 1px dashed #2196f3;
+  color: #000;
+  font-weight: 500;
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+.editable-div:empty:before {
+  content: attr(data-placeholder);
+  color: gray;
+  pointer-events: none;
+  user-select: none;
+  display: block;
+}
 
+.drag-placeholder {
+  padding: 8px;
+  background-color: #e0e0e0;
+  border: 1px dashed #aaa;
+  border-radius: 4px;
+  color: transparent;
+}
 .popup-overlay {
   position: fixed;
   top: 0;
@@ -186,14 +209,23 @@
   color: #333;
 }
 
-.form-input {
-  flex: 1;
-  padding: 8px 10px;
+.form-input[contenteditable="true"] {
   border: 1px solid #ccc;
+  padding: 8px 10px;
   border-radius: 6px;
-  font-size: 14px;
+  min-height: 30px;
   outline: none;
-  transition: border 0.2s;
+  font-size: 14px;
+  /* To avoid weird selection background */
+  user-select: text;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: text;
+}
+
+.form-input[contenteditable="true"]:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 3px #007bff;
 }
 
 .form-input:focus {
@@ -237,7 +269,11 @@
   max-width: 90%;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
 }
-
+.signature-pad-container canvas {
+  touch-action: none; /* Prevent scrolling when drawing on touch devices */
+  cursor: crosshair;
+  user-select: none;
+}
 .field-form {
   display: flex;
   flex-direction: column;
@@ -259,6 +295,16 @@
   font-size: 20px;
   font-weight: 500;
 }
+.drag-handle {
+  cursor: move;
+  user-select: none;
+  padding: 4px 8px;
+  background-color: #ddd;
+  border-radius: 4px;
+  margin-right: 10px;
+  display: inline-block;
+  vertical-align: middle;
+}
 
 .clear-sign-btn {
   height: 25px;
@@ -272,6 +318,10 @@
   &:hover {
     background-color: #d32f2f; // Darker on hover
   }
+  .cdk-drop-list-dragging {
+  background-color: #e3f2fd; /* Light blue when dragging */
+  border-color: #2196f3;
+}
 
   mat-icon {
     font-size: 18px;

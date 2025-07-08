@@ -73,29 +73,26 @@
           <td mat-cell *matCellDef="let element"> {{ element.formPages[0]?.fields?.length || 0 }} </td>
         </ng-container>
 
-        <!-- Actions Column -->
-        <ng-container matColumnDef="actions">
-          <th mat-header-cell *matHeaderCellDef> Actions </th>
-          <td mat-cell *matCellDef="let element">
-            <button mat-icon-button color="primary" (click)="editTemplate(element)">
-              <mat-icon>edit</mat-icon>
-            </button>
-            <button mat-icon-button color="warn" (click)="deleteTemplate(element)">
-              <mat-icon>delete</mat-icon>
-            </button>
-          </td>
-        </ng-container>
-
-        <!-- Header and Row Definitions -->
-        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-        <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-      </table>
-
-      <!-- Optional: Show message if no templates -->
-      <div *ngIf="!dataSource.data.length" class="no-templates-message">
-        No templates found. Please add a new template.
-      </div>
-    </div>
-  </div>
-
+       <!---ActionColumn-->
+         <ng-container matColumnDef="actions">
+         <th mat-header-cell *matHeaderCellDef> Actions </th>
+          <td mat-cell *matCellDef="let element"> 
+            <button mat-icon-button color ="primary" (click)="editTemplate(element)">
+<mat-icon>edit</mat-icon>
+</button>
+<button mat-icon-button color="warn" (click)="deleteTemplate(element)">
+  <mat-icon>delete</mat-icon>
+</button>
+</td>
+</ng-container>
+ <!---Header and Row Definition-->
+ <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+ <tr mat-row *matRowDef="let row;columns:displayedColumns;"></tr>
+</table>
+<!--optional :Show message if no Template-->
+<div *ngIf="!dataSource.data.length" class="no-template-message">
+  No Template found.Please add a new Template
+</div>
+</div>
+</div>
 </div>
