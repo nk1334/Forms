@@ -19,12 +19,21 @@ export class LoginComponent {
   constructor(private fb: FormBuilder, private auth: AuthService, private router: Router) {}
 
   onSubmit() {
-    const { username, password } = this.loginForm.value;
-    const success = this.auth.login(username!, password!);
-    if (!success) {
-      this.error = 'Invalid username or password';
-    } else {
-      this.router.navigate(['dashboard']);
-    }
+  if (this.loginForm.invalid) {
+    this.error = 'Please enter both username and password';
+    return;
   }
+
+  const username = this.loginForm.get('username')?.value || '';
+  const password = this.loginForm.get('password')?.value || '';
+
+  const success = this.auth.login(username, password);
+  console.log('Login attempt:', { username, password, success });
+
+  if (!success) {
+    this.error = 'Invalid username or password';
+  } else {
+    this.router.navigate(['dashboard']);
+  }
+}
 }

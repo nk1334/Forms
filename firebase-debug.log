@@ -1,0 +1,53 @@
+[debug] [2025-07-09T23:17:56.785Z] ----------------------------------------------------------------------
+[debug] [2025-07-09T23:17:56.787Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\nainakalia\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js serve --only hosting
+[debug] [2025-07-09T23:17:56.787Z] CLI Version:   14.9.0
+[debug] [2025-07-09T23:17:56.787Z] Platform:      win32
+[debug] [2025-07-09T23:17:56.788Z] Node Version:  v22.17.0
+[debug] [2025-07-09T23:17:56.788Z] Time:          Thu Jul 10 2025 09:17:56 GMT+1000 (Australian Eastern Standard Time)
+[debug] [2025-07-09T23:17:56.788Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-07-09T23:17:56.965Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-07-09T23:17:56.965Z] > authorizing via signed-in user (nainakalia676@gmail.com)
+[debug] [2025-07-09T23:17:56.965Z] [iam] checking project avante-3b787 for permissions ["firebase.projects.get"]
+[debug] [2025-07-09T23:17:56.966Z] Checked if tokens are valid: true, expires at: 1752105452816
+[debug] [2025-07-09T23:17:56.966Z] Checked if tokens are valid: true, expires at: 1752105452816
+[debug] [2025-07-09T23:17:56.967Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/avante-3b787:testIamPermissions [none]
+[debug] [2025-07-09T23:17:56.967Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/avante-3b787:testIamPermissions x-goog-quota-user=projects/avante-3b787
+[debug] [2025-07-09T23:17:56.967Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/avante-3b787:testIamPermissions {"permissions":["firebase.projects.get"]}
+[debug] [2025-07-09T23:17:58.194Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/avante-3b787:testIamPermissions 200
+[debug] [2025-07-09T23:17:58.194Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/avante-3b787:testIamPermissions {"permissions":["firebase.projects.get"]}
+[debug] [2025-07-09T23:17:58.195Z] Checked if tokens are valid: true, expires at: 1752105452816
+[debug] [2025-07-09T23:17:58.195Z] Checked if tokens are valid: true, expires at: 1752105452816
+[debug] [2025-07-09T23:17:58.195Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/avante-3b787/services/cloudresourcemanager.googleapis.com [none]
+[debug] [2025-07-09T23:17:58.195Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/avante-3b787/services/cloudresourcemanager.googleapis.com x-goog-quota-user=projects/avante-3b787
+[debug] [2025-07-09T23:17:59.544Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/avante-3b787/services/cloudresourcemanager.googleapis.com 200
+[debug] [2025-07-09T23:17:59.544Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/avante-3b787/services/cloudresourcemanager.googleapis.com [omitted]
+[debug] [2025-07-09T23:17:59.561Z] Checked if tokens are valid: true, expires at: 1752105452816
+[debug] [2025-07-09T23:17:59.562Z] Checked if tokens are valid: true, expires at: 1752105452816
+[debug] [2025-07-09T23:17:59.562Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/avante-3b787 [none]
+[debug] [2025-07-09T23:17:59.838Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/avante-3b787 200
+[debug] [2025-07-09T23:17:59.838Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/avante-3b787 {"projectNumber":"165142327454","projectId":"avante-3b787","lifecycleState":"ACTIVE","name":"avante","labels":{"firebase":"enabled","firebase-core":"disabled"},"createTime":"2025-06-26T02:18:36.082824Z"}
+[debug] [2025-07-09T23:17:59.840Z] Checked if tokens are valid: true, expires at: 1752105452816
+[debug] [2025-07-09T23:17:59.840Z] Checked if tokens are valid: true, expires at: 1752105452816
+[debug] [2025-07-09T23:17:59.840Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/avante-3b787/sites 
+[debug] [2025-07-09T23:18:01.197Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/avante-3b787/sites 200
+[debug] [2025-07-09T23:18:01.197Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/avante-3b787/sites {"sites":[{"name":"projects/avante-3b787/sites/avante-3b787","defaultUrl":"https://avante-3b787.web.app","type":"DEFAULT_SITE"}]}
+[debug] [2025-07-09T23:18:01.197Z] Checked if tokens are valid: true, expires at: 1752105452816
+[debug] [2025-07-09T23:18:01.197Z] Checked if tokens are valid: true, expires at: 1752105452816
+[debug] [2025-07-09T23:18:01.198Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/avante-3b787/webApps/-/config [none]
+[debug] [2025-07-09T23:18:02.079Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/avante-3b787/webApps/-/config 200
+[debug] [2025-07-09T23:18:02.079Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/avante-3b787/webApps/-/config {"projectId":"avante-3b787","storageBucket":"avante-3b787.firebasestorage.app","apiKey":"AIzaSyBSSwleV6TnLJ5U_bpEGwhQ-AJHvFa1Z4w","authDomain":"avante-3b787.firebaseapp.com","messagingSenderId":"165142327454"}
+[debug] [2025-07-09T23:18:02.087Z] Checked if tokens are valid: true, expires at: 1752105452816
+[debug] [2025-07-09T23:18:02.087Z] Checked if tokens are valid: true, expires at: 1752105452816
+[debug] [2025-07-09T23:18:02.087Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/avante-3b787 [none]
+[debug] [2025-07-09T23:18:02.418Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/avante-3b787 200
+[debug] [2025-07-09T23:18:02.418Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/avante-3b787 {"projectId":"avante-3b787","projectNumber":"165142327454","displayName":"avante","name":"projects/avante-3b787","resources":{"hostingSite":"avante-3b787"},"state":"ACTIVE","etag":"1_a2777ab0-8910-40e0-8a80-89fa67796a27"}
+[info] i  hosting[avante-3b787]: Serving hosting files from: dist/avante-app {"metadata":{"emulator":{"name":"hosting"},"message":"Serving hosting files from: \u001b[1mdist/avante-app\u001b[22m"}}
+[info] +  hosting[avante-3b787]: Local server: http://localhost:5000 {"metadata":{"emulator":{"name":"hosting"},"message":"Local server: \u001b[4m\u001b[1mhttp://localhost:5000\u001b[22m\u001b[24m"}}
+[info] i  hosting: ::1 - - [09/Jul/2025:23:18:14 +0000] "GET / HTTP/1.1" 200 - "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"::1 - - [09/Jul/2025:23:18:14 +0000] \"GET / HTTP/1.1\" 200 - \"-\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+[info] i  hosting: ::1 - - [09/Jul/2025:23:18:14 +0000] "GET /runtime.09585c2e153c0114.js HTTP/1.1" 200 - "http://localhost:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"::1 - - [09/Jul/2025:23:18:14 +0000] \"GET /runtime.09585c2e153c0114.js HTTP/1.1\" 200 - \"http://localhost:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+[info] i  hosting: ::1 - - [09/Jul/2025:23:18:14 +0000] "GET /polyfills.ec0d28237b57ee98.js HTTP/1.1" 200 - "http://localhost:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"::1 - - [09/Jul/2025:23:18:14 +0000] \"GET /polyfills.ec0d28237b57ee98.js HTTP/1.1\" 200 - \"http://localhost:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+[info] i  hosting: ::1 - - [09/Jul/2025:23:18:14 +0000] "GET /styles.6507e0fc35322572.css HTTP/1.1" 200 - "http://localhost:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"::1 - - [09/Jul/2025:23:18:14 +0000] \"GET /styles.6507e0fc35322572.css HTTP/1.1\" 200 - \"http://localhost:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+[info] i  hosting: ::1 - - [09/Jul/2025:23:18:14 +0000] "GET /main.ae24b08897af7f1b.js HTTP/1.1" 200 - "http://localhost:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"::1 - - [09/Jul/2025:23:18:14 +0000] \"GET /main.ae24b08897af7f1b.js HTTP/1.1\" 200 - \"http://localhost:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+[info] i  hosting: ::1 - - [09/Jul/2025:23:18:14 +0000] "GET /assets/login.jpg HTTP/1.1" 200 131048 "http://localhost:5000/login" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"::1 - - [09/Jul/2025:23:18:14 +0000] \"GET /assets/login.jpg HTTP/1.1\" 200 131048 \"http://localhost:5000/login\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}
+[info] i  hosting: ::1 - - [09/Jul/2025:23:18:14 +0000] "GET /favicon.ico HTTP/1.1" 200 948 "http://localhost:5000/login" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"::1 - - [09/Jul/2025:23:18:14 +0000] \"GET /favicon.ico HTTP/1.1\" 200 948 \"http://localhost:5000/login\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\""}}

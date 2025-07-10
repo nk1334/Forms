@@ -1,1 +1,22 @@
-<p>create-form works!</p>
+<div class="forms-list">
+  <h2>Saved Forms</h2>
+  <ul>
+    <li *ngFor="let form of forms">
+      {{ form.formName }}
+      <button mat-button (click)="openForm(form)">Open</button>
+    </li>
+  </ul>
+  <div *ngIf="!forms.length">No forms found.</div>
+</div>
+
+<div *ngIf="showFormEditor" class="form-viewer">
+  <h3>Form: {{ selectedForm.formName }}</h3>
+
+  <!-- Example: Display fields -->
+  <div *ngFor="let field of selectedForm.formPages[0]?.fields">
+    <label>{{ field.label }}</label>
+    <input [type]="field.type" [value]="field.value || ''" readonly />
+  </div>
+
+  <button mat-button (click)="closeForm()">Close</button>
+</div>

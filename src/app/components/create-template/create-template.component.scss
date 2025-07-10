@@ -52,13 +52,18 @@
 }
 
 .field-palette {
-  padding: 10px;
-  width: 200px;
+  font-size: 12px;       // smaller font
+  padding: 4px;          // tighter padding
+  max-height: 80vh;      // fit more fields vertically
+  overflow-y: auto;      // scroll if needed
+}
+
+.field-item {
+  margin-bottom: 4px;    // reduce space between items
+  padding: 6px 8px;
   border: 1px solid #ccc;
-  background-color: #f9f9f9;
-  h3 {
-    font-size: 18px;
-  }
+  border-radius: 4px;
+  cursor: move;
 }
 
 .draggable-field {
@@ -104,13 +109,71 @@
   border-radius: 4px;
   box-shadow: 0 2px 6px rgba(0,0,0,0.15);
 }
-.editable-div:empty:before {
+.editable-div.placeholder::before {
   content: attr(data-placeholder);
-  color: gray;
-  pointer-events: none;
-  user-select: none;
-  display: block;
+  color: #aaa;
 }
+.editable-div {
+  min-height: 30px;
+  padding: 6px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 16px;
+  white-space: pre-wrap;
+  position: relative;
+  background-color: white;
+   outline: none; 
+}
+
+.editable-div:empty::before {
+  content: attr(data-placeholder);
+  color: #aaa;
+  pointer-events: none;
+  position: absolute;
+  left: 10px;
+  top: 6px;
+}
+.editable-div[contenteditable="true"]:empty:before {
+  content: attr(data-placeholder);
+  color: #aaa;
+  pointer-events: none;
+  position: absolute;
+  left: 10px;
+  top: 6px;
+  font-style: italic; /* Placeholder style */
+}
+
+.editable-div:focus {
+  border-color: #007bff; /* Highlight border on focus */
+  box-shadow: 0 0 3px #007bff; /* Slight blue glow when focused */
+}
+
+.editable-div.has-value:empty::before {
+  display: none; /* Hide placeholder when content is typed */
+}
+
+.editable-div[contenteditable="true"]:empty {
+  color: #aaa; /* Placeholder color */
+}
+
+.editable-div[contenteditable="true"]:not(:empty) {
+  color: #333; /* Normal text color */
+}
+
+.editable-div[contenteditable="true"]:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 5px rgba(0, 123, 255, 0.5); /* Enhanced focus effect */
+}
+
+/* Custom cursor for contenteditable div */
+.editable-div[contenteditable="true"] {
+  cursor: text;
+}
+
+.editable-div[contenteditable="true"]:not([contenteditable="true"]) {
+  cursor: pointer;
+}
+
 
 .drag-placeholder {
   padding: 8px;
@@ -269,10 +332,26 @@
   max-width: 90%;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
 }
+.signature-pad-container {
+  position: relative;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 10px;
+  background-color: #fff;
+  max-width: 400px; /* or your desired max width */
+  margin: 10px 0;
+}
+
 .signature-pad-container canvas {
-  touch-action: none; /* Prevent scrolling when drawing on touch devices */
-  cursor: crosshair;
-  user-select: none;
+  display: block;
+  width: 100%;
+  height: 150px;
+  border: 1px solid #aaa;
+  border-radius: 4px;
+  touch-action: none;
+}
+.clear-sign-btn {
+  pointer-events: auto; /* ensure button receives clicks */
 }
 .field-form {
   display: flex;
@@ -307,6 +386,9 @@
 }
 
 .clear-sign-btn {
+  position: absolute !important; /* just to be safe */
+  top: 5px !important;
+  right: 5px !important;
   height: 25px;
   width: 25px;
   background-color: #f44336;
@@ -315,9 +397,25 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   transition: background-color 0.3s ease;
   vertical-align: top;
-  &:hover {
-    background-color: #d32f2f; // Darker on hover
-  }
+  pointer-events: auto;
+}
+
+.clear-sign-btn:hover {
+  background-color: #d32f2f;
+}
+
+.form-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background-color: #f9f9f9;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  max-width: fit-content;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  cursor: default; /* change grab to default to prevent drag interference */
+}
   .cdk-drop-list-dragging {
   background-color: #e3f2fd; /* Light blue when dragging */
   border-color: #2196f3;
@@ -327,4 +425,4 @@
     font-size: 18px;
     padding: 5px 0 0 0px;
   }
-}
+

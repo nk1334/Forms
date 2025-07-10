@@ -12,7 +12,7 @@ export class AuthService {
 
   private currentUser: any = null;
 
-  login(username: string, password: string): boolean {
+ login(username: string, password: string): boolean {
     const user = this.users.find(
       (u) => u.username === username && u.password === password
     );
@@ -39,13 +39,15 @@ export class AuthService {
     localStorage.removeItem('user');
     this.currentUser = null;
   }
-
-  getCurrentUser() {
-    if (this.currentUser) return this.currentUser;
+getCurrentUser() {
+  if (!this.currentUser) {
     const stored = localStorage.getItem('user');
-    if (stored) return JSON.parse(stored);
-    return null;
+    if (stored) {
+      this.currentUser = JSON.parse(stored); // 💥 RESTORE currentUser
+    }
   }
+  return this.currentUser;
+}
 
   isLoggedIn(): boolean {
     return !!this.getCurrentUser();

@@ -26,7 +26,7 @@ const routes: Routes = [
   {
     path: 'forms',
     component: CreateFormComponent,
-    canActivate: [authGuard],
+  
   },
   // Add ProblemTracker route with authGuard if needed
   {

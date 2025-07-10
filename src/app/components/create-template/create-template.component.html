@@ -26,15 +26,10 @@
     <div class="main-content" cdkDropListGroup>
 
       <!-- Field Palette -->
-      <div class="field-palette" cdkDropList id="fieldPalette"
-           [cdkDropListData]="paletteFields"
-           [cdkDropListConnectedTo]="['formCanvas']"
-           (cdkDropListDropped)="drop($event)">
+      <div class="field-palette" cdkDropList id="fieldPalette" [cdkDropListData]="paletteFields"
+        [cdkDropListConnectedTo]="['formCanvas']" (cdkDropListDropped)="drop($event)">
         <h3>Field Palette</h3>
-        <div *ngFor="let field of paletteFields"
-             class="draggable-field"
-             cdkDrag
-             [cdkDragData]="field">
+        <div *ngFor="let field of paletteFields" class="draggable-field" cdkDrag [cdkDragData]="field">
           <ng-container *cdkDragPreview>
             <div class="drag-preview">{{ field.label }}</div>
           </ng-container>
@@ -43,15 +38,11 @@
       </div>
 
       <!-- Form Canvas -->
-      <div class="form-canvas" cdkDropList id="formCanvas"
-           [cdkDropListData]="formPages[currentPage].fields"
-           [cdkDropListConnectedTo]="['fieldPalette']"
-           (cdkDropListDropped)="drop($event)">
+      <div class="form-canvas" cdkDropList id="formCanvas" [cdkDropListData]="formPages[currentPage].fields"
+        [cdkDropListConnectedTo]="['fieldPalette']" (cdkDropListDropped)="drop($event)">
 
-        <div *ngFor="let field of formPages[currentPage].fields; let i = index; trackBy: trackByFieldId" 
-     cdkDrag 
-     [cdkDragData]="field" 
-     class="form-row">
+        <div *ngFor="let field of formPages[currentPage].fields; let i = index; trackBy: trackByFieldId" cdkDrag
+          [cdkDragData]="field" class="form-row">
 
           <div cdkDragHandle class="drag-handle">☰</div>
 
@@ -61,78 +52,76 @@
           <ng-container [ngSwitch]="field.type">
 
             <!-- Project Title as editable div with placeholder -->
-            <div *ngSwitchCase="'project-title'"
-                 contenteditable="true"
-                 class="form-input editable-div"
-                 (input)="onContentEditableInput($event, field)"
-                 [attr.data-placeholder]="'Enter project name'"
-                 [innerText]="field.value || ''">
+            <div *ngSwitchCase="'project-title'" contenteditable="true" class="form-input editable-div"
+              (input)="onContentEditableInput($event, field)" [attr.aria-label]="'Project Name'" spellcheck="false"
+              [ngClass]="{'has-value': field.value}">
+              <span *ngIf="!field.value" class="placeholder">Enter project name</span>
+              {{ field.value }}
             </div>
 
-            <input *ngSwitchCase="'text'" type="text" [(ngModel)]="field.value"
-                   class="form-input" [style.min-width.px]="field.width"
-                   [placeholder]="field.placeholder || ''" />
+            <input *ngSwitchCase="'text'" type="text" [(ngModel)]="field.value" class="form-input"
+              [style.min-width.px]="field.width" [placeholder]="field.placeholder || ''" />
 
-            <input *ngSwitchCase="'number'" type="number" [(ngModel)]="field.value"
-                   class="form-input" [style.min-width.px]="field.width"
-                   [placeholder]="field.placeholder || ''" />
+            <input *ngSwitchCase="'number'" type="number" [(ngModel)]="field.value" class="form-input"
+              [style.min-width.px]="field.width" [placeholder]="field.placeholder || ''" />
 
-            <input *ngSwitchCase="'tel'" type="tel" [(ngModel)]="field.value"
-                   class="form-input" [style.min-width.px]="field.width"
-                   [placeholder]="field.placeholder || ''" />
+            <input *ngSwitchCase="'tel'" type="tel" [(ngModel)]="field.value" class="form-input"
+              [style.min-width.px]="field.width" [placeholder]="field.placeholder || ''" />
 
-            <select *ngSwitchCase="'branch'" [(ngModel)]="field.value"
-                    class="form-input" [style.min-width.px]="field.width">
+            <select *ngSwitchCase="'branch'" [(ngModel)]="field.value" class="form-input"
+              [style.min-width.px]="field.width">
               <option *ngFor="let option of field.options || []" [value]="option.value">
                 {{ option.label }}
               </option>
             </select>
 
-            <textarea *ngSwitchCase="'textarea'" [(ngModel)]="field.value"
-                      class="form-input" [style.min-width.px]="field.width"
-                      [placeholder]="field.placeholder || ''"></textarea>
+            <textarea *ngSwitchCase="'textarea'" [(ngModel)]="field.value" class="form-input"
+              [style.min-width.px]="field.width" [placeholder]="field.placeholder || ''"></textarea>
 
             <div *ngSwitchCase="'signature'" class="signature-pad-container form-input"
-                 [style.min-width.px]="field.width" style="position: relative;">
-              <canvas #canvasElement [style.width.px]="field.width" height="100"
-                      (pointerdown)="startDrawing($event, i)"
-                      (pointermove)="draw($event, i)"
-                      (pointerup)="stopDrawing($event, i)"
-                      (pointerleave)="stopDrawing($event, i)"
-                      style="border: 1px solid #ccc; touch-action: none;"></canvas>
-              <button mat-fab matTooltip="Clear signature" aria-label="Clear signature"
-                      class="clear-sign-btn" (click)="clearCanvas(i)"
-                      style="position: absolute; top: 5px; right: 5px; z-index: 10;">
+              [style.min-width.px]="field.width" style="position: relative;">
+              
+              <canvas
+                #canvasElement
+                [attr.data-id]="field.id"
+                [style.width.px]="field.width || 300"
+                height="150"
+                (pointerdown)="startDrawing($event, field.id)"
+                (pointermove)="draw($event, field.id)"
+                (pointerup)="stopDrawing($event, field.id)"
+                (pointerleave)="stopDrawing($event, field.id)"
+                (dragstart)="onDragStart($event, i)"
+                (dragend)="onDragEnd($event, i)">
+              </canvas>
+ <button mat-fab matTooltip="Clear signature" aria-label="Clear signature" class="clear-sign-btn"
+                (click)="clearSignatureCanvas(field.id)" 
+                style="position: absolute; top: 5px; right: 45px; z-index: 10;">
                 <mat-icon>clear</mat-icon>
               </button>
             </div>
 
-            <input *ngSwitchCase="'id'" type="text" disabled class="form-input"
-                   [style.min-width.px]="field.width" placeholder="ID Field (readonly)" />
+            <input *ngSwitchCase="'id'" type="text" disabled class="form-input" [style.min-width.px]="field.width"
+              placeholder="ID Field (readonly)" />
 
-            <input *ngSwitchCase="'date'" type="date" [(ngModel)]="field.value"
-                   class="form-input" [style.min-width.px]="field.width" />
+            <input *ngSwitchCase="'date'" type="date" [(ngModel)]="field.value" class="form-input"
+              [style.min-width.px]="field.width" />
 
-            <input *ngSwitchCase="'email'" type="email" [(ngModel)]="field.value"
-                   class="form-input" [style.min-width.px]="field.width"
-                   [placeholder]="field.placeholder || ''" />
+            <input *ngSwitchCase="'email'" type="email" [(ngModel)]="field.value" class="form-input"
+              [style.min-width.px]="field.width" [placeholder]="field.placeholder || ''" />
 
             <div *ngSwitchCase="'radio'" class="form-input" [style.min-width.px]="field.width">
               <label *ngFor="let option of field.options || []" style="margin-right: 8px;">
-                <input type="radio" [name]="'radio-' + i" [value]="option.value"
-                       [(ngModel)]="field.value" />
+                <input type="radio" [name]="'radio-' + i" [value]="option.value" [(ngModel)]="field.value" />
                 {{ option.label }}
               </label>
             </div>
 
-            <input *ngSwitchCase="'file'" type="file" class="form-input"
-                   [style.min-width.px]="field.width" />
+            <input *ngSwitchCase="'file'" type="file" class="form-input" [style.min-width.px]="field.width" />
 
             <div *ngSwitchCase="'empty'" [style.min-width.px]="field.width"
-                 style="height: 40px; border: 1px dashed #ccc;"></div>
+              style="height: 40px; border: 1px dashed #ccc;"></div>
 
-            <button *ngSwitchCase="'submit'" mat-raised-button color="primary"
-                    (click)="onSubmit()">
+            <button *ngSwitchCase="'submit'" mat-raised-button color="primary" (click)="onSubmit()">
               {{ field.label || 'Submit' }}
             </button>
 
@@ -142,8 +131,8 @@
 
           </ng-container>
 
-          <button title="Remove field" mat-fab aria-label="Remove field"
-                  (click)="removeField(currentPage, field)" class="delete-btn">
+          <button title="Remove field" mat-fab aria-label="Remove field" (click)="removeField(currentPage, field)"
+            class="delete-btn">
             <mat-icon>delete</mat-icon>
           </button>
         </div>

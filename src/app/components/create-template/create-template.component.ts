@@ -6,6 +6,7 @@ import {
   AfterViewInit,
   AfterViewChecked,
   OnInit,
+  ChangeDetectorRef,
   HostListener
 } from '@angular/core';
 import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
@@ -38,10 +39,14 @@ interface SavedForm {
 })
 export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterViewChecked {
   @ViewChildren('canvasElement') canvasRefs!: QueryList<ElementRef<HTMLCanvasElement>>;
-  ctxList: CanvasRenderingContext2D[] = [];
-  drawingList: boolean[] = [];
 
-  private lastCanvasCount = 0;
+  // Use a map keyed by field.id for canvas contexts and drawing states
+  ctxMap: Record<string, CanvasRenderingContext2D> = {};
+  drawingMap: Record<string, boolean> = {};
+  isDragging: boolean[] = [];
+
+  lastCanvasCount = 0;
+  shouldClearSignatureCanvas = false;
 
   dashboardVisible = true;
   formBuilderVisible = true;
@@ -78,7 +83,11 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
   savedForms: SavedForm[] = [];
   currentFormId: string | null = null;
 
-  constructor(private router: Router, private route: ActivatedRoute) {}
+  constructor(
+    private router: Router,
+    private route: ActivatedRoute,
+    private cdr: ChangeDetectorRef
+  ) {}
 
   ngOnInit(): void {
     this.route.queryParams.subscribe(params => {
@@ -93,6 +102,21 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
     });
   }
 
+  private getEmptyField(): FormField {
+    return {
+      id: '',
+      label: '',
+      type: 'text',
+      placeholder: '',
+      width: '150',
+      value: ''
+    };
+  }
+
+  generateId(): string {
+    return 'field-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+  }
+
   ngAfterViewInit(): void {
     this.initCanvases();
   }
@@ -103,10 +127,17 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
       this.lastCanvasCount = count;
       this.initCanvases();
     }
+
+    if (this.shouldClearSignatureCanvas) {
+      setTimeout(() => {
+        this.clearCanvasAfterDrop();
+        this.shouldClearSignatureCanvas = false;
+      }, 0);
+    }
   }
 
   @HostListener('window:resize')
-  onResize() {
+  onResize(): void {
     this.initCanvases();
   }
 
@@ -124,23 +155,46 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
       };
       this.newField = { ...this.pendingFieldToAdd };
       this.fieldConfigVisible = true;
+      this.cdr.detectChanges();
+
+      // Clear canvas for signature field if dropped
+      if (dragged.type === 'signature') {
+        setTimeout(() => {
+          const idx = this.formPages[this.currentPage].fields.findIndex(f => f.id === this.pendingFieldToAdd?.id);
+          if (idx !== -1) {
+            this.clearCanvas(this.pendingFieldToAdd!.id);
+          }
+        }, 100);
+      }
+
     } else if (event.previousContainer === event.container && toCanvas) {
+      // Reorder fields within the canvas
       moveItemInArray(event.container.data, event.previousIndex, event.currentIndex);
+
+      const dragged = event.item.data as FormField;
+
+      // Clear signature canvas if applicable
+      if (dragged.type === 'signature') {
+        setTimeout(() => {
+          this.clearCanvas(dragged.id);
+        }, 100);
+      }
     }
 
     setTimeout(() => {
-      this.initCanvases();
-    }, 50);
+      if (this.pendingFieldToAdd?.type === 'project-title') {
+        const fieldElement = document.querySelector(`#field-${this.pendingFieldToAdd.id} .editable-div`);
+        if (fieldElement) (fieldElement as HTMLElement).focus();
+      }
+    }, 0);
   }
 
-  createField() {
+  createField(): void {
     if (!this.pendingFieldToAdd) return;
 
     const f = { ...this.newField, id: this.pendingFieldToAdd.id };
 
-    if (f.type === 'project-title') {
-      f.value = f.value || '';
-    }
+    if (f.type === 'project-title') f.value = f.value || '';
     if (f.type === 'branch') {
       f.options = [
         { value: '0', label: 'NSW' },
@@ -149,30 +203,25 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
       ];
     }
 
-    this.formPages[this.currentPage].fields = [
-      ...this.formPages[this.currentPage].fields,
-      f
-    ];
+    this.formPages[this.currentPage].fields.push(f);
 
     this.pendingFieldToAdd = null;
     this.cancelFieldConfig();
-
     setTimeout(() => this.initCanvases(), 50);
   }
 
-  cancelFieldConfig() {
+  cancelFieldConfig(): void {
     this.fieldConfigVisible = false;
     this.pendingFieldToAdd = null;
     this.newField = this.getEmptyField();
   }
 
-  removeField(pageIndex: number, field: FormField) {
+  removeField(pageIndex: number, field: FormField): void {
     this.formPages[pageIndex].fields = this.formPages[pageIndex].fields.filter(f => f !== field);
-
     setTimeout(() => this.initCanvases(), 0);
   }
 
-  loadFormById(formId: string) {
+  loadFormById(formId: string): void {
     const form = this.savedForms.find(f => f.formId === formId);
     if (form) {
       this.formPages = JSON.parse(JSON.stringify(form.formPages));
@@ -182,15 +231,35 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
       this.formBuilderVisible = true;
       this.formListVisible = false;
       alert(`Loaded form "${form.formName}"`);
-      setTimeout(() => this.initCanvases(), 0);
+
+      setTimeout(() => {
+        this.initCanvases();
+
+        // Draw saved signature images on canvas
+        this.formPages[this.currentPage].fields.forEach((field) => {
+          if (field.type === 'signature' && field.value) {
+            const canvasRef = this.canvasRefs.find(ref => ref.nativeElement.getAttribute('data-id') === field.id);
+            const ctx = this.ctxMap[field.id];
+            if (canvasRef && ctx) {
+              const canvas = canvasRef.nativeElement;
+              const img = new Image();
+              img.onload = () => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              };
+              img.src = field.value;
+            }
+          }
+        });
+      }, 0);
     }
   }
 
-  backToDashboard() {
+  backToDashboard(): void {
     this.router.navigate(['/dashboard']);
   }
 
-  loadSavedFormsList() {
+  loadSavedFormsList(): void {
     const saved = localStorage.getItem('savedFormPages');
     if (saved) {
       this.savedForms = JSON.parse(saved);
@@ -201,32 +270,52 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
     }
   }
 
-  saveForm() {
+  saveForm(): void {
     if (!this.formPages[0].fields.length) {
       alert('Cannot save an empty form');
       return;
     }
+
+    // Save signature canvas data as data URL
+    this.formPages.forEach(page => {
+      page.fields.forEach(field => {
+        if (field.type === 'signature') {
+          const canvasRef = this.canvasRefs.find(ref => ref.nativeElement.getAttribute('data-id') === field.id);
+          if (canvasRef) {
+            field.value = canvasRef.nativeElement.toDataURL();
+          }
+        }
+      });
+    });
+
     const filename = prompt(this.currentFormId ? 'Update filename:' : 'Enter filename:', 'form');
     if (!filename) return;
 
     let data: SavedForm[] = JSON.parse(localStorage.getItem('savedFormPages') || '[]');
     if (this.currentFormId) {
-      data = data.map(f => f.formId === this.currentFormId
-        ? { formId: f.formId, formName: filename, formPages: this.formPages }
-        : f
+      data = data.map(f =>
+        f.formId === this.currentFormId
+          ? { formId: f.formId, formName: filename, formPages: this.formPages }
+          : f
       );
     } else {
-      this.currentFormId = this.generateId();
-      data.push({ formId: this.currentFormId, formName: filename, formPages: this.formPages });
+      data.push({
+        formId: this.generateId(),
+        formName: filename,
+        formPages: this.formPages
+      });
+      this.currentFormId = data[data.length - 1].formId;
     }
+
     localStorage.setItem('savedFormPages', JSON.stringify(data));
     alert('Form saved');
     this.router.navigate(['/dashboard'], { state: { formSaved: true, formId: this.currentFormId } });
   }
 
-  exportToPDF() {
+  exportToPDF(): void {
     const filename = prompt('Enter filename for PDF', 'form');
     if (!filename) return;
+
     import('html2pdf.js').then(m => {
       const content = document.querySelector('.form-canvas');
       if (content) {
@@ -243,110 +332,130 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
     });
   }
 
-  private initCanvases() {
-    this.ctxList = [];
-    this.drawingList = [];
+  private initCanvases(): void {
+    this.ctxMap = {};
+    this.drawingMap = {};
 
-    this.canvasRefs.toArray().forEach((ref, i) => {
-      const c = ref.nativeElement;
-      const ctx = c.getContext('2d');
+    this.canvasRefs.forEach(ref => {
+      const canvas = ref.nativeElement;
+      const fieldId = canvas.getAttribute('data-id')!;
+      const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      c.width = c.offsetWidth * devicePixelRatio;
-      c.height = c.offsetHeight * devicePixelRatio;
+      // Setup canvas size with devicePixelRatio for sharpness
+      canvas.width = canvas.offsetWidth * devicePixelRatio;
+      canvas.height = canvas.offsetHeight * devicePixelRatio;
       ctx.scale(devicePixelRatio, devicePixelRatio);
-
       ctx.lineCap = 'round';
       ctx.strokeStyle = '#000';
       ctx.lineWidth = 2;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      ctx.clearRect(0, 0, c.width, c.height);
+      this.ctxMap[fieldId] = ctx;
+      this.drawingMap[fieldId] = false;
 
-      this.ctxList[i] = ctx;
-      this.drawingList[i] = false;
-    });
-
-    // Attach pointer event listeners for signature canvases
-    this.attachCanvasListeners();
-  }
-
-  private attachCanvasListeners() {
-    this.canvasRefs.forEach((ref, i) => {
-      const canvas = ref.nativeElement;
-
-      // Remove previous listeners to avoid duplicates (optional, defensive)
-      canvas.onpointerdown = null;
-      canvas.onpointermove = null;
-      canvas.onpointerup = null;
-      canvas.onpointerleave = null;
-
-      canvas.onpointerdown = (e) => this.startDrawing(e, i);
-      canvas.onpointermove = (e) => this.draw(e, i);
-      canvas.onpointerup = (e) => this.stopDrawing(e, i);
-      canvas.onpointerleave = (e) => this.stopDrawing(e, i);
+      // Attach pointer event handlers
+      canvas.onpointerdown = e => this.startDrawing(e, fieldId);
+      canvas.onpointermove = e => this.draw(e, fieldId);
+      canvas.onpointerup = e => this.stopDrawing(e, fieldId);
+      canvas.onpointerleave = e => this.stopDrawing(e, fieldId);
     });
   }
 
-  startDrawing(e: PointerEvent, i: number) {
-    const ctx = this.ctxList[i];
-    if (!ctx) return;
-    const pos = this.getPointerPos(e, i);
-    this.drawingList[i] = true;
+  startDrawing(e: PointerEvent, fieldId: string): void {
+    const ctx = this.ctxMap[fieldId];
+    const canvas = this.getCanvasById(fieldId);
+    if (!ctx || !canvas) return;
+    const pos = this.getPointerPos(e, canvas);
     ctx.beginPath();
     ctx.moveTo(pos.x, pos.y);
+    this.drawingMap[fieldId] = true;
   }
 
-  draw(e: PointerEvent, i: number) {
-    if (!this.drawingList[i]) return;
-    const ctx = this.ctxList[i];
-    if (!ctx) return;
-    const pos = this.getPointerPos(e, i);
+  draw(e: PointerEvent, fieldId: string): void {
+    if (!this.drawingMap[fieldId]) return;
+    const ctx = this.ctxMap[fieldId];
+    const canvas = this.getCanvasById(fieldId);
+    if (!ctx || !canvas) return;
+    const pos = this.getPointerPos(e, canvas);
     ctx.lineTo(pos.x, pos.y);
     ctx.stroke();
   }
 
-  stopDrawing(_: PointerEvent, i: number) {
-    if (!this.drawingList[i]) return;
-    const ctx = this.ctxList[i];
-    if (!ctx) return;
-    this.drawingList[i] = false;
-    ctx.closePath();
+  stopDrawing(e: PointerEvent, fieldId: string): void {
+    if (!this.drawingMap[fieldId]) return;
+    const ctx = this.ctxMap[fieldId];
+    this.drawingMap[fieldId] = false;
+    ctx?.closePath();
   }
 
-  clearCanvas(i: number) {
-    const c = this.canvasRefs.toArray()[i]?.nativeElement;
-    const ctx = this.ctxList[i];
-    if (c && ctx) {
-      ctx.clearRect(0, 0, c.width, c.height);
-      this.drawingList[i] = false;
+  getCanvasById(fieldId: string): HTMLCanvasElement | undefined {
+    return this.canvasRefs.find(ref => ref.nativeElement.getAttribute('data-id') === fieldId)?.nativeElement;
+  }
+
+  clearCanvas(fieldId: string): void {
+    const canvas = this.getCanvasById(fieldId);
+    if (!canvas) return;
+    const ctx = this.ctxMap[fieldId];
+    if (ctx) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      this.drawingMap[fieldId] = false;
     }
   }
 
-  private getPointerPos(e: PointerEvent, i: number) {
-    const c = this.canvasRefs.toArray()[i]?.nativeElement;
-    if (!c) return { x: 0, y: 0 };
-    const rect = c.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+
+clearSignatureCanvas(fieldId: string): void {
+  const canvas = this.getCanvasById(fieldId);
+  if (!canvas) return;
+  const ctx = this.ctxMap[fieldId];
+  if (ctx) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    this.drawingMap[fieldId] = false;
+
+    const field = this.formPages[this.currentPage].fields.find(f => f.id === fieldId);
+    if (field) {
+      field.value = null;
+    }
+  }
+}
+
+  clearCanvasAfterDrop(): void {
+    this.canvasRefs.forEach(ref => {
+      const canvas = ref.nativeElement;
+      const fieldId = canvas.getAttribute('data-id')!;
+      const ctx = this.ctxMap[fieldId];
+      if (ctx && canvas) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        this.drawingMap[fieldId] = false;
+      }
+    });
   }
 
-  private generateId(): string {
-    return Math.random().toString(36).slice(2, 11);
-  }
-
-  private getEmptyField(): FormField {
-    return { id: '', label: '', type: 'text', placeholder: '', width: '150' };
-  }
-
-  onContentEditableInput(e: Event, f: FormField) {
-    f.value = (e.target as HTMLElement).innerText;
+  getPointerPos(e: PointerEvent, canvas: HTMLCanvasElement) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    };
   }
 
   trackByFieldId(index: number, field: FormField): string {
     return field.id;
   }
 
-  onSubmit() {
-    console.log('Form submitted:', this.formPages[this.currentPage].fields);
-    alert('Form submitted successfully!');
+onSubmit(): void {
+  this.saveForm();
+}
+  onContentEditableInput(event: Event, field: FormField): void {
+    const target = event.target as HTMLElement;
+    field.value = target.innerText;
+  }
+
+  onDragStart(event: DragEvent, index: number): void {
+    this.isDragging[index] = true;
+  }
+
+  onDragEnd(event: DragEvent, index: number): void {
+    this.isDragging[index] = false;
   }
 }
