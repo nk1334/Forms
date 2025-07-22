@@ -1,4 +1,3 @@
-/* form-builder.component.css */
 .top-section {
   display: flex;
   justify-content: space-between;
@@ -6,10 +5,11 @@
   padding: 10px;
   color: white;
   align-items: center;
-  .top-actions {
-    display: flex;
-    gap: 10px;
-  }
+}
+
+.top-section .top-actions {
+  display: flex;
+  gap: 10px;
 }
 
 .search-bar {
@@ -51,48 +51,258 @@
   margin: 20px;
 }
 
+
+/* Palette container */
 .field-palette {
-  font-size: 12px;       // smaller font
-  padding: 4px;          // tighter padding
-  max-height: 80vh;      // fit more fields vertically
-  overflow-y: auto;      // scroll if needed
+  width: 250px;
+  background: #fafafa;
+  border: 1px solid #ddd;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  font-family: Arial, sans-serif;
 }
 
 .field-item {
-  margin-bottom: 4px;    // reduce space between items
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+background: #e3f2fd; /* light blue background */
+  border: 1px solid #90caf9; /* soft blue border */ 
+  border-radius: 6px;
+  padding: 8px 12px;
+  cursor: grab;
+  font-size: 14px;
+  color: #333;
+  user-select: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  /* reduce vertical space here */
+  margin-bottom: 0; /* <-- change this to a smaller number or zero */
+}
+
+.field-item:hover {
+  border-color: #007bff;
+  background-color: #f0f8ff;
+}
+
+
+.field-item label {
+  font-weight: 500;
+  color: #333;
+  margin: 0;
+  font-size: 13px;
+  user-select: none;
+  flex-grow: 1;
+}
+.field-item mat-icon {
+  font-size: 16px;
+  margin: 0;
+  padding: 0;
+  color: #555;
+  line-height: 1;
+}
+
+.field-item .delete-icon {
+  font-size: 16px;
+  color: #d00;
+  cursor: pointer;
+  padding-left: 8px;
+  user-select: none;
+  font-weight: bold;
+  line-height: 1;
+}
+
+.field-item input,
+.field-item textarea,
+.field-item select {
+  width: 100%;
   padding: 6px 8px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+  font-size: 14px;
+  border: 1.5px solid #ccc;
+  border-radius: 6px;
+  box-sizing: border-box;
+  resize: both;
+  min-height: 30px;
+  margin: 0;
+  display: block;
+}
+.form-row {
+  position: absolute; /* Absolutely position based on left/top */
+  top: 0; /* Default to 0, will be overridden by Angular binding */
+  left: 0;
+  padding: 12px;
+  box-sizing: border-box;
+  border: 1px solid #90caf9;
+  background: #e3f2fd; /* light blue for visibility */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  margin: 0 5px 5px 5px; /* reduced top margin */
+  min-width: 100px;
+  height: auto;
   cursor: move;
+  user-select: none;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+  color: #333;
+}
+
+.form-label {
+  flex-shrink: 0;
+  width: 120px; /* fixed label width or adjust */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.form-input {
+  flex-grow: 1;
+  min-width: 150px; /* or bind this from field.width */
+  box-sizing: border-box;
+  height: 34px;
+  padding: 4px 8px;
+}
+
+.drag-handle {
+  cursor: move;
+  user-select: none;
+  padding: 0 6px;
+  flex-shrink: 0;
+}
+.form-item {
+  background: white;
+  padding: 6px 8px;              /* smaller padding */
+  margin: 4px 0;                 /* reduced vertical gap */
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  transition: top 0.1s ease, left 0.1s ease; /* smooth drag movement */
+}
+
+/* Delete button styling */
+.delete-btn {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  margin-left: 8px;
+  background-color: #6c757d;
+  color: white;
+  cursor: pointer;
+  border-radius: 4px;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Delete button hover effect */
+.delete-btn:hover {
+  background-color: #343a40;
+}
+
+.field-item textarea {
+  min-height: 50px;
+}
+.form-builder-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100vh; /* Full screen */
 }
 
 .draggable-field {
-  background: #e3f2fd;
-  padding: 10px;
-  margin: 5px 0;
-  cursor: grab;
-  border: 1px solid #90caf9;
+  position: absolute;
+  cursor: move;
   user-select: none;
-}
-
-.form-canvas {
-  flex: 1;
   padding: 10px;
-  min-height: 300px;
-  border: 1px dashed #aaa;
-  background: #fff;
-}
-
-.form-field {
-  margin: 10px;
-  padding: 10px;
-  border: 1px solid #ddd;
+  background: #e3f2fd;
   border-radius: 4px;
-  background: #f1f1f1;
+  border: 1px solid #90caf9;
+  width: auto;
+  height: auto;
+  box-sizing: border-box;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+}
+.form-row.signature-field {
+  min-width: 360px;  /* 300px signature + 36px delete + padding */
+  min-height: 180px; /* enough height for signature */
+}
+.field {
+  position: absolute;
+  padding: 6px 10px;
+  background: white;
+  border: 1px solid #999;
+  cursor: move;
+}
+.form-canvas {
+  background-image:
+    linear-gradient(#eee 1px, transparent 1px),
+    linear-gradient(90deg, #eee 1px, transparent 1px);
+  background-size: 20px 20px;
+  position: relative;
+  width: 100%;
+  flex: 1;                    /* Grow to fill remaining space */
+  min-height: 0;              /* Prevent it from forcing scroll */
+  overflow: auto;
+  padding: 2px 10px 10px 10px;
+  box-sizing: border-box;
+  border: 2px dashed #ccc;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+}
+.form-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 220px;
+  min-height: 50px;
+  padding: 6px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #fff;
+  box-sizing: border-box;
+  font-size: 14px;
+  cursor: default;
 }
 
 .form-field.full-width {
   width: 100%;
+}
+.form-field label {
+  font-weight: 500;
+  font-size: 13px;
+  color: #333;
+  margin: 0;
+  flex-grow: 1;
+  user-select: none;
+}
+
+.form-field input,
+.form-field textarea {
+  font-size: 14px;
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  flex-grow: 1;
+  margin-left: 8px;
+  box-sizing: border-box;
+}
+
+.form-field textarea {
+  min-height: 80px;
+}
+.form-field .delete-icon {
+  font-size: 16px;
+  color: #d00;
+  cursor: pointer;
+  padding-left: 8px;
+  user-select: none;
+  font-weight: bold;
+  line-height: 1;
 }
 
 .actions,
@@ -100,6 +310,7 @@
   text-align: center;
   margin-top: 15px;
 }
+
 .drag-preview {
   padding: 8px;
   background-color: #ffffff;
@@ -107,12 +318,77 @@
   color: #000;
   font-weight: 500;
   border-radius: 4px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+.signature-pad-container {
+  position: relative;
+  width: 300px; /* or field.width */
+  height: 160px; /* just above canvas height */
+  padding: 12px;
+  box-sizing: border-box;
+  background: #fefefe;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.signature-pad-container canvas {
+  border: 2px dashed #007BFF;
+  border-radius: 6px;
+  width: 100% !important;
+  height: 150px !important;
+  cursor: crosshair;
+  display: block;
+  margin-bottom: 10px;
+}
+.clear-sign-btn, .delete-sign-btn {
+    position: absolute;
+    top: 8px;
+  width: 36px;
+  height: 36px;
+  min-width: 36px !important;
+  min-height: 36px !important;
+  background-color: #f44336;
+  color: white;
+  transition: background-color 0.3s ease;
+}
+.clear-sign-btn {
+  position: absolute;
+  top: 5px;
+  right: 45px;
+  z-index: 20;
+  width: 36px;
+  height: 36px;
+  background-color: #f44336; /* red */
+  color: white;
+  cursor: pointer;
+}
+
+
+.clear-sign-btn:hover {
+  background-color: #d32f2f;
+}
+
+.delete-btn {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  margin-left: 8px;
+  background-color: #6c757d;
+  color: white;
+  cursor: pointer;
+}
+
+.delete-sign-btn:hover {
+  background-color: #343a40;
 }
 .editable-div.placeholder::before {
   content: attr(data-placeholder);
   color: #aaa;
 }
+
 .editable-div {
   min-height: 30px;
   padding: 6px 10px;
@@ -122,7 +398,7 @@
   white-space: pre-wrap;
   position: relative;
   background-color: white;
-   outline: none; 
+  outline: none;
 }
 
 .editable-div:empty::before {
@@ -133,47 +409,36 @@
   left: 10px;
   top: 6px;
 }
+
 .editable-div[contenteditable="true"]:empty:before {
-  content: attr(data-placeholder);
-  color: #aaa;
-  pointer-events: none;
-  position: absolute;
-  left: 10px;
-  top: 6px;
-  font-style: italic; /* Placeholder style */
+  font-style: italic;
 }
 
 .editable-div:focus {
-  border-color: #007bff; /* Highlight border on focus */
-  box-shadow: 0 0 3px #007bff; /* Slight blue glow when focused */
+  border-color: #007bff;
+  box-shadow: 0 0 3px #007bff;
 }
 
 .editable-div.has-value:empty::before {
-  display: none; /* Hide placeholder when content is typed */
+  display: none;
 }
 
 .editable-div[contenteditable="true"]:empty {
-  color: #aaa; /* Placeholder color */
+  color: #aaa;
 }
 
 .editable-div[contenteditable="true"]:not(:empty) {
-  color: #333; /* Normal text color */
+  color: #333;
 }
 
 .editable-div[contenteditable="true"]:focus {
   border-color: #007bff;
-  box-shadow: 0 0 5px rgba(0, 123, 255, 0.5); /* Enhanced focus effect */
+  box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
 }
 
-/* Custom cursor for contenteditable div */
 .editable-div[contenteditable="true"] {
   cursor: text;
 }
-
-.editable-div[contenteditable="true"]:not([contenteditable="true"]) {
-  cursor: pointer;
-}
-
 
 .drag-placeholder {
   padding: 8px;
@@ -182,6 +447,7 @@
   border-radius: 4px;
   color: transparent;
 }
+
 .popup-overlay {
   position: fixed;
   top: 0;
@@ -205,13 +471,14 @@
 .popup select {
   display: block;
   width: 100%;
-  // margin: 10px 0;
-  // padding: 8px;
 }
 
 .main-content {
-  display: inline-flex;
-  width: 95vw;
+  display: flex;
+  width: 100%;
+  height: calc(100vh - 60px); /* subtract header height */
+  gap: 16px;
+  box-sizing: border-box;
 }
 
 .form-page {
@@ -219,210 +486,127 @@
 }
 
 .form-grid {
-  display: block; //inline-flex;
-  flex-wrap: wrap; /* allows items to wrap like grid rows */
-  gap: 15px; /* space between items */
-  align-items: stretch; /* aligns items vertically */
-  justify-content: flex-start; /* aligns items horizontally */
-  max-width: 100%; /* prevents overflow */
-  canvas {
-    cursor: crosshair; // url('/assets/images/penIcon.svg') 0 16, crosshair;
-  }
+  display: block;
+  flex-wrap: wrap;
+  gap: 15px;
+  align-items: stretch;
+  justify-content: flex-start;
+  max-width: 100%;
 }
+
+.form-grid canvas {
+  cursor: crosshair;
+}
+
 .element-card {
   max-width: 400px;
 }
+
 .form-grid-item {
-  width: 100%; //calc(27.333% - 5px); //flex: 1 1 150px; /* grow, shrink, base width */
-  min-width: fit-content; /* minimum width per item */
+  width: 100%;
+  min-width: fit-content;
   box-sizing: border-box;
   border: 1px solid #ccc;
   padding: 10px 10px 0 10px;
-
-  input,
-  select,
-  textarea {
-    margin: 10px;
-    border: none;
-    border-bottom: 1.5px solid #000;
-    height: 25px;
-    border-radius: 2px;
-  }
-  button {
-    color: rgb(248, 67, 67);
-    cursor: pointer;
-    height: 35px;
-  }
-}
-.form-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background-color: #f9f9f9;
-  padding: 12px 16px;
-  border-radius: 8px;
-  border: 1px solid #ddd;
-  max-width: fit-content;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  cursor: grab;
-}
-.form-label {
-  font-weight: 500;
-  flex: none;
-  color: #333;
 }
 
-.form-input[contenteditable="true"] {
-  border: 1px solid #ccc;
-  padding: 8px 10px;
-  border-radius: 6px;
-  min-height: 30px;
-  outline: none;
-  font-size: 14px;
-  /* To avoid weird selection background */
-  user-select: text;
-  white-space: nowrap;
-  overflow: hidden;
-  cursor: text;
-}
-
-.form-input[contenteditable="true"]:focus {
-  border-color: #007bff;
-  box-shadow: 0 0 3px #007bff;
-}
-
-.form-input:focus {
-  border-color: #007bff;
-}
-
-.delete-btn {
-  background-color: #fff;
-  border: 1px solid #ccc;
-  color: #dc3545;
-  padding: 6px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background-color 0.2s, color 0.2s;
-}
-
-.delete-btn:hover {
-  background-color: #dc3545;
-  color: #fff;
-  border-color: #dc3545;
-}
-
-.popup-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.popup {
-  background-color: #fff;
-  padding: 24px;
-  border-radius: 8px;
-  width: 400px;
-  max-width: 90%;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-}
-.signature-pad-container {
-  position: relative;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  padding: 10px;
-  background-color: #fff;
-  max-width: 400px; /* or your desired max width */
-  margin: 10px 0;
-}
-
-.signature-pad-container canvas {
-  display: block;
-  width: 100%;
-  height: 150px;
-  border: 1px solid #aaa;
-  border-radius: 4px;
-  touch-action: none;
-}
-.clear-sign-btn {
-  pointer-events: auto; /* ensure button receives clicks */
-}
-.field-form {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.full-width {
-  width: 100%;
-}
-
-.action-buttons {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
-.form-title {
-  margin-bottom: 12px;
-  font-size: 20px;
-  font-weight: 500;
-}
-.drag-handle {
-  cursor: move;
-  user-select: none;
-  padding: 4px 8px;
-  background-color: #ddd;
-  border-radius: 4px;
-  margin-right: 10px;
-  display: inline-block;
-  vertical-align: middle;
-}
-
-.clear-sign-btn {
-  position: absolute !important; /* just to be safe */
-  top: 5px !important;
-  right: 5px !important;
+.form-grid-item input,
+.form-grid-item select,
+.form-grid-item textarea {
+  margin: 10px;
+  border: none;
+  border-bottom: 1.5px solid #000;
   height: 25px;
-  width: 25px;
-  background-color: #f44336;
-  color: white;
-  z-index: 10;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  transition: background-color 0.3s ease;
-  vertical-align: top;
-  pointer-events: auto;
+  border-radius: 2px;
+  padding: 5px;
+  font-size: 14px;
 }
 
-.clear-sign-btn:hover {
+.form-grid-item button.delete-btn {
+  margin-left: 8px;
+  background-color: #f44336;
+  border: none;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  flex-shrink: 0;
+}
+
+.form-grid-item button.delete-btn:hover {
   background-color: #d32f2f;
 }
 
-.form-row {
+.canvas-field {
   display: flex;
   align-items: center;
-  gap: 10px;
-  background-color: #f9f9f9;
-  padding: 12px 16px;
-  border-radius: 8px;
+  gap: 6px;
+  padding: 6px;
   border: 1px solid #ddd;
-  max-width: fit-content;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  cursor: default; /* change grab to default to prevent drag interference */
-}
-  .cdk-drop-list-dragging {
-  background-color: #e3f2fd; /* Light blue when dragging */
-  border-color: #2196f3;
+  border-radius: 5px;
+  background: white;
+  margin: 6px 0;
 }
 
-  mat-icon {
-    font-size: 18px;
-    padding: 5px 0 0 0px;
-  }
+.canvas-field label {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
 
+.canvas-field input,
+.canvas-field textarea {
+  width: 100%;
+  font-size: 13px;
+  padding: 6px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+}
+
+.field-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 200px;
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background-color: #fff;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  position: relative;
+}
+
+.field-box .top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.field-box .top-bar label {
+  font-size: 13px;
+   margin: 0;
+  color: #333;
+}
+
+.field-box .delete-icon {
+  font-size: 14px;
+  color: #d00;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  margin: 0;
+}
+
+.field-box input,
+.field-box textarea {
+  width: 100%;
+  font-size: 13px;
+  padding: 5px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  margin: 0;
+}
+*, *::before, *::after {
+  box-sizing: border-box;
+}

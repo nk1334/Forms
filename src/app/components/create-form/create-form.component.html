@@ -1,22 +1,113 @@
-<div class="forms-list">
+<div *ngIf="!showFormEditor">
   <h2>Saved Forms</h2>
   <ul>
     <li *ngFor="let form of forms">
       {{ form.formName }}
-      <button mat-button (click)="openForm(form)">Open</button>
+      <button (click)="openForm(form)">Fill/Edit</button>
     </li>
   </ul>
-  <div *ngIf="!forms.length">No forms found.</div>
+  <div *ngIf="forms.length === 0">No saved forms found.</div>
 </div>
 
-<div *ngIf="showFormEditor" class="form-viewer">
-  <h3>Form: {{ selectedForm.formName }}</h3>
+<div *ngIf="showFormEditor && selectedForm">
+  <h2>Fill/Edit Form: {{ selectedForm.formName }}</h2>
+  <form id="dynamicForm" #formRef="ngForm" novalidate>
+    <div *ngFor="let page of selectedForm.formPages; let p = index">
+      <h3>Page {{ p + 1 }}</h3>
 
-  <!-- Example: Display fields -->
-  <div *ngFor="let field of selectedForm.formPages[0]?.fields">
-    <label>{{ field.label }}</label>
-    <input [type]="field.type" [value]="field.value || ''" readonly />
+      <div *ngFor="let field of page.fields" style="margin-bottom: 10px;">
+        <label [attr.for]="field.id">
+          {{ field.label }}
+          <span *ngIf="field.required" style="color: red;">*</span>
+        </label>
+        <br />
+
+        <!-- Text-like inputs -->
+        <ng-container *ngIf="['text', 'email', 'number', 'tel', 'date'].includes(field.type || '')">
+          <input [type]="field.type" [(ngModel)]="field.value" [name]="field.id" [id]="field.id"
+            [required]="!!field.required" #inputRef="ngModel" />
+          <div *ngIf="inputRef.invalid && (inputRef.dirty || inputRef.touched)" style="color: red;">
+            This field is required.
+          </div>
+        </ng-container>
+
+        <!-- Textarea -->
+        <ng-container *ngIf="field.type === 'textarea'">
+          <textarea [(ngModel)]="field.value" [name]="field.id" [id]="field.id" [required]="!!field.required"
+            #textareaRef="ngModel"></textarea>
+          <div *ngIf="textareaRef.invalid && (textareaRef.dirty || textareaRef.touched)" style="color: red;">
+            This field is required.
+          </div>
+        </ng-container>
+
+        <!-- Select (branch type) -->
+        <ng-container *ngIf="field.type === 'branch' && field.options">
+          <select [(ngModel)]="field.value" [name]="field.id" [id]="field.id" [required]="!!field.required"
+            #selectRef="ngModel">
+            <option value="">-- Select --</option>
+            <option *ngFor="let opt of field.options" [value]="opt.value">
+              {{ opt.label }}
+            </option>
+          </select>
+          <div *ngIf="selectRef.invalid && (selectRef.dirty || selectRef.touched)" style="color: red;">
+            This field is required.
+          </div>
+        </ng-container>
+
+        <!-- Radio buttons -->
+        <div *ngIf="field.type === 'radio' && field.options">
+          <label *ngFor="let opt of field.options" style="margin-right: 10px;">
+            <input type="radio" [name]="field.id" [value]="opt.value" [(ngModel)]="field.value"
+              [required]="!!field.required" />
+            {{ opt.label }}
+          </label>
+          <div
+            *ngIf="formRef.controls[field.id]?.invalid && (formRef.controls[field.id]?.dirty || formRef.controls[field.id]?.touched)"
+            style="color: red;">
+            This field is required.
+          </div>
+        </div>
+
+        <!-- Signature field -->
+        <div *ngIf="field.type === 'signature'">
+          <canvas #canvas [attr.data-id]="field.id" width="400" height="150"
+            style="border: 1px solid #000; touch-action: none;" (pointerdown)="startDrawing($event, field.id)"
+            (pointermove)="draw($event, field.id)" (pointerup)="stopDrawing($event, field.id)"
+            (pointerleave)="stopDrawing($event, field.id)"></canvas>
+          <br />
+          <button type="button" (click)="clearSignatureCanvas(field.id)">
+            Clear Signature
+          </button>
+        </div>
+      </div>
+    </div>
+<!-- SAVE button section -->
+<div class="save-actions" [class.show-popup]="showNameInput">
+  <!-- First Save button (shows the input) -->
+  <button mat-raised-button color="primary" type="button" (click)="showNameInput = true" *ngIf="!showNameInput">
+    Save
+  </button>
+
+  <!-- Input for naming the filled form -->
+  <div *ngIf="showNameInput" class="name-input-wrapper">
+    <input
+      type="text"
+      [(ngModel)]="filledDataName"
+      placeholder="Enter name for filled data"
+      required
+      [ngClass]="{ 'invalid': nameError }"
+       (input)="nameError = false"  
+         (keydown.enter)="$event.preventDefault()"
+    />
+    <div *ngIf="nameError" style="color: red;">Please enter a valid name.</div>
+    <button mat-raised-button color="accent" type="button" (click)="confirmSaveFilledForm()">Confirm</button>
+    <button mat-button type="button" (click)="cancelSave()">Cancel</button>
+
+    <div *ngIf="nameError" class="error-message">
+      Please enter a valid name.
+    </div>
   </div>
 
-  <button mat-button (click)="closeForm()">Close</button>
+  <button type="button" (click)="closeForm()">Back</button>
+  <button type="button" (click)="exportToPDF()">Export to PDF</button>
 </div>

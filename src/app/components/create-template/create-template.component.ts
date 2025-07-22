@@ -9,7 +9,14 @@ import {
   ChangeDetectorRef,
   HostListener
 } from '@angular/core';
-import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
+import {
+  CdkDragDrop,
+  CdkDragMove,
+  CdkDragEnd,
+  CdkDragStart,
+  moveItemInArray,
+  transferArrayItem
+} from '@angular/cdk/drag-drop';
 import { Router, ActivatedRoute } from '@angular/router';
 
 export interface FormField {
@@ -17,9 +24,12 @@ export interface FormField {
   label: string;
   type: string;
   placeholder?: string;
-  width?: '150' | '300' | '400';
+  width?: 150 | 300 | 400;
   options?: { value: string; label: string }[];
   value?: any;
+  position?: { x: number; y: number };
+  row?: number;
+  col?: number;
 }
 
 interface FormPage {
@@ -39,8 +49,9 @@ interface SavedForm {
 })
 export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterViewChecked {
   @ViewChildren('canvasElement') canvasRefs!: QueryList<ElementRef<HTMLCanvasElement>>;
+  isRemovingField: boolean = false;
+  isDrawingSignature = false;
 
-  // Use a map keyed by field.id for canvas contexts and drawing states
   ctxMap: Record<string, CanvasRenderingContext2D> = {};
   drawingMap: Record<string, boolean> = {};
   isDragging: boolean[] = [];
@@ -83,20 +94,33 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
   savedForms: SavedForm[] = [];
   currentFormId: string | null = null;
 
+  freeDragPositions: { [fieldId: string]: { x: number; y: number } } = {};
+
+  private idCounter = 0;
+
+  pointerPosition = { x: 0, y: 0 };
+
   constructor(
     private router: Router,
     private route: ActivatedRoute,
     private cdr: ChangeDetectorRef
-  ) {}
+  ) { }
 
   ngOnInit(): void {
     this.route.queryParams.subscribe(params => {
       const templateId = params['templateId'];
       if (templateId) {
-        const saved = localStorage.getItem('savedFormPages');
-        if (saved) {
-          this.savedForms = JSON.parse(saved);
-          this.loadFormById(templateId);
+        try {
+          const saved = localStorage.getItem('savedFormPages');
+          if (saved) {
+            this.savedForms = JSON.parse(saved);
+            this.loadFormById(templateId);
+
+            this.fixDuplicateIds();
+            this.checkDuplicateIds();
+          }
+        } catch (e) {
+          console.error('Failed to parse saved forms from localStorage', e);
         }
       }
     });
@@ -108,24 +132,31 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
       label: '',
       type: 'text',
       placeholder: '',
-      width: '150',
-      value: ''
+      width: 150,
+      value: '',
+      position: { x: 0, y: 0 }
     };
   }
 
   generateId(): string {
-    return 'field-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+    this.idCounter++;
+    return 'field-' + Date.now() + '-' + this.idCounter + '-' + Math.random().toString(36).substr(2, 5);
   }
 
   ngAfterViewInit(): void {
     this.initCanvases();
   }
 
+  private canvasInitScheduled = false;
+
   ngAfterViewChecked(): void {
-    const count = this.canvasRefs.length;
-    if (count !== this.lastCanvasCount) {
-      this.lastCanvasCount = count;
-      this.initCanvases();
+    if (this.canvasRefs.length !== this.lastCanvasCount && !this.canvasInitScheduled) {
+      this.canvasInitScheduled = true;
+      setTimeout(() => {
+        this.initCanvases();
+        this.canvasInitScheduled = false;
+        this.lastCanvasCount = this.canvasRefs.length;
+      }, 100);
     }
 
     if (this.shouldClearSignatureCanvas) {
@@ -136,63 +167,122 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
     }
   }
 
-  @HostListener('window:resize')
-  onResize(): void {
-    this.initCanvases();
+  @HostListener('document:mousemove', ['$event'])
+  onMouseMove(event: MouseEvent) {
+    this.pointerPosition = { x: event.clientX, y: event.clientY };
   }
 
-  drop(event: CdkDragDrop<FormField[]>) {
-    const fromPalette = event.previousContainer.id === 'fieldPalette';
-    const toCanvas = event.container.id === 'formCanvas';
-
-    if (fromPalette && toCanvas) {
-      const dragged = event.item.data as FormField;
-      this.pendingFieldToAdd = {
-        ...dragged,
-        id: this.generateId(),
-        value: dragged.type === 'radio' ? '' : null,
-        width: '150'
-      };
-      this.newField = { ...this.pendingFieldToAdd };
-      this.fieldConfigVisible = true;
-      this.cdr.detectChanges();
-
-      // Clear canvas for signature field if dropped
-      if (dragged.type === 'signature') {
-        setTimeout(() => {
-          const idx = this.formPages[this.currentPage].fields.findIndex(f => f.id === this.pendingFieldToAdd?.id);
-          if (idx !== -1) {
-            this.clearCanvas(this.pendingFieldToAdd!.id);
-          }
-        }, 100);
+  initializeFreeDragPositions() {
+    this.freeDragPositions = this.freeDragPositions || {};
+    this.formPages[this.currentPage].fields.forEach(field => {
+      if (!field.position) {
+        field.position = { x: 0, y: 0 };
       }
+      this.freeDragPositions[field.id] = field.position;
+    });
+  }
 
-    } else if (event.previousContainer === event.container && toCanvas) {
-      // Reorder fields within the canvas
-      moveItemInArray(event.container.data, event.previousIndex, event.currentIndex);
+onDrop(event: CdkDragDrop<FormField[]>) {
+  if (!event.isPointerOverContainer) return;
 
-      const dragged = event.item.data as FormField;
+  const draggedField = event.item.data;
 
-      // Clear signature canvas if applicable
-      if (dragged.type === 'signature') {
-        setTimeout(() => {
-          this.clearCanvas(dragged.id);
-        }, 100);
-      }
+  // Check if it's a new field or one already on the canvas
+  const isExistingField = this.formPages[this.currentPage].fields.some(
+    f => f.id === draggedField.id
+  );
+
+  // Get drop position
+  const containerRect = event.container.element.nativeElement.getBoundingClientRect();
+  const nativeEvent = event.event as MouseEvent;
+  const clientX = nativeEvent?.clientX ?? 0;
+  const clientY = nativeEvent?.clientY ?? 0;
+  const paddingLeft = 10;
+  const paddingTop = 10;
+  const rawX = clientX - containerRect.left + event.container.element.nativeElement.scrollLeft;
+  const rawY = clientY - containerRect.top + event.container.element.nativeElement.scrollTop;
+
+  const gridSize = 20;
+  let snappedX = Math.round((rawX - paddingLeft) / gridSize) * gridSize;
+  let snappedY = Math.round((rawY - paddingTop) / gridSize) * gridSize;
+
+  // Avoid duplicate positions
+  const existingPositions = this.formPages[this.currentPage].fields
+    .filter(f => f.id !== draggedField.id) // only others
+    .map(f => f.position);
+  while (existingPositions.some(pos => pos?.x === snappedX && pos?.y === snappedY)) {
+    snappedX += gridSize;
+    snappedY += gridSize;
+  }
+
+if (isExistingField) {
+  // Just update position
+  const field = this.formPages[this.currentPage].fields.find(f => f.id === draggedField.id);
+  if (field) field.position = { x: snappedX, y: snappedY };
+} else {
+  // Prepare newField for modal config instead of adding immediately
+  this.newField = {
+    ...draggedField,
+    id: this.generateId(),
+    label: draggedField.label || 'New Field',
+    value: '',
+    position: { x: snappedX, y: snappedY },
+    width: 150 // default width if none provided
+  };
+  this.pendingFieldToAdd = this.newField;
+  this.fieldConfigVisible = true;
+}
+
+  this.initializeFreeDragPositions();
+  this.fixDuplicateIds();
+  this.cdr.detectChanges(); // optional but helps sometimes
+}
+  onFieldDragStarted(event: CdkDragStart, field: FormField): void {
+    const pos = field.position || { x: 0, y: 0 };
+    event.source.setFreeDragPosition(pos);
+  }
+
+  onFieldDragMoved(event: CdkDragMove, field: FormField): void {
+    const position = event.source.getFreeDragPosition();
+    field.position = { x: position.x, y: position.y };
+    this.cdr.detectChanges();
+    // console.log('getFreeDragPosition:', position); // debug if needed
+  }
+
+onFieldDragEnded(event: CdkDragEnd, field: FormField): void {
+  const gridSize = 20;
+  const pos = event.source.getFreeDragPosition();
+  let x = Math.round(pos.x / gridSize) * gridSize;
+  let y = Math.round(pos.y / gridSize) * gridSize;
+
+  const others = this.formPages[this.currentPage].fields.filter(f => f.id !== field.id);
+  let tries = 0;
+  while (others.some(f => f.position?.x === x && f.position?.y === y) && tries < 10) {
+    x += gridSize;
+    if (x > 1000) { // arbitrary max width
+      x = 0;
+      y += gridSize;
     }
+    tries++;
+  }
 
-    setTimeout(() => {
-      if (this.pendingFieldToAdd?.type === 'project-title') {
-        const fieldElement = document.querySelector(`#field-${this.pendingFieldToAdd.id} .editable-div`);
-        if (fieldElement) (fieldElement as HTMLElement).focus();
-      }
-    }, 0);
+  field.position = { x, y };
+  event.source.setFreeDragPosition({ x, y });
+  this.cdr.detectChanges();
+}
+
+  onDragMoved(event: CdkDragMove<any>) {
+    this.pointerPosition = { x: event.pointerPosition.x, y: event.pointerPosition.y };
   }
 
   createField(): void {
     if (!this.pendingFieldToAdd) return;
+  const f = { ...this.pendingFieldToAdd };
+    if (typeof f.width === 'string') {
+      f.width = parseInt(f.width, 10) as 150 | 300 | 400;
+    }
 
-    const f = { ...this.newField, id: this.pendingFieldToAdd.id };
+    f.id = this.generateId();
 
     if (f.type === 'project-title') f.value = f.value || '';
     if (f.type === 'branch') {
@@ -204,10 +294,13 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
     }
 
     this.formPages[this.currentPage].fields.push(f);
-
+    this.fixDuplicateIds();
     this.pendingFieldToAdd = null;
     this.cancelFieldConfig();
-    setTimeout(() => this.initCanvases(), 50);
+    setTimeout(() => {
+      this.initCanvases();
+      this.initializeFreeDragPositions();
+    }, 50);
   }
 
   cancelFieldConfig(): void {
@@ -217,14 +310,58 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
   }
 
   removeField(pageIndex: number, field: FormField): void {
+    this.isRemovingField = true;
     this.formPages[pageIndex].fields = this.formPages[pageIndex].fields.filter(f => f !== field);
-    setTimeout(() => this.initCanvases(), 0);
+    delete this.ctxMap[field.id];
+    delete this.drawingMap[field.id];
+    delete this.freeDragPositions[field.id];
+
+    setTimeout(() => {
+      this.initCanvases();
+      this.isRemovingField = false;
+      this.initializeFreeDragPositions();
+    }, 50);
+  }
+
+  private ensureGridPositions(): void {
+    this.formPages.forEach(page => {
+      page.fields.forEach((field, index) => {
+        if (field.row == null) {
+          field.row = index + 1;
+        }
+        if (field.col == null) {
+          field.col = (index % 2) + 1;
+        }
+      });
+    });
+  }
+
+  private assignGridPositions() {
+    const fields = this.formPages[this.currentPage].fields;
+    fields.forEach((field, index) => {
+      field.row = Math.floor(index / 2) + 1;
+      field.col = (index % 2) + 1;
+    });
+  }
+
+  private ensureFieldPositions(): void {
+    this.formPages.forEach(page => {
+      page.fields.forEach(field => {
+        if (!field.position) {
+          field.position = { x: 0, y: 0 };
+        }
+      });
+    });
   }
 
   loadFormById(formId: string): void {
     const form = this.savedForms.find(f => f.formId === formId);
     if (form) {
       this.formPages = JSON.parse(JSON.stringify(form.formPages));
+
+      this.fixDuplicateIds();
+      this.checkDuplicateIds();
+
       this.currentPage = 0;
       this.currentFormId = form.formId;
       this.dashboardVisible = false;
@@ -232,25 +369,11 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
       this.formListVisible = false;
       alert(`Loaded form "${form.formName}"`);
 
+      this.cdr.detectChanges();
+
       setTimeout(() => {
         this.initCanvases();
-
-        // Draw saved signature images on canvas
-        this.formPages[this.currentPage].fields.forEach((field) => {
-          if (field.type === 'signature' && field.value) {
-            const canvasRef = this.canvasRefs.find(ref => ref.nativeElement.getAttribute('data-id') === field.id);
-            const ctx = this.ctxMap[field.id];
-            if (canvasRef && ctx) {
-              const canvas = canvasRef.nativeElement;
-              const img = new Image();
-              img.onload = () => {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-              };
-              img.src = field.value;
-            }
-          }
-        });
+        this.initializeFreeDragPositions();
       }, 0);
     }
   }
@@ -276,7 +399,6 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
       return;
     }
 
-    // Save signature canvas data as data URL
     this.formPages.forEach(page => {
       page.fields.forEach(field => {
         if (field.type === 'signature') {
@@ -342,19 +464,22 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      // Setup canvas size with devicePixelRatio for sharpness
-      canvas.width = canvas.offsetWidth * devicePixelRatio;
-      canvas.height = canvas.offsetHeight * devicePixelRatio;
-      ctx.scale(devicePixelRatio, devicePixelRatio);
+      const desiredWidth = canvas.offsetWidth * devicePixelRatio;
+      const desiredHeight = canvas.offsetHeight * devicePixelRatio;
+
+      if (canvas.width !== desiredWidth || canvas.height !== desiredHeight) {
+        canvas.width = desiredWidth;
+        canvas.height = desiredHeight;
+        ctx.scale(devicePixelRatio, devicePixelRatio);
+      }
+
       ctx.lineCap = 'round';
       ctx.strokeStyle = '#000';
       ctx.lineWidth = 2;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       this.ctxMap[fieldId] = ctx;
       this.drawingMap[fieldId] = false;
 
-      // Attach pointer event handlers
       canvas.onpointerdown = e => this.startDrawing(e, fieldId);
       canvas.onpointermove = e => this.draw(e, fieldId);
       canvas.onpointerup = e => this.stopDrawing(e, fieldId);
@@ -363,6 +488,8 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
   }
 
   startDrawing(e: PointerEvent, fieldId: string): void {
+    if (this.isRemovingField) return;
+    this.isDrawingSignature = true;
     const ctx = this.ctxMap[fieldId];
     const canvas = this.getCanvasById(fieldId);
     if (!ctx || !canvas) return;
@@ -373,6 +500,7 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
   }
 
   draw(e: PointerEvent, fieldId: string): void {
+    if (this.isRemovingField) return;
     if (!this.drawingMap[fieldId]) return;
     const ctx = this.ctxMap[fieldId];
     const canvas = this.getCanvasById(fieldId);
@@ -383,6 +511,8 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
   }
 
   stopDrawing(e: PointerEvent, fieldId: string): void {
+    if (this.isRemovingField) return;
+    this.isDrawingSignature = false;
     if (!this.drawingMap[fieldId]) return;
     const ctx = this.ctxMap[fieldId];
     this.drawingMap[fieldId] = false;
@@ -403,21 +533,19 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
     }
   }
 
-
-clearSignatureCanvas(fieldId: string): void {
-  const canvas = this.getCanvasById(fieldId);
-  if (!canvas) return;
-  const ctx = this.ctxMap[fieldId];
-  if (ctx) {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    this.drawingMap[fieldId] = false;
-
-    const field = this.formPages[this.currentPage].fields.find(f => f.id === fieldId);
-    if (field) {
-      field.value = null;
+  clearSignatureCanvas(fieldId: string): void {
+    if (this.isRemovingField) return;
+    const canvas = this.getCanvasById(fieldId);
+    if (!canvas) return;
+    const ctx = this.ctxMap[fieldId];
+    if (ctx) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      this.drawingMap[fieldId] = false;
+      const field = this.formPages[this.currentPage].fields.find(f => f.id === fieldId);
+      if (field) field.value = null;
     }
   }
-}
+
 
   clearCanvasAfterDrop(): void {
     this.canvasRefs.forEach(ref => {
@@ -443,12 +571,13 @@ clearSignatureCanvas(fieldId: string): void {
     return field.id;
   }
 
-onSubmit(): void {
-  this.saveForm();
-}
-  onContentEditableInput(event: Event, field: FormField): void {
+  onSubmit(): void {
+    this.saveForm();
+  }
+
+  onContentEditableInput(event: Event, field: any) {
     const target = event.target as HTMLElement;
-    field.value = target.innerText;
+    field.value = target.innerText.trim();
   }
 
   onDragStart(event: DragEvent, index: number): void {
@@ -457,5 +586,37 @@ onSubmit(): void {
 
   onDragEnd(event: DragEvent, index: number): void {
     this.isDragging[index] = false;
+  }
+
+  // -- Fix and check duplicate IDs --
+
+  fixDuplicateIds(): void {
+    const seen = new Set<string>();
+    this.formPages.forEach(page => {
+      page.fields.forEach(field => {
+        while (seen.has(field.id)) {
+          const oldId = field.id;
+          field.id = this.generateId();
+          console.log(`Duplicate ID "${oldId}" fixed with new ID "${field.id}"`);
+        }
+        seen.add(field.id);
+      });
+    });
+    console.log('All IDs after fix:', this.formPages.flatMap(p => p.fields.map(f => f.id)));
+  }
+
+  checkDuplicateIds(): void {
+    const ids: string[] = [];
+    this.formPages.forEach(page => {
+      page.fields.forEach(field => {
+        ids.push(field.id);
+      });
+    });
+    const duplicates = ids.filter((id, idx) => ids.indexOf(id) !== idx);
+    if (duplicates.length) {
+      console.warn('Duplicate field IDs found:', duplicates);
+    } else {
+      console.log('No duplicate IDs found');
+    }
   }
 }
