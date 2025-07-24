@@ -1,51 +1,247 @@
-.save-actions {
-  position: relative;
+/* Container for each field */
+form div[style*="margin-bottom"] {
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Label styling */
+label {
+  font-weight: 600;
+  font-size: 1rem;
+  color: #222;
+  margin-bottom: 0.4rem;
+  user-select: none;
+}
+
+/* Required star */
+label span {
+  color: #e53935;
+  margin-left: 0.15rem;
+}
+
+/* Inputs, textarea, select */
+input[type="text"],
+input[type="email"],
+input[type="number"],
+input[type="tel"],
+input[type="date"],
+textarea,
+select {
+  padding: 0.6rem 0.75rem;
+  border-radius: 6px;
+  border: 1.5px solid #ccc;
+  font-size: 1rem;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  width: 100%;
+  box-sizing: border-box;
+  outline-offset: 2px;
+}
+
+/* Textarea specific */
+textarea {
+  width: 300px;       /* fixed width or max-width if you want */
+  height: 120px;      /* fixed height */
+  resize: both;       /* allow user to resize horizontally and vertically */
+  overflow: auto;     /* show scrollbar if needed */
+  box-sizing: border-box;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  transition: border-color 0.3s ease;
+}
+
+/* Input focus */
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: #2962ff;
+  box-shadow: 0 0 6px #82b1ff;
+  outline: none;
+}
+.error-message {
+  color: #d32f2f;
+  font-size: 0.875rem;
+  margin-top: 4px;
+  user-select: none;
+}
+
+/* Validation error messages */
+div[style*="color: red"] {
+  color: #d32f2f;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+  font-weight: 500;
+  user-select: none;
+}
+
+/* Radio group container */
+div[ng-reflect-ng-if][style*="margin-bottom"] > div {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  margin-top: 0.3rem;
+}
+
+/* Radio label */
+div[ng-reflect-ng-if][style*="margin-bottom"] > div label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Radio input */
+input[type="radio"] {
+  cursor: pointer;
+}
+
+/* Buttons */
+button {
+  padding: 0.6rem 1.2rem;
+  font-size: 1rem;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background-color 0.3s ease;
+  user-select: none;
+}
+
+/* Primary button */
+button[color="primary"],
+button.mat-raised-button[color="primary"] {
+  background-color: #2962ff;
+  color: white;
+}
+
+button[color="primary"]:hover,
+button.mat-raised-button[color="primary"]:hover {
+  background-color: #0039cb;
+}
+
+/* Accent button */
+button[color="accent"],
+button.mat-raised-button[color="accent"] {
+  background-color: #ff4081;
+  color: white;
+}
+
+button[color="accent"]:hover,
+button.mat-raised-button[color="accent"]:hover {
+  background-color: #c60055;
+}
+
+/* Secondary button */
+button[mat-button] {
+  background-color: transparent;
+  color: #2962ff;
+  font-weight: 500;
+  padding: 0.4rem 0.8rem;
+}
+
+button[mat-button]:hover {
+  background-color: rgba(41, 98, 255, 0.1);
+}
+
+/* Signature canvas styling */
+canvas {
+  border-radius: 8px;
+  border: 2px dashed #2962ff;
+  width: 100% !important;
+  height: 150px !important;
+  cursor: crosshair;
+  box-sizing: border-box;
+  display: block;
+  margin-bottom: 0.8rem;
+}
+
+/* Signature clear button */
+button[type="button"]:not([color]):not([mat-button]) {
+  background-color: #e53935;
+  color: white;
+  margin-top: -0.5rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  transition: background-color 0.3s ease;
+}
+
+button[type="button"]:not([color]):not([mat-button]):hover {
+  background-color: #ab000d;
+}
+.saved-forms-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: Arial, sans-serif;
   margin-top: 20px;
 }
 
-/* popup overlay background */
-.save-actions.show-popup::before {
-  content: "";
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 999;
+.saved-forms-table th,
+.saved-forms-table td {
+  border: 1px solid #ddd;
+  padding: 10px 15px;
+  text-align: left;
 }
 
-/* popup input container */
-.name-input-wrapper {
-  position: fixed;
-  z-index: 1000;
-  background: white;
-  padding: 16px 24px;
-  border-radius: 8px;
-  top: 30%;
-  left: 50%;
-  transform: translate(-50%, -30%);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.saved-forms-table thead {
+  background-color: #2196f3;
+  color: white;
 }
 
-.name-input-wrapper input {
-  min-width: 220px;
-  padding: 6px 8px;
-  font-size: 14px;
+.saved-forms-table tbody tr:hover {
+  background-color: #f1f7ff;
+  cursor: pointer;
+}
+
+.odd-row {
+  background-color: #f9f9f9;
+}
+img {
+  max-width: 200px;
+  max-height: 200px;
   border: 1px solid #ccc;
   border-radius: 4px;
 }
 
-.name-input-wrapper input.invalid {
-  border-color: red;
+.saved-forms-table button {
+  padding: 6px 12px;
+  background-color: #4caf50;
+  border: none;
+  color: white;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
 }
 
-.error-message {
-  color: red;
-  margin-top: 6px;
-  font-size: 13px;
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
+.saved-forms-table button:hover {
+  background-color: #388e3c;
+}
+
+
+/* Responsive for smaller screens */
+@media (max-width: 600px) {
+  form div[style*="margin-bottom"] {
+    margin-bottom: 1rem;
+  }
+  label {
+    font-size: 0.9rem;
+  }
+  input[type="text"],
+  input[type="email"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="date"],
+  textarea,
+  select {
+    font-size: 0.9rem;
+  }
+  button {
+    font-size: 0.9rem;
+    padding: 0.5rem 1rem;
+  }
 }

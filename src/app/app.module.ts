@@ -14,6 +14,7 @@ import { CreateFormComponent } from './components/create-form/create-form.compon
 import { DragDropModule } from '@angular/cdk/drag-drop';
 import { ProblemTrackerComponent } from './components/problem-tracker/problem-tracker.component';
 import { FormsModule } from '@angular/forms';
+import { MatSnackBarModule } from '@angular/material/snack-bar';
 
 @NgModule({
   declarations: [
@@ -34,7 +35,9 @@ import { FormsModule } from '@angular/forms';
     MaterialModule,
     ReactiveFormsModule,
     DragDropModule,
-     FormsModule
+     FormsModule,
+     MatSnackBarModule
+    
   ],
   providers: [],
   bootstrap: [AppComponent],

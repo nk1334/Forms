@@ -54,57 +54,86 @@
 
 /* Palette container */
 .field-palette {
-  width: 250px;
+  width: 180px;           /* smaller width */
   background: #fafafa;
-  border: 1px solid #ddd;
-  padding: 12px;
+  border: 1px solid #ccc;
+  padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  overflow-y: auto;
+  gap: 6px;
   font-family: Arial, sans-serif;
+  font-size: 12px;
+  overflow-y: auto;
+  max-height: 80vh;       /* limit height with scroll */
+}
+.palette-item {
+  padding: 6px 8px;
+  font-size: 12px;
+  background-color: transparent;  /* no background */
+  border: none;                   /* no border */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);  /* very subtle shadow */
+  border-radius: 0;
+  cursor: grab;
+  user-select: none;
+  white-space: nowrap;
+  width: 100%;
+  text-align: left;
+  transition: box-shadow 0.2s ease;
 }
 
+.palette-item:hover {
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15); /* slightly stronger shadow on hover */
+}
 .field-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-background: #e3f2fd; /* light blue background */
-  border: 1px solid #90caf9; /* soft blue border */ 
-  border-radius: 6px;
-  padding: 8px 12px;
+  display: flex; /* inline so it doesn't take full width */
+  align-items:  flex-start;
+  justify-content: center;
+ background-color: #1e88e5; /* bright blue background */
+  border: none; /* remove border */
+  border-radius: 0; /* no rounded corners */
+  padding: 4px 8px; /* smaller padding */
   cursor: grab;
   font-size: 14px;
   color: #333;
   user-select: none;
-  transition: all 0.2s ease;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-  /* reduce vertical space here */
-  margin-bottom: 0; /* <-- change this to a smaller number or zero */
+  transition: box-shadow 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); /* subtle shadow only */
+  margin-bottom: 6px;
+  gap: 6px;
+  height: auto; /* auto height */
+  overflow: visible;
+  box-sizing: border-box;
+  min-width: 60px;
 }
 
 .field-item:hover {
-  border-color: #007bff;
-  background-color: #f0f8ff;
+  box-shadow: 0 2px 6px rgba(30, 136, 229, 0.4); /* stronger blue shadow */
+  color: #1565c0; /* darker blue text on hover */
+  background: transparent;
 }
 
+.field-item textarea {
+  height: 40px;      /* fixed height */
+  resize: none;      /* disable manual resize */
+  overflow-y: auto;  /* scroll if content overflows */
+  flex-grow: 1;      /* take available space */
+  min-width: 100px;  /* or adjust */
+}
+
+.field-item input,
+.field-item select {
+  flex-grow: 1;
+  min-width: 100px;
+}
 
 .field-item label {
-  font-weight: 500;
-  color: #333;
-  margin: 0;
-  font-size: 13px;
-  user-select: none;
-  flex-grow: 1;
+  flex-shrink: 0;
+  margin-right: 10px;
+  white-space: nowrap;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.field-item mat-icon {
-  font-size: 16px;
-  margin: 0;
-  padding: 0;
-  color: #555;
-  line-height: 1;
-}
-
 .field-item .delete-icon {
   font-size: 16px;
   color: #d00;
@@ -130,48 +159,104 @@ background: #e3f2fd; /* light blue background */
   display: block;
 }
 .form-row {
-  position: absolute; /* Absolutely position based on left/top */
-  top: 0; /* Default to 0, will be overridden by Angular binding */
+  position: absolute; /* keep if needed */
+  top: 0;
   left: 0;
-  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding:  10px 12px;
   box-sizing: border-box;
-  border: 1px solid #90caf9;
-  background: #e3f2fd; /* light blue for visibility */
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  border-radius: 8px;
-  margin: 0 5px 5px 5px; /* reduced top margin */
-  min-width: 100px;
-  height: auto;
-  cursor: move;
-  user-select: none;
+  background-color: #f9f9f9;
+ border: 1px solid #ccc;
+  border-radius: 6px;
+  max-width: 350px;
+  min-width: 160px;
+  cursor: grab;
   z-index: 10;
+  width: 100%;
+  height: auto;
+    cursor: grab;
+    flex-wrap: nowrap;
+}
+.field-header {
   display: flex;
   align-items: center;
-  font-weight: 500;
-  color: #333;
+  justify-content: space-between; /* or flex-start if you want delete button elsewhere */
+  gap: 8px;
+  user-select: none;
+  padding-bottom: 4px;
 }
 
+/* Hover effect */
+.form-row:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  transform: translateY(-1px);
+}
+.field-textarea {
+  flex: 1 1 auto;
+  min-height: 60px;
+  padding: 8px 10px;
+  resize: vertical; /* allow vertical growth */
+  width: 100%;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+/* When textarea is present, switch to vertical layout */
+.form-row.textarea-row {
+  flex-direction: column !important;
+  align-items: stretch !important;
+}
+
+/* Label styling */
 .form-label {
   flex-shrink: 0;
-  width: 120px; /* fixed label width or adjust */
+  width: 120px;
+  margin-right: 10px;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
-
-.form-input {
-  flex-grow: 1;
-  min-width: 150px; /* or bind this from field.width */
+textarea.form-input {
+  resize: both;            /* allow both horizontal and vertical resizing */
+  min-width: 150px;        /* ensures it can grow horizontally */
+  min-height: 80px;        /* ensures it can grow vertically */
+  width: auto;             /* don’t fix width so it can expand */
+  height: auto;            /* don’t fix height */
+  overflow: auto;          /* add scrollbar if needed */
   box-sizing: border-box;
-  height: 34px;
-  padding: 4px 8px;
 }
-
+.form-row textarea,
+.form-row input {
+  flex-grow: 1;      /* take remaining space */
+  min-width: 150px;  /* minimum width */
+  max-width: calc(100% - 130px); /* prevent overflow */
+  resize: vertical;  /* allow vertical resize */
+  height: auto;
+  white-space: normal;
+}
+.form-row textarea {
+  resize: both;          /* Allow horizontal + vertical resize */
+  min-width: 150px;      /* Minimum width */
+  max-width: 100%;       /* Max width limited to container */
+  min-height: 80px;      /* Minimum height */
+  height: auto;          /* Auto height so it grows with content */
+  flex-grow: 1;          /* Grow to fill available space */
+  box-sizing: border-box;
+  white-space: normal;
+}
 .drag-handle {
-  cursor: move;
-  user-select: none;
-  padding: 0 6px;
-  flex-shrink: 0;
+  flex: 0 0 24px;  /* fixed width */
+  cursor: grab;
+  color: #666;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+    user-select: none;
 }
 .form-item {
   background: white;
@@ -183,20 +268,16 @@ background: #e3f2fd; /* light blue background */
   transition: top 0.1s ease, left 0.1s ease; /* smooth drag movement */
 }
 
-/* Delete button styling */
 .delete-btn {
-  flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  margin-left: 8px;
-  background-color: #6c757d;
+  flex: 0 0 30px; /* fixed width */
+  background: #d32f2f;
   color: white;
-  cursor: pointer;
   border-radius: 4px;
   border: none;
+  cursor: pointer;
   display: flex;
-  align-items: center;
   justify-content: center;
+  align-items: center;
 }
 /* Delete button hover effect */
 .delete-btn:hover {
@@ -239,27 +320,35 @@ background: #e3f2fd; /* light blue background */
   cursor: move;
 }
 .form-canvas {
-  background-image:
-    linear-gradient(#eee 1px, transparent 1px),
-    linear-gradient(90deg, #eee 1px, transparent 1px);
-  background-size: 20px 20px;
-  position: relative;
-  width: 100%;
-  flex: 1;                    /* Grow to fill remaining space */
-  min-height: 0;              /* Prevent it from forcing scroll */
-  overflow: auto;
-  padding: 2px 10px 10px 10px;
-  box-sizing: border-box;
+  position:relative;
+  display: flex;
+ flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  background-color: #fff;
   border: 2px dashed #ccc;
-  border-radius: 8px;
+  border-radius: 0px; /* flat borders */
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+
+  /* MOST IMPORTANT: take full available space */
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+
+  /* Scroll if needed */
+  overflow-x: auto;
 }
 .form-field {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 220px;
-  min-height: 50px;
+  flex-direction: column;
+  align-items: flex-start; /* better alignment for label+input */
+  min-width: 220px;
+  max-width: 100%;
+  flex-shrink: 1;           /* prevent shrinking */
+  flex-grow: 0;             /* no automatic grow */
+  gap: 6px;
   padding: 6px 10px;
   border: 1px solid #ccc;
   border-radius: 6px;
@@ -268,7 +357,38 @@ background: #e3f2fd; /* light blue background */
   font-size: 14px;
   cursor: default;
 }
-
+.description-field {
+  resize: both;               /* ✅ Manual vertical & horizontal resizing */
+  overflow: auto;
+  min-width: 100px;
+  min-height: 60px;
+  max-width: 300px;           /* Optional cap */
+  width: 150px;
+  height: 60px;
+  box-sizing: border-box;
+  font-size: 14px;
+  padding: 6px 10px;
+  display: inline-block;      /* ✅ Needed to stay inline in flex */
+}
+.description-field label {
+  flex-shrink: 0;
+  width: 120px;  /* fixed width label */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.description-field textarea {
+  flex-grow: 1;     /* take remaining space */
+  flex-shrink: 1;   /* allow shrinking */
+  min-width: 0;     /* critical for flexbox to shrink properly */
+  min-height: 80px;
+  resize: vertical;
+  padding: 8px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  /* REMOVE width: 100%; */
+}
 .form-field.full-width {
   width: 100%;
 }
@@ -567,14 +687,23 @@ background: #e3f2fd; /* light blue background */
 .field-box {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  width: 200px;
-  padding: 6px 8px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  background-color: #fff;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  position: relative;
+  gap: 6px;
+  width: 220px;
+  padding: 12px 16px;
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  font-size: 14px;
+  color: #333;
+  cursor: move;
+  user-select: none;
+  transition: box-shadow 0.2s ease-in-out, transform 0.1s ease-in-out;
+}
+
+.field-box:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: scale(1.01);
 }
 
 .field-box .top-bar {
@@ -609,4 +738,88 @@ background: #e3f2fd; /* light blue background */
 }
 *, *::before, *::after {
   box-sizing: border-box;
+}
+/* For textarea fields inside .form-row, stack vertically */
+.form-row textarea.form-input {
+  flex-grow: 1;
+  min-width: 150px;
+  max-width: 100%;
+  min-height: 80px;
+  resize: both;
+  padding: 8px;
+  font-size: 14px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  box-sizing: border-box;
+  margin-top: 0;
+  overflow: auto;
+}
+
+/* Stack label + textarea vertically for description fields */
+.form-row textarea.form-input,
+.form-row textarea.form-input + label,
+.form-row textarea.form-input ~ label,
+.form-row label {
+  display: block;
+  width: 100%;
+  margin-right: 0;
+  margin-bottom: 6px;
+}
+
+.form-row:has(textarea.form-input) {
+  flex-direction: column !important;
+  align-items: stretch !important;
+}
+
+/* If :has() is not supported, add a class in Angular when field.type==='textarea' */
+/* e.g. <div class="form-row textarea-row"> */
+.form-row.textarea-row {
+  flex-direction: column !important;
+  align-items: stretch !important;
+}
+
+/* Label styling for textarea */
+.form-row.textarea-row .form-label {
+  width: auto;
+  margin-bottom: 6px;
+  white-space: normal;
+  font-weight: 600;
+}
+
+.form-label {
+  flex-grow: 1;
+  margin: 0 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  color: #333;
+}
+
+.form-row.description-field textarea.form-input {
+  width: auto !important;  /* allow horizontal grow */
+  min-width: 150px;
+  max-width: none;
+  flex-grow: 1;
+  resize: both;            /* allow both vertical and horizontal resize */
+  margin-top: 0;
+}
+
+/* Optional: add some padding and border to textarea for better UX */
+textarea.form-input {
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+}
+@media (max-width: 600px) {
+  .description-field {
+    flex-direction: column !important;
+  }
+
+  .description-field label {
+    width: auto;
+    margin-bottom: 6px;
+  }
 }

@@ -18,13 +18,17 @@ import {
   transferArrayItem
 } from '@angular/cdk/drag-drop';
 import { Router, ActivatedRoute } from '@angular/router';
+import { MatSnackBar } from '@angular/material/snack-bar';
+
+
 
 export interface FormField {
   id: string;
   label: string;
   type: string;
   placeholder?: string;
-  width?: 150 | 300 | 400;
+   width?:  150 | 300 | 400;  // allowed widths
+  height?: number;  // add height property
   options?: { value: string; label: string }[];
   value?: any;
   position?: { x: number; y: number };
@@ -99,11 +103,13 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
   private idCounter = 0;
 
   pointerPosition = { x: 0, y: 0 };
+    allowedWidths = [150, 300, 400];
 
   constructor(
     private router: Router,
     private route: ActivatedRoute,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private snackBar: MatSnackBar
   ) { }
 
   ngOnInit(): void {
@@ -181,62 +187,78 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
       this.freeDragPositions[field.id] = field.position;
     });
   }
+  onFileSelected(event: Event, field: FormField): void {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files[0]) {
+      const file = input.files[0];
 
-onDrop(event: CdkDragDrop<FormField[]>) {
-  if (!event.isPointerOverContainer) return;
+      if (!file.type.startsWith('image/')) {
+        this.snackBar.open('Only image files are supported', 'Close', { duration: 3000 });
+        return;
+      }
 
-  const draggedField = event.item.data;
-
-  // Check if it's a new field or one already on the canvas
-  const isExistingField = this.formPages[this.currentPage].fields.some(
-    f => f.id === draggedField.id
-  );
-
-  // Get drop position
-  const containerRect = event.container.element.nativeElement.getBoundingClientRect();
-  const nativeEvent = event.event as MouseEvent;
-  const clientX = nativeEvent?.clientX ?? 0;
-  const clientY = nativeEvent?.clientY ?? 0;
-  const paddingLeft = 10;
-  const paddingTop = 10;
-  const rawX = clientX - containerRect.left + event.container.element.nativeElement.scrollLeft;
-  const rawY = clientY - containerRect.top + event.container.element.nativeElement.scrollTop;
-
-  const gridSize = 20;
-  let snappedX = Math.round((rawX - paddingLeft) / gridSize) * gridSize;
-  let snappedY = Math.round((rawY - paddingTop) / gridSize) * gridSize;
-
-  // Avoid duplicate positions
-  const existingPositions = this.formPages[this.currentPage].fields
-    .filter(f => f.id !== draggedField.id) // only others
-    .map(f => f.position);
-  while (existingPositions.some(pos => pos?.x === snappedX && pos?.y === snappedY)) {
-    snappedX += gridSize;
-    snappedY += gridSize;
+      const reader = new FileReader();
+      reader.onload = (e: any) => {
+        field.value = e.target.result; // base64 image string
+      };
+      reader.readAsDataURL(file);
+    }
   }
+  onDrop(event: CdkDragDrop<FormField[]>) {
+    if (!event.isPointerOverContainer) return;
 
-if (isExistingField) {
-  // Just update position
-  const field = this.formPages[this.currentPage].fields.find(f => f.id === draggedField.id);
-  if (field) field.position = { x: snappedX, y: snappedY };
-} else {
-  // Prepare newField for modal config instead of adding immediately
-  this.newField = {
-    ...draggedField,
-    id: this.generateId(),
-    label: draggedField.label || 'New Field',
-    value: '',
-    position: { x: snappedX, y: snappedY },
-    width: 150 // default width if none provided
-  };
-  this.pendingFieldToAdd = this.newField;
-  this.fieldConfigVisible = true;
-}
+    const draggedField = event.item.data;
 
-  this.initializeFreeDragPositions();
-  this.fixDuplicateIds();
-  this.cdr.detectChanges(); // optional but helps sometimes
-}
+    // Check if it's a new field or one already on the canvas
+    const isExistingField = this.formPages[this.currentPage].fields.some(
+      f => f.id === draggedField.id
+    );
+
+    // Get drop position
+    const containerRect = event.container.element.nativeElement.getBoundingClientRect();
+    const nativeEvent = event.event as MouseEvent;
+    const clientX = nativeEvent?.clientX ?? 0;
+    const clientY = nativeEvent?.clientY ?? 0;
+    const paddingLeft = 10;
+    const paddingTop = 10;
+    const rawX = clientX - containerRect.left + event.container.element.nativeElement.scrollLeft;
+    const rawY = clientY - containerRect.top + event.container.element.nativeElement.scrollTop;
+
+    const gridSize = 20;
+    let snappedX = Math.round((rawX - paddingLeft) / gridSize) * gridSize;
+    let snappedY = Math.round((rawY - paddingTop) / gridSize) * gridSize;
+
+    // Avoid duplicate positions
+    const existingPositions = this.formPages[this.currentPage].fields
+      .filter(f => f.id !== draggedField.id) // only others
+      .map(f => f.position);
+    while (existingPositions.some(pos => pos?.x === snappedX && pos?.y === snappedY)) {
+      snappedX += gridSize;
+      snappedY += gridSize;
+    }
+
+    if (isExistingField) {
+      // Just update position
+      const field = this.formPages[this.currentPage].fields.find(f => f.id === draggedField.id);
+      if (field) field.position = { x: snappedX, y: snappedY };
+    } else {
+      // Prepare newField for modal config instead of adding immediately
+      this.newField = {
+        ...draggedField,
+        id: this.generateId(),
+        label: draggedField.label || 'New Field',
+        value: '',
+        position: { x: snappedX, y: snappedY },
+        width: 150 // default width if none provided
+      };
+      this.pendingFieldToAdd = this.newField;
+      this.fieldConfigVisible = true;
+    }
+
+    this.initializeFreeDragPositions();
+    this.fixDuplicateIds();
+    this.cdr.detectChanges(); // optional but helps sometimes
+  }
   onFieldDragStarted(event: CdkDragStart, field: FormField): void {
     const pos = field.position || { x: 0, y: 0 };
     event.source.setFreeDragPosition(pos);
@@ -249,27 +271,28 @@ if (isExistingField) {
     // console.log('getFreeDragPosition:', position); // debug if needed
   }
 
-onFieldDragEnded(event: CdkDragEnd, field: FormField): void {
-  const gridSize = 20;
-  const pos = event.source.getFreeDragPosition();
-  let x = Math.round(pos.x / gridSize) * gridSize;
-  let y = Math.round(pos.y / gridSize) * gridSize;
+  onFieldDragEnded(event: CdkDragEnd, field: FormField): void {
+    const gridSize = 20;
+    const maxWidth = 1000; // Prevents endless loop
+    const pos = event.source.getFreeDragPosition();
+    let x = Math.round(pos.x / gridSize) * gridSize;
+    let y = Math.round(pos.y / gridSize) * gridSize;
 
-  const others = this.formPages[this.currentPage].fields.filter(f => f.id !== field.id);
-  let tries = 0;
-  while (others.some(f => f.position?.x === x && f.position?.y === y) && tries < 10) {
-    x += gridSize;
-    if (x > 1000) { // arbitrary max width
-      x = 0;
-      y += gridSize;
+    const others = this.formPages[this.currentPage].fields.filter(f => f.id !== field.id);
+    let tries = 0;
+    while (others.some(f => f.position?.x === x && f.position?.y === y) && tries < 50) {
+      x += gridSize;
+      if (x > maxWidth) { // arbitrary max width
+        x = 0;
+        y += gridSize;
+      }
+      tries++;
     }
-    tries++;
-  }
 
-  field.position = { x, y };
-  event.source.setFreeDragPosition({ x, y });
-  this.cdr.detectChanges();
-}
+    field.position = { x, y };
+    event.source.setFreeDragPosition({ x, y });
+    this.cdr.detectChanges();
+  }
 
   onDragMoved(event: CdkDragMove<any>) {
     this.pointerPosition = { x: event.pointerPosition.x, y: event.pointerPosition.y };
@@ -277,7 +300,7 @@ onFieldDragEnded(event: CdkDragEnd, field: FormField): void {
 
   createField(): void {
     if (!this.pendingFieldToAdd) return;
-  const f = { ...this.pendingFieldToAdd };
+    const f = { ...this.pendingFieldToAdd };
     if (typeof f.width === 'string') {
       f.width = parseInt(f.width, 10) as 150 | 300 | 400;
     }
@@ -353,6 +376,64 @@ onFieldDragEnded(event: CdkDragEnd, field: FormField): void {
       });
     });
   }
+ startResize(event: MouseEvent, field: FormField) {
+    // Calculate mouse position relative to the box
+    const target = event.target as HTMLElement;
+    const rect = target.getBoundingClientRect();
+
+    const offsetX = event.clientX - rect.left;
+    const offsetY = event.clientY - rect.top;
+
+    const edgeThreshold = 10; // px within edge to allow resize
+
+    // Only start resize if near bottom-right corner
+    if (offsetX > rect.width - edgeThreshold && offsetY > rect.height - edgeThreshold) {
+      event.stopPropagation();
+      event.preventDefault();
+
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const startWidth = field.width || rect.width;
+      const startHeight = field.height || rect.height;
+      const minWidth = 150;  // updated minWidth to smallest allowed width
+      const minHeight = 60;
+
+      // Helper to snap width to allowed widths
+      const snapWidth = (width: number): 150 | 300 | 400 => {
+        let closest = this.allowedWidths[0];
+        let minDiff = Math.abs(width - closest);
+        for (const w of this.allowedWidths) {
+          const diff = Math.abs(width - w);
+          if (diff < minDiff) {
+            minDiff = diff;
+            closest = w;
+          }
+        }
+        return closest as 150 | 300 | 400;
+      };
+
+      const mouseMoveHandler = (moveEvent: MouseEvent) => {
+        const rawWidth = startWidth + (moveEvent.clientX - startX);
+        const newHeight = startHeight + (moveEvent.clientY - startY);
+
+        // Snap width to allowed widths or use minimum width
+        const snappedWidth = rawWidth > minWidth ? snapWidth(rawWidth) : minWidth;
+
+        field.width = snappedWidth;
+        field.height = newHeight > minHeight ? newHeight : minHeight;
+        this.cdr.detectChanges();
+      };
+
+      const mouseUpHandler = () => {
+        document.removeEventListener('mousemove', mouseMoveHandler);
+        document.removeEventListener('mouseup', mouseUpHandler);
+      };
+
+      document.addEventListener('mousemove', mouseMoveHandler);
+      document.addEventListener('mouseup', mouseUpHandler);
+    }
+    // else: let cdkDrag handle moving the box normally
+  }
 
   loadFormById(formId: string): void {
     const form = this.savedForms.find(f => f.formId === formId);
@@ -367,7 +448,7 @@ onFieldDragEnded(event: CdkDragEnd, field: FormField): void {
       this.dashboardVisible = false;
       this.formBuilderVisible = true;
       this.formListVisible = false;
-      alert(`Loaded form "${form.formName}"`);
+
 
       this.cdr.detectChanges();
 
@@ -392,8 +473,8 @@ onFieldDragEnded(event: CdkDragEnd, field: FormField): void {
       alert('No saved forms found.');
     }
   }
-
   saveForm(): void {
+    console.log('Saving form with data:', JSON.stringify(this.formPages, null, 2));
     if (!this.formPages[0].fields.length) {
       alert('Cannot save an empty form');
       return;
@@ -410,8 +491,12 @@ onFieldDragEnded(event: CdkDragEnd, field: FormField): void {
       });
     });
 
-    const filename = prompt(this.currentFormId ? 'Update filename:' : 'Enter filename:', 'form');
-    if (!filename) return;
+    const filenameRaw = prompt(this.currentFormId ? 'Update filename:' : 'Enter filename:', 'form');
+    const filename = filenameRaw?.trim();
+    if (!filename) {
+      alert('Please enter a valid form name.');
+      return;
+    }
 
     let data: SavedForm[] = JSON.parse(localStorage.getItem('savedFormPages') || '[]');
     if (this.currentFormId) {
@@ -431,7 +516,30 @@ onFieldDragEnded(event: CdkDragEnd, field: FormField): void {
 
     localStorage.setItem('savedFormPages', JSON.stringify(data));
     alert('Form saved');
+    this.savedForms = data;
     this.router.navigate(['/dashboard'], { state: { formSaved: true, formId: this.currentFormId } });
+  }
+
+  saveFilledForm(): void {
+    const filledForms = JSON.parse(localStorage.getItem('filledForms') || '[]');
+    const filledFormName = prompt('Enter a name for this filled form:', 'Filled Form');
+
+    if (!filledFormName || filledFormName.trim() === '') {
+      alert('Please enter a valid name.');
+      return;
+    }
+
+
+    filledForms.push({
+      filledFormId: this.generateId(),
+      templateFormId: this.currentFormId,
+      formName: filledFormName,
+      formPages: this.formPages,
+      savedAt: new Date().toISOString()
+    });
+
+    localStorage.setItem('filledForms', JSON.stringify(filledForms));
+    alert('Filled form saved successfully!');
   }
 
   exportToPDF(): void {
@@ -566,7 +674,27 @@ onFieldDragEnded(event: CdkDragEnd, field: FormField): void {
       y: e.clientY - rect.top
     };
   }
+onFieldMouseDown(event: MouseEvent, field: FormField) {
+  const target = event.currentTarget as HTMLElement;
+  const rect = target.getBoundingClientRect();
+  const offsetX = event.clientX - rect.left;
+  const offsetY = event.clientY - rect.top;
 
+  const cornerSize = 20; // same size as CSS ::after width/height
+
+  if (offsetX >= rect.width - cornerSize && offsetY >= rect.height - cornerSize) {
+    // Clicked inside the bottom-right corner, start resizing
+    event.preventDefault();
+    event.stopPropagation();
+
+    this.startResize(event, field);
+
+    // Since resizing disables dragging, stop further drag start
+    // You might also want to disable cdkDrag temporarily here if needed
+  } else {
+    // Clicked elsewhere inside the box - allow dragging (do nothing here)
+  }
+}
   trackByFieldId(index: number, field: FormField): string {
     return field.id;
   }
@@ -587,6 +715,7 @@ onFieldDragEnded(event: CdkDragEnd, field: FormField): void {
   onDragEnd(event: DragEvent, index: number): void {
     this.isDragging[index] = false;
   }
+
 
   // -- Fix and check duplicate IDs --
 

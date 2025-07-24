@@ -1,10 +1,12 @@
 import {
   Component, OnInit, QueryList, ViewChildren, ElementRef,
-  AfterViewInit, ChangeDetectorRef
+  AfterViewInit, ChangeDetectorRef, Input, Output, EventEmitter
 } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatDialog } from '@angular/material/dialog';
-
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import * as html2pdf from 'html2pdf.js';
 
 interface FormField {
   id: string;
@@ -26,12 +28,14 @@ interface SavedForm {
   formId: string;
   formName?: string;
   formPages: FormPage[];
+  
 }
 
 interface FilledFormData {
   formId: string;
   name: string;
   data: Record<string, any>;
+
 }
 
 @Component({
@@ -41,26 +45,43 @@ interface FilledFormData {
 })
 export class CreateFormComponent implements OnInit, AfterViewInit {
   forms: SavedForm[] = [];
-  selectedForm: SavedForm | null = null;
+  filledForms: FilledFormData[] = [];
   showFormEditor = false;
   showNameInput = false;
-nameError = false;
+  nameError = false;
+  
 
-  filledDataName = '';
+  @Input() selectedForm: SavedForm | null = null;
+  @Input() filledDataName: string = '';
+
+  @Output() closeFormEvent = new EventEmitter<void>();
+  @Output() filledFormsUpdated = new EventEmitter<void>();
 
   @ViewChildren('canvas') canvasRefs!: QueryList<ElementRef<HTMLCanvasElement>>;
   ctxMap: Record<string, CanvasRenderingContext2D> = {};
   drawingMap: Record<string, boolean> = {};
   lastPos: Record<string, { x: number; y: number }> = {};
-
+  isLoadedFromDashboard: boolean = false;
   constructor(
     private cdr: ChangeDetectorRef,
     private snackBar: MatSnackBar,
     private dialog: MatDialog
-  ) {}
+  ) { }
+
+    get hasValidFormsData(): boolean {
+    return (
+      Array.isArray(this.forms) &&
+      this.forms.length > 0 &&
+      Array.isArray(this.forms[0]?.formPages) &&
+      this.forms[0].formPages.length > 0 &&
+      Array.isArray(this.forms[0].formPages[0]?.fields) &&
+      this.forms[0].formPages[0].fields.length > 0
+    );
+  }
 
   ngOnInit(): void {
     this.loadForms();
+
   }
 
   ngAfterViewInit(): void {
@@ -71,42 +92,88 @@ nameError = false;
     const savedFormPages = localStorage.getItem('savedFormPages');
     this.forms = savedFormPages ? JSON.parse(savedFormPages) : [];
   }
+  onFileSelected(event: Event, field: any) {
+  const input = event.target as HTMLInputElement;
+  if (input.files && input.files.length > 0) {
+    const file = input.files[0];
+
+    // Create a FileReader to read the file as Data URL (base64)
+    const reader = new FileReader();
+    reader.onload = () => {
+      // Set the base64 string as the field value so it can be shown as image src
+      field.value = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  }
+}
 
   openForm(form: SavedForm): void {
-  this.selectedForm = JSON.parse(JSON.stringify(form));
-  this.showFormEditor = true;
-  this.showNameInput = false;  // ✅ Add this line to prevent name popup when opening
-   this.nameError = false;
-  this.filledDataName = '';
-  const saved = localStorage.getItem('filledForms');
-  const allFilledForms: FilledFormData[] = saved ? JSON.parse(saved) : [];
+    this.selectedForm = JSON.parse(JSON.stringify(form));
+    this.showFormEditor = true;
+    this.showNameInput = false;
+    this.nameError = false;
 
-  // If you want, load previous filled data here
-  // ... your existing logic ...
-  
-  setTimeout(() => this.initCanvases(), 0);
-}
+    const stored = localStorage.getItem('filledForms');
+    let allFilledForms: FilledFormData[] = [];
+
+    if (stored !== null) {
+      try {
+        allFilledForms = JSON.parse(stored);
+      } catch (e) {
+        console.error("Failed to parse filledForms from localStorage", e);
+      }
+    }
+
+    const existingFilled = allFilledForms.find(f => f.formId === form.formId);
+    if (!this.selectedForm) return;
+
+    if (existingFilled && existingFilled.data) {
+      this.filledDataName = existingFilled.name;
+
+      this.selectedForm.formPages.forEach(page => {
+        page.fields.forEach(field => {
+          const savedValue = existingFilled.data?.[field.id];
+          if (savedValue !== undefined) {
+            field.value = savedValue;
+          }
+        });
+      });
+    } else {
+      this.filledDataName = '';
+    }
+
+    setTimeout(() => this.initCanvases(), 0);
+  }
 
   closeForm(): void {
     this.showFormEditor = false;
     this.selectedForm = null;
     this.filledDataName = '';
-     this.showNameInput = false;  // Hide name input popup
-  this.nameError = false;      // Reset error
+    this.showNameInput = false;
+    this.nameError = false;
+
+    // Emit close event to parent component if used as child
+    this.closeFormEvent.emit();
   }
 
- confirmSaveFilledForm(): void {
-    console.log('Raw input:', JSON.stringify(this.filledDataName));
-  const nameTrimmed = this.filledDataName?.trim() || '';
+confirmSaveFilledForm(): void {
+  const nameTrimmed = (this.filledDataName || '').trim();
+  console.log('Raw input:', JSON.stringify(this.filledDataName));
   console.log('Trimmed input:', JSON.stringify(nameTrimmed));
-  if (!this.selectedForm) return;
 
-  if (!this.filledDataName.trim()) {
-    this.nameError = true;  // show error if empty
+  if (!this.selectedForm) {
+    console.warn('No selected form');
+    return;
+  }
+
+  if (!nameTrimmed) {
+    this.nameError = true;
     return;
   }
 
   this.nameError = false;
+
+    // Save canvas signatures into fields
     this.selectedForm.formPages.forEach(page => {
       page.fields.forEach(field => {
         if (field.type === 'signature') {
@@ -118,45 +185,67 @@ nameError = false;
       });
     });
 
-    const filledData: Record<string, any> = {};
-    this.selectedForm.formPages.forEach(page => {
-      page.fields.forEach(field => {
-        filledData[field.id] = field.value;
-      });
+   // Collect all filled data (field id -> value)
+  const filledData: Record<string, any> = {};
+  this.selectedForm.formPages.forEach(page => {
+    page.fields.forEach(field => {
+      filledData[field.id] = field.value || null;
     });
+  });
 
-    const newEntry: FilledFormData = {
-      formId: this.selectedForm.formId,
-      name: this.filledDataName.trim(),
-      data: filledData,
-    };
+  // Prepare filled form object
+  const filledForm: FilledFormData = {
+    formId: this.selectedForm.formId,
+    name: nameTrimmed,
+    data: filledData,
+  };
 
-    const stored = localStorage.getItem('filledForms');
-    const allFilledForms: FilledFormData[] = stored ? JSON.parse(stored) : [];
+  // Get existing filled forms from localStorage
+  const stored = localStorage.getItem('filledForms');
+  const filledForms: FilledFormData[] = stored ? JSON.parse(stored) : [];
 
-    const index = allFilledForms.findIndex(
-      f => f.formId === newEntry.formId && f.name === newEntry.name
-    );
+  // Check if a form with the same formId and name exists — update if yes, else add new
+  const index = filledForms.findIndex(
+    f => f.formId === filledForm.formId && f.name === filledForm.name
+  );
 
-    if (index >= 0) {
-      allFilledForms[index] = newEntry;
-    } else {
-      allFilledForms.push(newEntry);
-    }
-
-    localStorage.setItem('filledForms', JSON.stringify(allFilledForms));
-    this.snackBar.open(`Form saved as "${newEntry.name}"`, 'Close', { duration: 3000 });
-
-    this.closeForm();
+  if (index >= 0) {
+    filledForms[index] = filledForm; // update existing entry
+  } else {
+    filledForms.push(filledForm); // add new entry
   }
 
+  // Save updated array back to localStorage
+  localStorage.setItem('filledForms', JSON.stringify(filledForms));
+  this.filledFormsUpdated.emit();
 
+  // Notify user
+  this.snackBar.open(`Form saved as "${filledForm.name}"`, 'Close', { duration: 3000 });
 
-cancelSave(): void {
-  this.showNameInput = false;
+  // Reset and close form editor
+  this.showFormEditor = false;
+  this.selectedForm = null;
   this.filledDataName = '';
-  this.nameError = false;
+
+  // Reload filled forms list if you have such a method (optional)
+  if (typeof this.loadFilledForms === 'function') {
+    this.loadFilledForms();
+  }
 }
+loadFilledForms(): void {
+  const stored = localStorage.getItem('filledForms');
+  // You can handle this however you want,
+  // For example, if you have a variable to hold filled forms for dashboard:
+  this.filledForms = stored ? JSON.parse(stored) : [];
+}
+    
+
+  cancelSave(): void {
+    this.showNameInput = false;
+    this.filledDataName = '';
+    this.nameError = false;
+  }
+
   initCanvases(): void {
     this.ctxMap = {};
     this.drawingMap = {};
@@ -243,22 +332,70 @@ cancelSave(): void {
     };
   }
 
-  exportToPDF(): void {
+  downloadFilledData(): void {
     if (!this.selectedForm) return;
 
-    import('html2pdf.js').then(html2pdf => {
-      const element = document.querySelector('form');
-      if (element) {
-        html2pdf.default()
-          .from(element)
-          .set({
-            margin: 0.5,
-            filename: `${this.selectedForm!.formName || 'form'}.pdf`,
-            html2canvas: { scale: 2 },
-            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-          })
-          .save();
-      }
+    const filledData: { formName?: string; data: Record<string, any> } = {
+      formName: this.selectedForm.formName,
+      data: {}
+    };
+
+    this.selectedForm.formPages.forEach(page => {
+      page.fields.forEach(field => {
+        filledData.data[field.id] = field.value;
+      });
     });
+
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(filledData));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `${this.selectedForm.formName || 'form'}.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+  }
+downloadFilledFormAsPDF() {
+  const formElement = document.getElementById('filled-form-preview');
+  if (!formElement) return;
+
+  html2canvas(formElement).then((canvas) => {
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    pdf.addImage(imgData, 'PNG', 0, 10, imgWidth, imgHeight);
+    pdf.save('filled-form.pdf');
+  });
+}
+saveForm(form: SavedForm) {
+  const index = this.forms.findIndex(f => f.formId === form.formId);
+  if (index !== -1) {
+    // Deep copy to avoid mutation issues
+    this.forms[index] = JSON.parse(JSON.stringify(form));
+
+    // Save updated forms list in localStorage (or your actual storage)
+    localStorage.setItem('savedFormPages', JSON.stringify(this.forms));
+
+    // Optional: Show a message on save success
+    this.snackBar.open(`Form "${form.formName}" saved!`, 'Close', { duration: 2000 });
   }
 }
+  exportToPDF() {
+  const formElement = document.getElementById('form-to-export');
+  if (formElement) {
+    const options = {
+      margin: 10,
+      filename: 'filled-form.pdf',
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    html2pdf().from(formElement).set(options).save();
+  }
+}
+      }
+    
