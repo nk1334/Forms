@@ -1,75 +1,79 @@
-/* Container for each field */
-form div[style*="margin-bottom"] {
-  margin-bottom: 1.5rem;
-  display: flex;
-  flex-direction: column;
+table {
+  width: 100%;
+  border-collapse: separate;  /* allow spacing between rows */
+  border-spacing: 0 1rem;      /* vertical space between rows */
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 1rem;
+  border: none;
 }
 
-/* Label styling */
-label {
+/* Table rows styled as cards */
+tr {
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  display: table-row;
+}
+
+/* Table cells styling */
+th, td {
+  border: none;
+  padding: 12px 20px;
+  vertical-align: top;
+}
+
+/* Label cell styles */
+td:first-child {
+  width: 30%;
   font-weight: 600;
-  font-size: 1rem;
   color: #222;
-  margin-bottom: 0.4rem;
+  padding-top: 14px;
   user-select: none;
 }
 
-/* Required star */
-label span {
-  color: #e53935;
-  margin-left: 0.15rem;
+/* Input cell styles */
+td:last-child {
+  width: 70%;
 }
 
-/* Inputs, textarea, select */
-input[type="text"],
-input[type="email"],
-input[type="number"],
-input[type="tel"],
-input[type="date"],
-textarea,
-select {
+/* Inputs, selects, textarea full width and styled */
+td:last-child input[type="text"],
+td:last-child input[type="email"],
+td:last-child input[type="number"],
+td:last-child input[type="tel"],
+td:last-child input[type="date"],
+td:last-child select,
+td:last-child textarea {
+  width: 100% !important;
   padding: 0.6rem 0.75rem;
   border-radius: 6px;
   border: 1.5px solid #ccc;
   font-size: 1rem;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
-  width: 100%;
+  font-family: inherit;
   box-sizing: border-box;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
   outline-offset: 2px;
 }
 
-/* Textarea specific */
-textarea {
-  width: 300px;       /* fixed width or max-width if you want */
-  height: 120px;      /* fixed height */
-  resize: both;       /* allow user to resize horizontally and vertically */
-  overflow: auto;     /* show scrollbar if needed */
-  box-sizing: border-box;
-  padding: 8px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  font-size: 14px;
-  font-family: inherit;
-  transition: border-color 0.3s ease;
+/* Textarea specific height and resizable */
+td:last-child textarea {
+  height: 120px;
+  resize: both;
+  overflow: auto;
 }
 
-/* Input focus */
-input:focus,
-textarea:focus,
-select:focus {
+/* Focus styles for inputs/selects/textarea */
+td:last-child input:focus,
+td:last-child textarea:focus,
+td:last-child select:focus {
   border-color: #2962ff;
   box-shadow: 0 0 6px #82b1ff;
-  outline: none;
-}
-.error-message {
-  color: #d32f2f;
-  font-size: 0.875rem;
-  margin-top: 4px;
-  user-select: none;
+  outline: 2px solid #2962ff; /* for keyboard users */
+  outline-offset: 2px;
 }
 
 /* Validation error messages */
+.error-message,
 div[style*="color: red"] {
   color: #d32f2f;
   font-size: 0.875rem;
@@ -78,7 +82,7 @@ div[style*="color: red"] {
   user-select: none;
 }
 
-/* Radio group container */
+/* Radio buttons container styling */
 div[ng-reflect-ng-if][style*="margin-bottom"] > div {
   display: flex;
   gap: 1.25rem;
@@ -86,7 +90,7 @@ div[ng-reflect-ng-if][style*="margin-bottom"] > div {
   margin-top: 0.3rem;
 }
 
-/* Radio label */
+/* Radio labels */
 div[ng-reflect-ng-if][style*="margin-bottom"] > div label {
   display: flex;
   align-items: center;
@@ -96,12 +100,12 @@ div[ng-reflect-ng-if][style*="margin-bottom"] > div label {
   user-select: none;
 }
 
-/* Radio input */
+/* Radio button pointer cursor */
 input[type="radio"] {
   cursor: pointer;
 }
 
-/* Buttons */
+/* Button base styles */
 button {
   padding: 0.6rem 1.2rem;
   font-size: 1rem;
@@ -174,74 +178,110 @@ button[type="button"]:not([color]):not([mat-button]) {
 button[type="button"]:not([color]):not([mat-button]):hover {
   background-color: #ab000d;
 }
-.saved-forms-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-family: Arial, sans-serif;
-  margin-top: 20px;
-}
-
-.saved-forms-table th,
-.saved-forms-table td {
-  border: 1px solid #ddd;
-  padding: 10px 15px;
-  text-align: left;
-}
-
-.saved-forms-table thead {
-  background-color: #2196f3;
-  color: white;
-}
-
-.saved-forms-table tbody tr:hover {
-  background-color: #f1f7ff;
-  cursor: pointer;
-}
-
-.odd-row {
-  background-color: #f9f9f9;
-}
-img {
-  max-width: 200px;
-  max-height: 200px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-}
-
-.saved-forms-table button {
-  padding: 6px 12px;
-  background-color: #4caf50;
-  border: none;
-  color: white;
-  border-radius: 4px;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.saved-forms-table button:hover {
-  background-color: #388e3c;
-}
-
 
 /* Responsive for smaller screens */
 @media (max-width: 600px) {
-  form div[style*="margin-bottom"] {
-    margin-bottom: 1rem;
+  table {
+    border-spacing: 0 0.8rem;
   }
-  label {
-    font-size: 0.9rem;
+
+  td:first-child {
+    width: 100%;
+    padding-top: 8px;
+    font-size: 1rem;
   }
-  input[type="text"],
-  input[type="email"],
-  input[type="number"],
-  input[type="tel"],
-  input[type="date"],
-  textarea,
-  select {
-    font-size: 0.9rem;
+
+  td:last-child {
+    width: 100%;
   }
-  button {
-    font-size: 0.9rem;
-    padding: 0.5rem 1rem;
+
+  td, th {
+    padding: 8px 12px;
   }
+}
+
+/* Form export container */
+.pdf-export-container {
+  position: relative;
+  width: 800px;
+  height: 1100px;
+  background: white;
+  border: 1px solid #ccc;
+  box-sizing: border-box;
+  margin: 0 auto;
+  overflow: hidden;
+}
+
+/* Form page wrapper */
+.form-page {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* Individual field */
+.field {
+  position: absolute;
+  box-sizing: border-box;
+  padding: 4px;
+}
+
+/* Main form container */
+#form-to-export {
+  position: relative;
+  width: 800px; /* or whatever width your form uses */
+  background: white;
+  box-sizing: border-box;
+  padding: 16px;
+  border: 1px solid #ccc; /* optional for preview */
+}
+/* This is the important fix */
+/* Keep absolute positioning and exact left/top for fields */
+/* Remove overrides that break layout */
+#form-to-export.exporting .field-wrapper {
+  position: absolute !important;
+  /* Remove these lines: */
+  /* left: auto !important; */
+  /* top: auto !important; */
+  /* width: auto !important; */
+  margin-bottom: 0 !important;
+}
+
+/* Styles for old export-layout table (can be removed if not used) */
+.export-layout table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+}
+
+.export-layout th, .export-layout td {
+  border: 1px solid #ccc;
+  padding: 8px;
+}
+canvas {
+  image-rendering: -webkit-optimize-contrast; /* or pixelated */
+}
+
+.export-layout th {
+  background-color: #f0f0f0;
+  font-weight: bold;
+}
+
+.export-layout td {
+  vertical-align: top;
+}
+
+.export-layout img {
+  border: 1px solid #999;
+  border-radius: 4px;
+}
+
+/* Generic button adjustments */
+button {
+  font-size: 0.9rem;
+  padding: 0.5rem 1rem;
+}
+.field-wrapper {
+  border: 1px solid red !important; /* temporary for debugging */
 }

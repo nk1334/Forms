@@ -10,93 +10,106 @@
   <div *ngIf="forms.length === 0">No saved forms found.</div>
 </div>
 
-<!-- Form editor -->
 <div *ngIf="showFormEditor && selectedForm">
   <h2>Fill/Edit Form: {{ selectedForm.formName }}</h2>
-
+  <div id="form-to-export">
+     
   <form id="dynamicForm" #formRef="ngForm" novalidate>
-    <div *ngFor="let page of selectedForm.formPages; let p = index">
+
+    <div *ngFor="let page of selectedForm.formPages; let p = index" style="margin-bottom: 32px;">
       <h3>Page {{ p + 1 }}</h3>
 
-      <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%;">
-        <tbody>
-          <tr *ngFor="let field of page.fields">
-            <td style="width: 30%; vertical-align: top;">
-              <label [attr.for]="field.id">
-                {{ field.label }}
-                <span *ngIf="field.required" style="color: red;">*</span>
-              </label>
-            </td>
-            <td style="width: 70%;">
-              <!-- Text-like inputs -->
-              <ng-container *ngIf="['text', 'email', 'number', 'tel', 'date'].includes(field.type || '')">
-                <input [type]="field.type" [(ngModel)]="field.value" [name]="field.id" [id]="field.id"
-                  [required]="!!field.required" #inputRef="ngModel" />
-                <div *ngIf="inputRef.invalid && (inputRef.dirty || inputRef.touched)" style="color: red;">
-                  This field is required.
-                </div>
-              </ng-container>
+      <!-- Container with relative positioning -->
+      <div style="position: relative; min-height: 600px; border: 1px solid #ddd; padding: 8px;">
+        
+        <div *ngFor="let field of page.fields"  class="field-wrapper"
+          [style.position]="'absolute'"
+          [style.left.px]="field.position?.x || 0"
+          [style.top.px]="field.position?.y || 0"
+          [style.width.px]="field.width || 300"
+          style="padding: 8px; border: 1px solid #ccc; background: #fafafa; box-sizing: border-box;">
 
-              <!-- Textarea -->
-              <ng-container *ngIf="field.type === 'textarea'">
-                <textarea [(ngModel)]="field.value" [name]="field.id" [id]="field.id" [required]="!!field.required"
-                  #textareaRef="ngModel"></textarea>
-                <div *ngIf="textareaRef.invalid && (textareaRef.dirty || textareaRef.touched)" style="color: red;">
-                  This field is required.
-                </div>
-              </ng-container>
+          <label [attr.for]="field.id" style="display: block; margin-bottom: 4px;">
+            {{ field.label }}
+            <span *ngIf="field.required" style="color: red;">*</span>
+          </label>
 
-              <!-- Select -->
-              <ng-container *ngIf="field.type === 'branch' && field.options">
-                <select [(ngModel)]="field.value" [name]="field.id" [id]="field.id" [required]="!!field.required"
-                  #selectRef="ngModel">
-                  <option value="">-- Select --</option>
-                  <option *ngFor="let opt of field.options" [value]="opt.value">
-                    {{ opt.label }}
-                  </option>
-                </select>
-                <div *ngIf="selectRef.invalid && (selectRef.dirty || selectRef.touched)" style="color: red;">
-                  This field is required.
-                </div>
-              </ng-container>
+          <!-- Text-like inputs -->
+          <ng-container *ngIf="['text', 'email', 'number', 'tel', 'date'].includes(field.type || '')">
+            <input [type]="field.type" [(ngModel)]="field.value" [name]="field.id" [id]="field.id"
+              [required]="!!field.required" #inputRef="ngModel" style="width: 100%;" />
+            <div *ngIf="inputRef.invalid && (inputRef.dirty || inputRef.touched)" style="color: red;">
+              This field is required.
+            </div>
+          </ng-container>
 
-              <!-- Radio buttons -->
-              <div *ngIf="field.type === 'radio' && field.options">
-                <label *ngFor="let opt of field.options" style="margin-right: 10px;">
-                  <input type="radio" [name]="field.id" [value]="opt.value" [(ngModel)]="field.value"
-                    [required]="!!field.required" />
-                  {{ opt.label }}
-                </label>
-                <div *ngIf="
-                    formRef.controls[field.id]?.invalid &&
-                    (formRef.controls[field.id]?.dirty || formRef.controls[field.id]?.touched)
-                  " style="color: red;">
-                  This field is required.
-                </div>
-              </div>
-              <!-- File Upload -->
-              <ng-container *ngIf="field.type === 'file'">
-                <input type="file" accept="image/*" (change)="onFileSelected($event, field)" />
-                <img *ngIf="field.value" [src]="field.value" alt="Uploaded photo"
-                  style="max-width: 100%; margin-top: 8px;" />
-              </ng-container>
+          <!-- Textarea -->
+          <ng-container *ngIf="field.type === 'textarea'">
+            <textarea [(ngModel)]="field.value" [name]="field.id" [id]="field.id" [required]="!!field.required"
+              #textareaRef="ngModel" style="width: 100%; min-height: 80px;"></textarea>
+            <div *ngIf="textareaRef.invalid && (textareaRef.dirty || textareaRef.touched)" style="color: red;">
+              This field is required.
+            </div>
+          </ng-container>
 
+          <!-- Select -->
+          <ng-container *ngIf="field.type === 'branch' && field.options">
+            <select [(ngModel)]="field.value" [name]="field.id" [id]="field.id" [required]="!!field.required"
+              #selectRef="ngModel" style="width: 100%;">
+              <option value="">-- Select --</option>
+              <option *ngFor="let opt of field.options" [value]="opt.value">
+                {{ opt.label }}
+              </option>
+            </select>
+            <div *ngIf="selectRef.invalid && (selectRef.dirty || selectRef.touched)" style="color: red;">
+              This field is required.
+            </div>
+          </ng-container>
 
-              <!-- Signature field -->
-              <div *ngIf="field.type === 'signature'">
-                <canvas #canvas [attr.data-id]="field.id" width="400" height="150"
-                  style="border: 1px solid #000; touch-action: none;" (pointerdown)="startDrawing($event, field.id)"
-                  (pointermove)="draw($event, field.id)" (pointerup)="stopDrawing($event, field.id)"
-                  (pointerleave)="stopDrawing($event, field.id)"></canvas>
-                <br />
-                <button type="button" (click)="clearSignatureCanvas(field.id)">Clear Signature</button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+          <!-- Radio buttons -->
+          <div *ngIf="field.type === 'radio' && field.options" style="margin-top: 4px;">
+            <label *ngFor="let opt of field.options" style="margin-right: 10px;">
+              <input type="radio" [name]="field.id" [value]="opt.value" [(ngModel)]="field.value"
+                [required]="!!field.required" />
+              {{ opt.label }}
+            </label>
+            <div *ngIf="
+                formRef.controls[field.id]?.invalid &&
+                (formRef.controls[field.id]?.dirty || formRef.controls[field.id]?.touched)
+              " style="color: red;">
+              This field is required.
+            </div>
+          </div>
+
+          <!-- File Upload -->
+          <ng-container *ngIf="field.type === 'file'">
+            <input type="file" accept="image/*" (change)="onFileSelected($event, field)" />
+            <img *ngIf="field.value" [src]="field.value" alt="Uploaded photo"
+              style="max-width: 100%; margin-top: 8px;" />
+          </ng-container>
+
+          <!-- Signature field -->
+          <div *ngIf="field.type === 'signature'">
+            <canvas #canvas [attr.data-id]="field.id" width="400" height="150"
+              style="border: 1px solid #000; touch-action: none; display: block; margin-top: 4px;" 
+              (pointerdown)="startDrawing($event, field.id)"
+              (pointermove)="draw($event, field.id)"
+              (pointerup)="stopDrawing($event, field.id)"
+              (pointerleave)="stopDrawing($event, field.id)"></canvas>
+            <button type="button" (click)="clearSignatureCanvas(field.id)" style="margin-top: 4px;">
+              Clear Signature
+            </button>
+          </div>
+        </div>
+
+      </div>
     </div>
+
   </form>
+  </div>
+
+
+
 
   <!-- Save button + name input -->
   <div class="save-actions" [class.show-popup]="showNameInput">

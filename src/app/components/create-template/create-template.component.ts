@@ -20,15 +20,14 @@ import {
 import { Router, ActivatedRoute } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
-
-
 export interface FormField {
   id: string;
   label: string;
   type: string;
   placeholder?: string;
-   width?:  150 | 300 | 400;  // allowed widths
-  height?: number;  // add height property
+  // Allow any number for width and height, not just fixed literal types
+  width?: number;
+  height?: number;
   options?: { value: string; label: string }[];
   value?: any;
   position?: { x: number; y: number };
@@ -103,7 +102,7 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
   private idCounter = 0;
 
   pointerPosition = { x: 0, y: 0 };
-    allowedWidths = [150, 300, 400];
+  allowedWidths = [150, 300, 400];
 
   constructor(
     private router: Router,
@@ -173,6 +172,8 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
     }
   }
 
+
+
   @HostListener('document:mousemove', ['$event'])
   onMouseMove(event: MouseEvent) {
     this.pointerPosition = { x: event.clientX, y: event.clientY };
@@ -187,6 +188,7 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
       this.freeDragPositions[field.id] = field.position;
     });
   }
+
   onFileSelected(event: Event, field: FormField): void {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files[0]) {
@@ -204,6 +206,7 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
       reader.readAsDataURL(file);
     }
   }
+
   onDrop(event: CdkDragDrop<FormField[]>) {
     if (!event.isPointerOverContainer) return;
 
@@ -259,6 +262,7 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
     this.fixDuplicateIds();
     this.cdr.detectChanges(); // optional but helps sometimes
   }
+
   onFieldDragStarted(event: CdkDragStart, field: FormField): void {
     const pos = field.position || { x: 0, y: 0 };
     event.source.setFreeDragPosition(pos);
@@ -268,7 +272,6 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
     const position = event.source.getFreeDragPosition();
     field.position = { x: position.x, y: position.y };
     this.cdr.detectChanges();
-    // console.log('getFreeDragPosition:', position); // debug if needed
   }
 
   onFieldDragEnded(event: CdkDragEnd, field: FormField): void {
@@ -301,8 +304,10 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
   createField(): void {
     if (!this.pendingFieldToAdd) return;
     const f = { ...this.pendingFieldToAdd };
+
+    // No need to restrict width to literals here, just ensure it's a number
     if (typeof f.width === 'string') {
-      f.width = parseInt(f.width, 10) as 150 | 300 | 400;
+      f.width = parseInt(f.width, 10);
     }
 
     f.id = this.generateId();
@@ -376,64 +381,41 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
       });
     });
   }
- startResize(event: MouseEvent, field: FormField) {
-    // Calculate mouse position relative to the box
-    const target = event.target as HTMLElement;
-    const rect = target.getBoundingClientRect();
 
-    const offsetX = event.clientX - rect.left;
-    const offsetY = event.clientY - rect.top;
+resizingField: any = null;
+startX = 0;
+startY = 0;
+startWidth = 0;
+startHeight = 0;
 
-    const edgeThreshold = 10; // px within edge to allow resize
+startResize(event: MouseEvent, field: any, isNearRight: boolean, isNearBottom: boolean) {
+  event.stopPropagation();
+  event.preventDefault(); // prevent text selection
+  this.resizingField = field;
+  this.startX = event.clientX;
+  this.startY = event.clientY;
+  this.startWidth = field.width || 150;
+  this.startHeight = field.height || 60;
 
-    // Only start resize if near bottom-right corner
-    if (offsetX > rect.width - edgeThreshold && offsetY > rect.height - edgeThreshold) {
-      event.stopPropagation();
-      event.preventDefault();
+  document.addEventListener('mousemove', this.onResizeMove);
+  document.addEventListener('mouseup', this.stopResize);
+}
 
-      const startX = event.clientX;
-      const startY = event.clientY;
-      const startWidth = field.width || rect.width;
-      const startHeight = field.height || rect.height;
-      const minWidth = 150;  // updated minWidth to smallest allowed width
-      const minHeight = 60;
+onResizeMove = (event: MouseEvent) => {
+  if (!this.resizingField) return;
 
-      // Helper to snap width to allowed widths
-      const snapWidth = (width: number): 150 | 300 | 400 => {
-        let closest = this.allowedWidths[0];
-        let minDiff = Math.abs(width - closest);
-        for (const w of this.allowedWidths) {
-          const diff = Math.abs(width - w);
-          if (diff < minDiff) {
-            minDiff = diff;
-            closest = w;
-          }
-        }
-        return closest as 150 | 300 | 400;
-      };
+  const dx = event.clientX - this.startX;
+  const dy = event.clientY - this.startY;
 
-      const mouseMoveHandler = (moveEvent: MouseEvent) => {
-        const rawWidth = startWidth + (moveEvent.clientX - startX);
-        const newHeight = startHeight + (moveEvent.clientY - startY);
+  this.resizingField.width = Math.max(this.startWidth + dx, 50);
+  this.resizingField.height = Math.max(this.startHeight + dy, 30);
+};
 
-        // Snap width to allowed widths or use minimum width
-        const snappedWidth = rawWidth > minWidth ? snapWidth(rawWidth) : minWidth;
-
-        field.width = snappedWidth;
-        field.height = newHeight > minHeight ? newHeight : minHeight;
-        this.cdr.detectChanges();
-      };
-
-      const mouseUpHandler = () => {
-        document.removeEventListener('mousemove', mouseMoveHandler);
-        document.removeEventListener('mouseup', mouseUpHandler);
-      };
-
-      document.addEventListener('mousemove', mouseMoveHandler);
-      document.addEventListener('mouseup', mouseUpHandler);
-    }
-    // else: let cdkDrag handle moving the box normally
-  }
+stopResize = (event: MouseEvent) => {
+  this.resizingField = null;
+  document.removeEventListener('mousemove', this.onResizeMove);
+  document.removeEventListener('mouseup', this.stopResize);
+};
 
   loadFormById(formId: string): void {
     const form = this.savedForms.find(f => f.formId === formId);
@@ -448,7 +430,6 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
       this.dashboardVisible = false;
       this.formBuilderVisible = true;
       this.formListVisible = false;
-
 
       this.cdr.detectChanges();
 
@@ -473,6 +454,7 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
       alert('No saved forms found.');
     }
   }
+
   saveForm(): void {
     console.log('Saving form with data:', JSON.stringify(this.formPages, null, 2));
     if (!this.formPages[0].fields.length) {
@@ -529,7 +511,6 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
       return;
     }
 
-
     filledForms.push({
       filledFormId: this.generateId(),
       templateFormId: this.currentFormId,
@@ -551,13 +532,10 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
       if (content) {
         m.default()
           .from(content)
-          .set({
-            margin: 1,
-            filename: `${filename}.pdf`,
-            html2canvas: { scale: 2 },
-            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-          })
+          .set({ filename: `${filename}.pdf` })
           .save();
+      } else {
+        alert('No content to export');
       }
     });
   }
@@ -571,23 +549,24 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
       const fieldId = canvas.getAttribute('data-id')!;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
+          const width = canvas.offsetWidth;
+    const height = canvas.offsetHeight;
 
-      const desiredWidth = canvas.offsetWidth * devicePixelRatio;
-      const desiredHeight = canvas.offsetHeight * devicePixelRatio;
-
-      if (canvas.width !== desiredWidth || canvas.height !== desiredHeight) {
-        canvas.width = desiredWidth;
-        canvas.height = desiredHeight;
-        ctx.scale(devicePixelRatio, devicePixelRatio);
-      }
-
+      // Setup canvas size with devicePixelRatio for sharpness
+      canvas.width = canvas.offsetWidth * devicePixelRatio;
+      canvas.height = canvas.offsetHeight * devicePixelRatio;
+       canvas.style.width = width + 'px';     // <-- important!
+    canvas.style.height = height + 'px';   // <-- important!
+      ctx.scale(devicePixelRatio, devicePixelRatio);
       ctx.lineCap = 'round';
       ctx.strokeStyle = '#000';
       ctx.lineWidth = 2;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       this.ctxMap[fieldId] = ctx;
       this.drawingMap[fieldId] = false;
 
+      // Attach pointer event handlers
       canvas.onpointerdown = e => this.startDrawing(e, fieldId);
       canvas.onpointermove = e => this.draw(e, fieldId);
       canvas.onpointerup = e => this.stopDrawing(e, fieldId);
@@ -596,8 +575,7 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
   }
 
   startDrawing(e: PointerEvent, fieldId: string): void {
-    if (this.isRemovingField) return;
-    this.isDrawingSignature = true;
+     console.log('startDrawing', fieldId);
     const ctx = this.ctxMap[fieldId];
     const canvas = this.getCanvasById(fieldId);
     if (!ctx || !canvas) return;
@@ -608,7 +586,6 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
   }
 
   draw(e: PointerEvent, fieldId: string): void {
-    if (this.isRemovingField) return;
     if (!this.drawingMap[fieldId]) return;
     const ctx = this.ctxMap[fieldId];
     const canvas = this.getCanvasById(fieldId);
@@ -619,8 +596,6 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
   }
 
   stopDrawing(e: PointerEvent, fieldId: string): void {
-    if (this.isRemovingField) return;
-    this.isDrawingSignature = false;
     if (!this.drawingMap[fieldId]) return;
     const ctx = this.ctxMap[fieldId];
     this.drawingMap[fieldId] = false;
@@ -641,19 +616,21 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
     }
   }
 
-  clearSignatureCanvas(fieldId: string): void {
-    if (this.isRemovingField) return;
-    const canvas = this.getCanvasById(fieldId);
-    if (!canvas) return;
-    const ctx = this.ctxMap[fieldId];
-    if (ctx) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      this.drawingMap[fieldId] = false;
-      const field = this.formPages[this.currentPage].fields.find(f => f.id === fieldId);
-      if (field) field.value = null;
+
+clearSignatureCanvas(fieldId: string): void {
+  const canvas = this.getCanvasById(fieldId);
+  if (!canvas) return;
+  const ctx = this.ctxMap[fieldId];
+  if (ctx) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    this.drawingMap[fieldId] = false;
+
+    const field = this.formPages[this.currentPage].fields.find(f => f.id === fieldId);
+    if (field) {
+      field.value = null;
     }
   }
-
+}
 
   clearCanvasAfterDrop(): void {
     this.canvasRefs.forEach(ref => {
@@ -674,78 +651,120 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
       y: e.clientY - rect.top
     };
   }
-onFieldMouseDown(event: MouseEvent, field: FormField) {
-  const target = event.currentTarget as HTMLElement;
-  const rect = target.getBoundingClientRect();
-  const offsetX = event.clientX - rect.left;
-  const offsetY = event.clientY - rect.top;
 
-  const cornerSize = 20; // same size as CSS ::after width/height
+  onCanvasMouseDown(event: MouseEvent, field: FormField): void {
+    const id = field.id;
+    const ctx = this.ctxMap[id];
+    if (!ctx) return;
 
-  if (offsetX >= rect.width - cornerSize && offsetY >= rect.height - cornerSize) {
-    // Clicked inside the bottom-right corner, start resizing
-    event.preventDefault();
-    event.stopPropagation();
+    this.drawingMap[id] = true;
+    ctx.beginPath();
 
-    this.startResize(event, field);
+    const canvas = event.target as HTMLCanvasElement;
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
 
-    // Since resizing disables dragging, stop further drag start
-    // You might also want to disable cdkDrag temporarily here if needed
-  } else {
-    // Clicked elsewhere inside the box - allow dragging (do nothing here)
+    ctx.moveTo(x, y);
   }
-}
+
+  onCanvasMouseMove(event: MouseEvent, field: FormField): void {
+    if (!this.drawingMap[field.id]) return;
+    const ctx = this.ctxMap[field.id];
+    if (!ctx) return;
+
+    const canvas = event.target as HTMLCanvasElement;
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  }
+
+  onCanvasMouseUp(event: MouseEvent, field: FormField): void {
+    const ctx = this.ctxMap[field.id];
+    if (!ctx) return;
+
+    this.drawingMap[field.id] = false;
+
+    const canvas = event.target as HTMLCanvasElement;
+    field.value = canvas.toDataURL();
+
+    this.cdr.detectChanges();
+  }
+
+ 
+
+  onFieldMouseDown(event: MouseEvent, field: FormField): void {
+    // If click near bottom-right corner, start resizing
+    const target = event.target as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    const offsetX = event.clientX - rect.left;
+    const offsetY = event.clientY - rect.top;
+
+    const resizeThreshold = 10;
+    const isNearRight = offsetX >= rect.width - resizeThreshold;
+    const isNearBottom = offsetY >= rect.height - resizeThreshold;
+
+    if (isNearRight || isNearBottom) {
+      // Provide all parameters, though defaults will work
+      this.startResize(event, field, isNearRight, isNearBottom);
+    }
+  }
+
+  fixDuplicateIds(): void {
+    const allFields = this.formPages.flatMap(page => page.fields);
+    const idCount: Record<string, number> = {};
+
+    allFields.forEach(field => {
+      if (!field.id) {
+        field.id = this.generateId();
+      }
+      idCount[field.id] = (idCount[field.id] || 0) + 1;
+    });
+
+    allFields.forEach(field => {
+      if (idCount[field.id] > 1) {
+        field.id = this.generateId();
+      }
+    });
+  }
+
+  checkDuplicateIds(): void {
+    const allFields = this.formPages.flatMap(page => page.fields);
+    const ids = allFields.map(f => f.id);
+    const duplicates = ids.filter((id, i) => ids.indexOf(id) !== i);
+    if (duplicates.length > 0) {
+      alert('Duplicate field IDs found! Please fix.');
+    }
+  }
+
+  // New helper method for *ngFor trackBy to improve rendering
   trackByFieldId(index: number, field: FormField): string {
     return field.id;
   }
 
-  onSubmit(): void {
-    this.saveForm();
+  // Needed if you want to handle mousemove on fields (optional)
+  onFieldMouseMove(event: MouseEvent, field: FormField) {
+    // Can be empty or do something if needed
   }
 
-  onContentEditableInput(event: Event, field: any) {
+  // For handling contenteditable input changes, if any field uses it (optional)
+  onContentEditableInput(event: Event, field: FormField) {
     const target = event.target as HTMLElement;
-    field.value = target.innerText.trim();
+    field.value = target.innerText;
   }
 
-  onDragStart(event: DragEvent, index: number): void {
+  // Sample onSubmit handler for submit button (adjust to your needs)
+  onSubmit() {
+    alert('Form submitted! You can extend this logic.');
+  }
+onDragStart(event: DragEvent, index: number): void {
     this.isDragging[index] = true;
   }
 
   onDragEnd(event: DragEvent, index: number): void {
     this.isDragging[index] = false;
-  }
-
-
-  // -- Fix and check duplicate IDs --
-
-  fixDuplicateIds(): void {
-    const seen = new Set<string>();
-    this.formPages.forEach(page => {
-      page.fields.forEach(field => {
-        while (seen.has(field.id)) {
-          const oldId = field.id;
-          field.id = this.generateId();
-          console.log(`Duplicate ID "${oldId}" fixed with new ID "${field.id}"`);
-        }
-        seen.add(field.id);
-      });
-    });
-    console.log('All IDs after fix:', this.formPages.flatMap(p => p.fields.map(f => f.id)));
-  }
-
-  checkDuplicateIds(): void {
-    const ids: string[] = [];
-    this.formPages.forEach(page => {
-      page.fields.forEach(field => {
-        ids.push(field.id);
-      });
-    });
-    const duplicates = ids.filter((id, idx) => ids.indexOf(id) !== idx);
-    if (duplicates.length) {
-      console.warn('Duplicate field IDs found:', duplicates);
-    } else {
-      console.log('No duplicate IDs found');
-    }
   }
 }

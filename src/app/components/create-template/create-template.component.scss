@@ -357,6 +357,24 @@ textarea.form-input {
   font-size: 14px;
   cursor: default;
 }
+.resizable {
+  position: relative;
+  display: inline-block;
+  border: 1px solid #ccc;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.resize-handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  right: 0;
+  bottom: 0;
+  background: #666;
+  cursor: se-resize;
+  z-index: 10;
+}
 .description-field {
   resize: both;               /* ✅ Manual vertical & horizontal resizing */
   overflow: auto;

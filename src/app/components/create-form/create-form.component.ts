@@ -18,6 +18,7 @@ interface FormField {
   width?: number;
   position?: { x: number; y: number };
   required?: boolean;
+   height?: number; 
 }
 
 interface FormPage {
@@ -49,6 +50,7 @@ export class CreateFormComponent implements OnInit, AfterViewInit {
   showFormEditor = false;
   showNameInput = false;
   nameError = false;
+    isExporting = false;
   
 
   @Input() selectedForm: SavedForm | null = null;
@@ -383,19 +385,61 @@ saveForm(form: SavedForm) {
     this.snackBar.open(`Form "${form.formName}" saved!`, 'Close', { duration: 2000 });
   }
 }
-  exportToPDF() {
-  const formElement = document.getElementById('form-to-export');
-  if (formElement) {
-    const options = {
-      margin: 10,
-      filename: 'filled-form.pdf',
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2 },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
+adjustFormContainerHeight(): void {
+  if (!this.selectedForm) return;
 
-    html2pdf().from(formElement).set(options).save();
+  let maxY = 0;
+  this.selectedForm.formPages.forEach(page => {
+    page.fields.forEach(field => {
+      const bottom = (field.position?.y || 0) + (field.height || 150); // default height 150 if not specified
+      if (bottom > maxY) maxY = bottom;
+    });
+  });
+
+  const container = document.getElementById('form-to-export');
+  if (container) {
+    container.style.minHeight = (maxY + 20) + 'px'; // add some padding
   }
 }
-      }
-    
+async exportToPDF(): Promise<void> {
+  if (!this.selectedForm) return;
+  this.isExporting = true;
+
+  this.adjustFormContainerHeight();
+  this.cdr.detectChanges();
+
+  const element = document.getElementById('form-to-export');
+  if (!element) return;
+
+  element.classList.add('exporting');
+
+  const clone = element.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll('button').forEach(btn => btn.remove());
+
+  clone.style.position = 'fixed';
+  clone.style.top = '-9999px';
+  clone.style.left = '-9999px';
+  clone.style.width = element.offsetWidth + 'px';
+  clone.style.background = 'white';
+  document.body.appendChild(clone);
+
+  await new Promise(resolve => setTimeout(resolve, 300)); // wait for styles
+
+  try {
+    const canvas = await html2canvas(clone, { scale: 2, useCORS: true, backgroundColor: '#fff' });
+    const imgData = canvas.toDataURL('image/png');
+
+    const pdf = new jsPDF('p', 'pt', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+
+    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, imgHeight);
+    pdf.save(`${this.selectedForm.formName || 'form'}.pdf`);
+  } catch (error) {
+    console.error('PDF generation error:', error);
+  } finally {
+    element.classList.remove('exporting');
+    document.body.removeChild(clone);
+    this.isExporting = false;
+  }
+}}

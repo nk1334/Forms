@@ -19,8 +19,7 @@
         <button mat-raised-button color="primary" (click)="loadFormById(form.formId)">Edit</button>
       </li>
     </ul>
-    <button mat-button color="warn" (click)="formListVisible = false; formBuilderVisible = true;">Back to Form
-      Builder</button>
+    <button mat-button color="warn" (click)="formListVisible = false; formBuilderVisible = true;">Back to Form Builder</button>
   </div>
 
   <!-- Form Builder Section -->
@@ -39,142 +38,164 @@
           {{ field.label }}
         </div>
       </div>
+
       <div class="form-canvas" cdkDropList id="formCanvas" (cdkDropListDropped)="onDrop($event)"
         [cdkDropListConnectedTo]="['fieldPalette']" [cdkDropListData]="formPages[currentPage].fields"
-        style="position: relative;">
+        style="position: relative; min-height: 500px; border: 1px solid #ddd; padding: 8px;">
 
         <div *ngFor="let field of formPages[currentPage].fields; let i = index; trackBy: trackByFieldId" cdkDrag
           [cdkDragData]="field" [cdkDragFreeDragPosition]="field.position || { x: 0, y: 0 }"
           [cdkDragBoundary]="'#formCanvas'" (cdkDragStarted)="onFieldDragStarted($event, field)"
           (cdkDragMoved)="onFieldDragMoved($event, field)" (cdkDragEnded)="onFieldDragEnded($event, field)"
-          class="form-row" [style.left.px]="field.position?.x" [style.top.px]="field.position?.y"
+          class="form-row"
+          [style.left.px]="field.position?.x"
+          [style.top.px]="field.position?.y"
+          [style.width.px]="field.width || 150"
+          [style.height.px]="field.height || 60"
           style="position: absolute; cursor: move; padding: 8px; border: 1px solid #ccc; background: #fafafa;"
-            [class.textarea-row]="field.type === 'textarea' || field.type === 'description'"
->
-             <div class="field-header">
-          <div cdkDragHandle class="drag-handle" style="cursor: move;">☰</div>
+          [class.textarea-row]="field.type === 'textarea' || field.type === 'description'">
 
-          <div class="resizable-field-content" style="padding: 4px;">
+          <!-- Field header with drag handle -->
+          <div class="field-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div cdkDragHandle class="drag-handle" style="cursor: move; font-size: 18px;">☰</div>
+          </div>
 
+          <!-- Label -->
+          <label *ngIf="field.type !== 'project-title'" class="form-label" [attr.for]="'field-' + i" style="display: block; margin-bottom: 4px;">
+            {{ field.label }}
+          </label>
 
-            <label *ngIf="field.type !== 'project-title'" class="form-label" [attr.for]="'field-' + i">{{ field.label
-              }}</label>
-              
-            <div class="resize-handle" (mousedown)="startResize($event, field)"
-              style="position: absolute; width: 12px; height: 12px; bottom: 0; right: 0; cursor: nwse-resize; background: #888;">
+          <!-- Field content based on type -->
+          <ng-container [ngSwitch]="field.type">
+
+         <!-- Project Title as editable div with placeholder -->
+            <div *ngSwitchCase="'project-title'" contenteditable="true" class="form-input editable-div"
+              (input)="onContentEditableInput($event, field)" [attr.aria-label]="'Project Name'" spellcheck="false"
+              [ngClass]="{'has-value': field.value}">
+              <span *ngIf="!field.value" class="placeholder">Enter project name</span>
+              {{ field.value }}
             </div>
-            <ng-container [ngSwitch]="field.type">
-              <!-- PROJECT TITLE -->
-              <div *ngSwitchCase="'project-title'" class="form-input editable-div-wrapper" style="position: relative;">
-                <!-- Hidden input to provide id/name for autofill & form -->
-                <input type="hidden" id="field-{{i}}" name="field-{{i}}" [value]="field.value" />
-                <div contenteditable="true" class="form-input editable-div"
-                  (input)="onContentEditableInput($event, field)" aria-label="Project Name" spellcheck="false"
-                  role="textbox" tabindex="0" style="min-height: 24px; border: 1px solid #ccc; padding: 4px;">
-                  <span *ngIf="!field.value" class="placeholder">Enter project name</span>
-                  {{ field.value }}
-                </div>
+
+            <!-- Text input -->
+            <input *ngSwitchCase="'text'" id="field-{{i}}" name="field-{{i}}" type="text" [(ngModel)]="field.value"
+              class="form-input" [style.width.px]="field.width" [placeholder]="field.placeholder || ''" />
+
+            <!-- Number input -->
+            <input *ngSwitchCase="'number'" id="field-{{i}}" name="field-{{i}}" type="number" [(ngModel)]="field.value"
+              class="form-input" [style.width.px]="field.width" [placeholder]="field.placeholder || ''" />
+
+            <!-- Telephone input -->
+            <input *ngSwitchCase="'tel'" id="field-{{i}}" name="field-{{i}}" type="tel" [(ngModel)]="field.value"
+              class="form-input" [style.width.px]="field.width" [placeholder]="field.placeholder || ''" />
+
+            <!-- Email input -->
+            <input *ngSwitchCase="'email'" id="field-{{i}}" name="field-{{i}}" type="email" [(ngModel)]="field.value"
+              class="form-input" [style.width.px]="field.width" [placeholder]="field.placeholder || ''" />
+
+            <!-- Readonly ID -->
+            <input *ngSwitchCase="'id'" id="field-{{i}}" name="field-{{i}}" type="text" disabled class="form-input"
+              [style.width.px]="field.width" placeholder="ID Field (readonly)" />
+
+            <!-- Date input -->
+            <input *ngSwitchCase="'date'" id="field-{{i}}" name="field-{{i}}" type="date" [(ngModel)]="field.value"
+              class="form-input" [style.width.px]="field.width" />
+
+            <!-- Select branch -->
+            <select *ngSwitchCase="'branch'" id="field-{{i}}" name="field-{{i}}" [(ngModel)]="field.value"
+              class="form-input" [style.width.px]="field.width">
+              <option *ngFor="let option of field.options || []" [value]="option.value">{{ option.label }}</option>
+            </select>
+
+            <!-- Textarea -->
+            <textarea *ngSwitchCase="'textarea'" id="field-{{i}}" name="field-{{i}}" [(ngModel)]="field.value"
+              class="form-input" [placeholder]="field.placeholder || ''" style="width: 100%; height: 100%; resize: none;">
+            </textarea>
+
+            <!-- Radio buttons -->
+            <div *ngSwitchCase="'radio'" class="form-input" [style.width.px]="field.width">
+              <label *ngFor="let option of field.options || []" style="margin-right: 8px;">
+                <input type="radio" [name]="'radio-' + i" [value]="option.value" [(ngModel)]="field.value" />
+                {{ option.label }}
+              </label>
+            </div>
+
+            <!-- File upload with preview -->
+            <div *ngSwitchCase="'file'" style="margin-top: 8px; position: relative;">
+              <input type="file" accept="image/*" (change)="onFileSelected($event, field)" />
+              <div *ngIf="field.value" style="margin-top: 8px;">
+                <img [src]="field.value" alt="Uploaded Image"
+                  style="max-width: 200px; max-height: 200px; border: 1px solid #ccc; border-radius: 4px;" />
               </div>
+            </div>
 
-              <!-- TEXT -->
-              <input *ngSwitchCase="'text'" id="field-{{i}}" name="field-{{i}}" type="text" [(ngModel)]="field.value"
-                class="form-input" [style.width.px]="field.width" [placeholder]="field.placeholder || ''" />
+            <!-- Empty placeholder -->
+            <div *ngSwitchCase="'empty'" [style.width.px]="field.width" style="height: 40px; border: 1px dashed #ccc;">
+            </div>
 
-              <!-- NUMBER -->
-              <input *ngSwitchCase="'number'" id="field-{{i}}" name="field-{{i}}" type="number"
-                [(ngModel)]="field.value" class="form-input" [style.width.px]="field.width"
-                [placeholder]="field.placeholder || ''" />
-
-              <!-- TEL -->
-              <input *ngSwitchCase="'tel'" id="field-{{i}}" name="field-{{i}}" type="tel" [(ngModel)]="field.value"
-                class="form-input" [style.width.px]="field.width" [placeholder]="field.placeholder || ''" />
-
-              <!-- EMAIL -->
-              <input *ngSwitchCase="'email'" id="field-{{i}}" name="field-{{i}}" type="email" [(ngModel)]="field.value"
-                class="form-input" [style.width.px]="field.width" [placeholder]="field.placeholder || ''" />
-
-              <!-- ID (readonly) -->
-              <input *ngSwitchCase="'id'" id="field-{{i}}" name="field-{{i}}" type="text" disabled class="form-input"
-                [style.width.px]="field.width" placeholder="ID Field (readonly)" />
-
-              <!-- DATE -->
-              <input *ngSwitchCase="'date'" id="field-{{i}}" name="field-{{i}}" type="date" [(ngModel)]="field.value"
-                class="form-input" [style.width.px]="field.width" />
-
-              <!-- BRANCH (SELECT) -->
-              <select *ngSwitchCase="'branch'" id="field-{{i}}" name="field-{{i}}" [(ngModel)]="field.value"
-                class="form-input" [style.width.px]="field.width">
-                <option *ngFor="let option of field.options || []" [value]="option.value">{{ option.label }}</option>
-              </select>
-
-              <!-- TEXTAREA -->
-              <textarea *ngSwitchCase="'textarea'" id="field-{{i}}" name="field-{{i}}" [(ngModel)]="field.value"
-                class="form-input" [placeholder]="field.placeholder || ''"></textarea>
-
-              <!-- RADIO -->
-              <div *ngSwitchCase="'radio'" class="form-input" [style.width.px]="field.width">
-                <label *ngFor="let option of field.options || []" style="margin-right: 8px;">
-                  <input type="radio" [name]="'radio-' + i" [value]="option.value" [(ngModel)]="field.value" />
-                  {{ option.label }}
-                </label>
-              </div>
-
-              <!-- Show preview if field.value exists (which will be base64 string) -->
-             <div *ngSwitchCase="'file'" style="margin-top: 8px; position: relative;">
-  <input type="file" accept="image/*" (change)="onFileSelected($event, field)" />
-  <div *ngIf="field.value" style="margin-top: 8px;">
-    <img [src]="field.value" alt="Uploaded Image"
-      style="max-width: 200px; max-height: 200px; border: 1px solid #ccc; border-radius: 4px;" />
-  </div>
-</div>
-
-              <!-- EMPTY -->
-              <div *ngSwitchCase="'empty'" [style.width.px]="field.width"
-                style="height: 40px; border: 1px dashed #ccc;">
-              </div>
-
-              <!-- SUBMIT BUTTON -->
-              <button *ngSwitchCase="'submit'" mat-raised-button color="primary" (click)="onSubmit()">
-                {{ field.label || 'Submit' }}
-              </button>
-
-              <!-- SIGNATURE PAD -->
-              <div *ngSwitchCase="'signature'" class="signature-pad-container form-input" [style.width.px]="field.width"
-                style="position: relative;">
-                <canvas #canvasElement [attr.data-id]="field.id" [style.width.px]="field.width || 300"
-                  [style.height.px]="150" aria-label="Signature Pad">
-                </canvas>
-
-                <button mat-fab class="clear-sign-btn" aria-label="Clear signature"
-                  style="position: absolute; top: 5px; right: 45px; z-index: 10;"
-                  (click)="clearSignatureCanvas(field.id); $event.stopPropagation()">
-                  <mat-icon>clear</mat-icon>
-                </button>
-              </div>
-
-              <div *ngSwitchCase="'table'" class="table-container" [style.width.px]="field.width || 400"
-                style="border: 1px solid #ccc; padding: 8px; overflow-x: auto;">
-                <table style="border-collapse: collapse; width: 100%;">
-                  <tbody>
-                    <tr *ngFor="let row of [1, 2, 3, 4]">
-                      <td *ngFor="let col of [1, 2, 3, 4]" style="border: 1px dashed #999; width: 80px; height: 40px;">
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <!-- DEFAULT -->
-              <div *ngSwitchDefault>Unsupported field type: {{ field.type }}</div>
-            </ng-container>
-            <button (click)="removeField(currentPage, field); $event.stopPropagation()" class="delete-button"
-              title="Delete field"
-              style="color: red; font-size: 20px; border: none; background: transparent; cursor: pointer;">
-              &times;
+            <!-- Submit button -->
+            <button *ngSwitchCase="'submit'" mat-raised-button color="primary" (click)="onSubmit()">
+              {{ field.label || 'Submit' }}
             </button>
 
+            <!-- Signature pad -->
+            <div *ngSwitchCase="'signature'" class="signature-pad-container form-input" [style.width.px]="field.width"
+              style="position: relative;">
+              <canvas #canvasElement [attr.data-id]="field.id" [style.width.px]="field.width || 300" [style.height.px]="150"
+                aria-label="Signature Pad"></canvas>
 
-          </div>
+              <button mat-fab class="clear-sign-btn" aria-label="Clear signature"
+                style="position: absolute; top: 5px; right: 45px; z-index: 10;"
+                (click)="clearSignatureCanvas(field.id); $event.stopPropagation()">
+                <mat-icon>clear</mat-icon>
+              </button>
+            </div>
+
+            <!-- Table -->
+            <div *ngSwitchCase="'table'" class="table-container" [style.width.px]="field.width || 400"
+              style="border: 1px solid #ccc; padding: 8px; overflow-x: auto;">
+              <table style="border-collapse: collapse; width: 100%;">
+                <tbody>
+                  <tr *ngFor="let row of [1, 2, 3, 4]">
+                    <td *ngFor="let col of [1, 2, 3, 4]" style="border: 1px dashed #999; width: 80px; height: 40px;">
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Default fallback -->
+            <div *ngSwitchDefault>Unsupported field type: {{ field.type }}</div>
+          </ng-container>
+
+          <!-- Resize handle in bottom-right corner -->
+          <div
+            class="resize-handle"
+           (mousedown)="startResize($event, field, true, true)"
+            style="
+              position: absolute;
+              width: 12px;
+              height: 12px;
+              bottom: 4px;
+              right: 4px;
+              cursor: se-resize;
+              background-color: transparent;
+              border-right: 2px solid #666;
+              border-bottom: 2px solid #666;
+              box-sizing: border-box;
+              z-index: 10;
+            "
+          ></div>
+
+          <!-- Delete button -->
+          <button
+            (click)="removeField(currentPage, field); $event.stopPropagation()"
+            class="delete-button"
+            title="Delete field"
+            style="color: red; font-size: 20px; border: none; background: transparent; cursor: pointer; position: absolute; top: 4px; right: 4px;"
+          >
+            &times;
+          </button>
+
         </div>
       </div>
     </div>
@@ -212,9 +233,8 @@
         <div class="action-buttons">
           <button mat-raised-button color="primary" type="submit">Create</button>
           <button mat-button color="warn" type="button" (click)="cancelFieldConfig()">Cancel</button>
-
-
         </div>
       </form>
     </div>
   </div>
+</div>
