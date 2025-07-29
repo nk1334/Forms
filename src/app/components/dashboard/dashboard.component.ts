@@ -5,6 +5,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { AddNewTemplateModalComponent } from '../add-new-template-modal/add-new-template-modal.component';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { AddUserComponent } from '../add-user/add-user.component';
 
 interface FilledFormData {
   formId: string;
@@ -20,7 +21,7 @@ interface FilledFormData {
 export class DashboardComponent implements OnInit {
   dashboardVisible = true;
   showDashboardUI = false;
-
+  userBranch:string='';
   user: any;
   formListData: any[] = [];
   displayedColumns: string[] = [
@@ -54,10 +55,16 @@ export class DashboardComponent implements OnInit {
   filledForms: FilledFormData[] = [];
   filledDataName: string = '';
   isFillingForm = false; // ✅ This fixes the error
+   welcomeMessages: { [key: string]: string } = {
+    NSW: 'Welcome to NSW! Let’s make today productive and inspiring.',
+  YAT: 'Welcome to YATALA! We’re here to support your success.',
+  MACKAY: 'Welcome to MACKAY! Let’s create an amazing experience.',
+};
 
   constructor(private router: Router, private dialog: MatDialog) {}
 
   ngOnInit(): void {
+      this.userBranch = localStorage.getItem('userBranch') || '';
     this.router.events.subscribe((event) => {
       if (event instanceof NavigationEnd) {
         this.showDashboardUI = this.router.url === '/dashboard';
@@ -255,9 +262,22 @@ export class DashboardComponent implements OnInit {
     this.filledDataName = '';
     this.loadFilledForms(); // refresh filled forms list after closing form editor
   }
+  
 
   logout(): void {
     localStorage.removeItem('user');
+      localStorage.removeItem('userBranch'); // clear branch on logout
     this.router.navigate(['/login']);
   }
-}
+openAddUserDialog(): void {
+  console.log('Opening Add User dialog...');  
+  this.dialog.open(AddUserComponent, {
+    width: '900px',
+    disableClose: true,
+  }).afterClosed().subscribe(result => {
+    if (result) {
+      console.log('New user created:', result);
+      // You can update your user list here if you want
+    }
+  });
+}}

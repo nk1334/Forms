@@ -15,6 +15,27 @@ import { DragDropModule } from '@angular/cdk/drag-drop';
 import { ProblemTrackerComponent } from './components/problem-tracker/problem-tracker.component';
 import { FormsModule } from '@angular/forms';
 import { MatSnackBarModule } from '@angular/material/snack-bar';
+import { PublicClientApplication } from '@azure/msal-browser';
+import { MsalModule, MsalRedirectComponent, MsalService, MSAL_INSTANCE } from '@azure/msal-angular';
+import { AddUserComponent } from './components/add-user/add-user.component';
+import { MatDialogModule } from '@angular/material/dialog';
+import { RouterModule } from '@angular/router';
+import { provideFirebaseApp, initializeApp } from '@angular/fire/app';
+import { provideAuth, getAuth } from '@angular/fire/auth';
+import { environment } from '../environments/environment';
+
+const clientId = 'YOUR_CLIENT_ID_HERE';
+const tenantId = 'YOUR_TENANT_ID_HERE';
+
+export function MSALInstanceFactory() {
+  return new PublicClientApplication({
+    auth: {
+      clientId: clientId,
+      authority: `https://login.microsoftonline.com/${tenantId}`,
+      redirectUri: 'http://localhost:4200',
+    }
+  });
+}
 
 @NgModule({
   declarations: [
@@ -26,6 +47,8 @@ import { MatSnackBarModule } from '@angular/material/snack-bar';
     CreateTemplateComponent,
     CreateFormComponent,
     ProblemTrackerComponent,
+    AddUserComponent,
+   
      
    ],
   imports: [
@@ -36,10 +59,21 @@ import { MatSnackBarModule } from '@angular/material/snack-bar';
     ReactiveFormsModule,
     DragDropModule,
      FormsModule,
-     MatSnackBarModule
-    
+     MatSnackBarModule,
+     MsalModule ,
+     MatDialogModule,
+     RouterModule,
+       BrowserModule,
+    provideFirebaseApp(() => initializeApp(environment.firebaseConfig)),
+    provideAuth(() => getAuth()),
   ],
-  providers: [],
-  bootstrap: [AppComponent],
+  providers: [
+    {
+      provide: MSAL_INSTANCE,
+      useFactory: MSALInstanceFactory
+    },
+    MsalService
+  ],
+  bootstrap: [AppComponent] // Add MsalRedirectComponent
 })
 export class AppModule {}

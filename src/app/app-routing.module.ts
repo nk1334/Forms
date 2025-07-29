@@ -8,6 +8,7 @@ import { authGuard } from './services/auth.guard';
 import { CreateTemplateComponent } from './components/create-template/create-template.component';
 import { CreateFormComponent } from './components/create-form/create-form.component';
 import { ProblemTrackerComponent } from './components/problem-tracker/problem-tracker.component';
+import { AddUserComponent } from './components/add-user/add-user.component';
 
 
 const routes: Routes = [
@@ -36,11 +37,13 @@ const routes: Routes = [
  
   },
 
+
   // Default redirect
   { path: '', redirectTo: 'login', pathMatch: 'full' },
 
   // Wildcard redirect
   { path: '**', redirectTo: 'login', pathMatch: 'full' },
+  
 ];
 
 

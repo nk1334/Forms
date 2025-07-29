@@ -19,6 +19,12 @@
           <input matInput type="password" formControlName="password">
         </mat-form-field>
 
+        <mat-form-field appearance="outline" class="full width">
+          <mat-label>Branch</mat-label>
+          <mat-select formControlName="branch">
+            <mat-option *ngFor="let b of branches" [value]="b.value">{{b.label}}</mat-option>
+            </mat-select>
+            </mat-form-field>
         <button mat-raised-button color="primary" type="submit" class="full-width">Login</button>
         <div class="error" *ngIf="error">{{ error }}</div>
       </form>

@@ -1,0 +1,40 @@
+<div class="form-wrapper">
+  <div class="form-container">
+    <button class="close-button" (click)="closeForm()" aria-label="Close form">✕</button>
+    <h2>Add User</h2>
+    <form [formGroup]="userForm" (ngSubmit)="onSubmit()">
+      <div class="form-field">
+        <label for="firstName">First Name</label>
+        <input id="firstName" formControlName="firstName" type="text" />
+      </div>
+      <div class="form-field">
+        <label for="lastName">Last Name</label>
+        <input id="lastName" formControlName="lastName" type="text" />
+      </div>
+      <div class="form-field">
+        <label for="email">Email</label>
+        <input id="email" formControlName="email" type="email" />
+      </div>
+      <div class="form-field">
+        <label for="password">Password</label>
+        <input id="password" formControlName="password" type="password" />
+      </div>
+      <div class="form-field">
+        <label for="role">Role</label>
+        <select id="role" formControlName="role">
+          <option value="" disabled selected>Select role</option>
+          <option value="Admin">Admin</option>
+          <option value="OPS Manager">OPS Manager</option>
+          <option value="User">User</option>
+        </select>
+      </div>
+      <div class="form-field checkbox">
+        <label for="sendWeeklyEmail">
+          <input id="sendWeeklyEmail" formControlName="sendWeeklyEmail" type="checkbox" />
+          Send Weekly Email
+        </label>
+      </div>
+      <button type="submit" class="submit-button" [disabled]="userForm.invalid">Add User</button>
+    </form>
+  </div>
+</div>

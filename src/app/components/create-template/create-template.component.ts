@@ -631,6 +631,24 @@ clearSignatureCanvas(fieldId: string): void {
     }
   }
 }
+addNewPage(): void {
+    this.formPages.push({ fields: [] });
+    this.currentPage = this.formPages.length - 1;
+    this.cdr.detectChanges();
+  }
+
+  nextPage(): void {
+    if (this.currentPage < this.formPages.length - 1) {
+      this.currentPage++;
+    }
+  }
+
+  prevPage(): void {
+    if (this.currentPage > 0) {
+      this.currentPage--;
+    }
+  }
+
 
   clearCanvasAfterDrop(): void {
     this.canvasRefs.forEach(ref => {
@@ -712,7 +730,7 @@ clearSignatureCanvas(fieldId: string): void {
       this.startResize(event, field, isNearRight, isNearBottom);
     }
   }
-
+ 
   fixDuplicateIds(): void {
     const allFields = this.formPages.flatMap(page => page.fields);
     const idCount: Record<string, number> = {};

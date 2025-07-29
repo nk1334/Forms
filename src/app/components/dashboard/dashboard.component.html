@@ -14,6 +14,12 @@
     </mat-menu>
   </mat-toolbar>
 
+  <!-- Place this near the top of your dashboard.component.html -->
+  <div style="padding: 1rem;">
+    <button mat-raised-button color="accent" (click)="openAddUserDialog()">
+      <mat-icon>person_add</mat-icon> Add New User
+    </button>
+  </div>
   <!-- Sidebar + Main Content -->
   <div class="container">
     <!-- Sidebar -->
@@ -32,7 +38,14 @@
 
     <!-- Main Content -->
     <div class="main-content">
-
+  <div *ngIf="userBranch" class="welcome-container">
+  <mat-card class="welcome-card">
+    <div class="welcome-header">
+      <mat-icon class="welcome-icon">emoji_people</mat-icon>
+      <span class="welcome-text">{{ welcomeMessages[userBranch] }}</span>
+    </div>
+  </mat-card>
+</div>
       <!-- SHOW TEMPLATES + FILLED FORMS when NOT editing -->
       <div *ngIf="!showFormEditor">
 
@@ -210,8 +223,10 @@
         <div style="margin-top: 1.5rem;">
           <button mat-raised-button color="primary" (click)="saveEditedForm()">Save</button>
           <button mat-button color="warn" (click)="cancelEdit()">Cancel</button>
+       
         </div>
       </div>
+      
 
     </div>
   </div>

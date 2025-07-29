@@ -110,10 +110,46 @@ canvas {
   border: 1px solid #000;
   border-radius: 4px;
 }
+.welcome-container {
+  position: absolute;
+  top: 80px;
+  right: 20px;
+  z-index: 10;
+  width: fit-content;
+}
 
-/* Misc */
-.no-template-message {
-  margin-top: 2rem;
-  color: #666;
-  font-style: italic;
+
+.welcome-card {
+  padding: 8px 12px;
+    background-color: #fff3e0; /* Light orange */
+  color: #ef6c00; /* Dark orange */
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+}
+
+
+.welcome-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.welcome-icon {
+  margin-right: 6px;
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

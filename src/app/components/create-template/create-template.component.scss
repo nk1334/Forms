@@ -357,6 +357,18 @@ textarea.form-input {
   font-size: 14px;
   cursor: default;
 }
+
+
+.resizable-container textarea {
+  width: 100%;
+  height: 100%;
+  resize: none;      /* Disable direct resize of textarea */
+  border: none;
+  padding: 6px;
+  box-sizing: border-box;
+  font-size: 14px;
+}
+
 .resizable {
   position: relative;
   display: inline-block;
@@ -364,6 +376,22 @@ textarea.form-input {
   background: #fff;
   box-sizing: border-box;
 }
+textarea {
+  resize: both;              /* Allow manual resize */
+  overflow: auto;            /* Show scrollbars if needed */
+  min-width: 100px;
+  min-height: 60px;
+  max-width: none;
+  max-height: none;
+  width: auto;
+  height: auto;
+  padding: 8px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  box-sizing: border-box;
+}
+
+
 
 .resize-handle {
   position: absolute;
@@ -375,19 +403,7 @@ textarea.form-input {
   cursor: se-resize;
   z-index: 10;
 }
-.description-field {
-  resize: both;               /* ✅ Manual vertical & horizontal resizing */
-  overflow: auto;
-  min-width: 100px;
-  min-height: 60px;
-  max-width: 300px;           /* Optional cap */
-  width: 150px;
-  height: 60px;
-  box-sizing: border-box;
-  font-size: 14px;
-  padding: 6px 10px;
-  display: inline-block;      /* ✅ Needed to stay inline in flex */
-}
+
 .description-field label {
   flex-shrink: 0;
   width: 120px;  /* fixed width label */
@@ -396,16 +412,22 @@ textarea.form-input {
   text-overflow: ellipsis;
 }
 .description-field textarea {
-  flex-grow: 1;     /* take remaining space */
-  flex-shrink: 1;   /* allow shrinking */
-  min-width: 0;     /* critical for flexbox to shrink properly */
+  resize: both;       /* allow manual horizontal & vertical resize */
+  min-width: 100px;
   min-height: 80px;
-  resize: vertical;
+  max-width: none;    /* no max limit */
+  max-height: none;   /* no max limit */
   padding: 8px;
   font-size: 14px;
   border: 1px solid #ccc;
   border-radius: 6px;
-  /* REMOVE width: 100%; */
+  flex-grow: 1;
+  flex-shrink: 1;
+  min-width: 0;       /* allow shrinking in flex */
+  box-sizing: border-box;
+  overflow: auto;
+  width: auto;        /* Let user resize freely */
+  height: auto;       /* Start with default height */
 }
 .form-field.full-width {
   width: 100%;
@@ -521,6 +543,25 @@ textarea.form-input {
 
 .delete-sign-btn:hover {
   background-color: #343a40;
+}
+.editable-div.project-title {
+  font-size: 24px;
+  font-weight: bold;
+  text-align: center;
+  background: linear-gradient(to right, #007bff, #00c6ff);
+  color: white;
+  border-radius: 12px;
+  padding: 12px 20px;
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.2);
+  margin-bottom: 16px;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s ease;
+}
+
+.editable-div.project-title:focus {
+  background: linear-gradient(to right, #0056b3, #0096c7);
+  box-shadow: 0 0 8px rgba(0, 123, 255, 0.5);
+  outline: none;
 }
 .editable-div.placeholder::before {
   content: attr(data-placeholder);
