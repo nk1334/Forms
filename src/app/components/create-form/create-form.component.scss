@@ -1,42 +1,44 @@
+/* --- Table layout --- */
 table {
   width: 100%;
-  border-collapse: separate;  /* allow spacing between rows */
-  border-spacing: 0 1rem;      /* vertical space between rows */
+  border-collapse: separate;
+  border-spacing: 0 1rem; /* vertical spacing between rows */
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   font-size: 1rem;
   border: none;
 }
 
-/* Table rows styled as cards */
+/* Each row styled as a subtle card */
 tr {
-  background-color: #f9f9f9;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  background-color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(41, 98, 255, 0.08);
   display: table-row;
 }
 
-/* Table cells styling */
+/* Table cells */
 th, td {
   border: none;
-  padding: 12px 20px;
+  padding: 16px 24px;
   vertical-align: top;
 }
 
-/* Label cell styles */
+/* Label cells */
 td:first-child {
   width: 30%;
   font-weight: 600;
   color: #222;
-  padding-top: 14px;
+  padding-top: 20px;
   user-select: none;
 }
 
-/* Input cell styles */
+/* Input cells */
 td:last-child {
   width: 70%;
+  padding: 18px 24px 24px 24px;
 }
 
-/* Inputs, selects, textarea full width and styled */
+/* Inputs, selects, textarea styling */
 td:last-child input[type="text"],
 td:last-child input[type="email"],
 td:last-child input[type="number"],
@@ -45,34 +47,36 @@ td:last-child input[type="date"],
 td:last-child select,
 td:last-child textarea {
   width: 100% !important;
-  padding: 0.6rem 0.75rem;
-  border-radius: 6px;
-  border: 1.5px solid #ccc;
+  padding: 0.75rem 0.75rem;
+  border: 1.8px solid #666;       /* Darker border for visibility */
+  border-radius: 8px;
+  background-color: #fff;          /* White background for contrast */
   font-size: 1rem;
   font-family: inherit;
   box-sizing: border-box;
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: none;
   outline-offset: 2px;
+  resize: both; /* For textarea */
 }
 
-/* Textarea specific height and resizable */
+/* Textarea specific */
 td:last-child textarea {
   height: 120px;
-  resize: both;
   overflow: auto;
 }
 
-/* Focus styles for inputs/selects/textarea */
+/* Focus state with blue border and glow */
 td:last-child input:focus,
 td:last-child textarea:focus,
 td:last-child select:focus {
   border-color: #2962ff;
-  box-shadow: 0 0 6px #82b1ff;
-  outline: 2px solid #2962ff; /* for keyboard users */
-  outline-offset: 2px;
+  box-shadow: 0 0 8px rgba(41, 98, 255, 0.7);
+  outline: none;
+  background-color: #fff;
 }
 
-/* Validation error messages */
+/* Error messages */
 .error-message,
 div[style*="color: red"] {
   color: #d32f2f;
@@ -82,7 +86,7 @@ div[style*="color: red"] {
   user-select: none;
 }
 
-/* Radio buttons container styling */
+/* Radio button container */
 div[ng-reflect-ng-if][style*="margin-bottom"] > div {
   display: flex;
   gap: 1.25rem;
@@ -90,7 +94,7 @@ div[ng-reflect-ng-if][style*="margin-bottom"] > div {
   margin-top: 0.3rem;
 }
 
-/* Radio labels */
+/* Radio label */
 div[ng-reflect-ng-if][style*="margin-bottom"] > div label {
   display: flex;
   align-items: center;
@@ -100,33 +104,36 @@ div[ng-reflect-ng-if][style*="margin-bottom"] > div label {
   user-select: none;
 }
 
-/* Radio button pointer cursor */
+/* Radio pointer */
 input[type="radio"] {
   cursor: pointer;
 }
 
-/* Button base styles */
+/* Button styling */
 button {
-  padding: 0.6rem 1.2rem;
+  padding: 0.75rem 1.5rem;
   font-size: 1rem;
-  border-radius: 6px;
+  border-radius: 12px;
   border: none;
   cursor: pointer;
-  font-weight: 600;
-  transition: background-color 0.3s ease;
+  font-weight: 700;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
   user-select: none;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.1);
 }
 
 /* Primary button */
 button[color="primary"],
 button.mat-raised-button[color="primary"] {
-  background-color: #2962ff;
+  background: linear-gradient(135deg, #2962ff 0%, #0039cb 100%);
   color: white;
+  box-shadow: 0 4px 12px rgba(41, 98, 255, 0.4);
 }
 
 button[color="primary"]:hover,
 button.mat-raised-button[color="primary"]:hover {
-  background-color: #0039cb;
+  background: linear-gradient(135deg, #0039cb 0%, #2962ff 100%);
+  box-shadow: 0 6px 16px rgba(0, 57, 203, 0.6);
 }
 
 /* Accent button */
@@ -134,28 +141,42 @@ button[color="accent"],
 button.mat-raised-button[color="accent"] {
   background-color: #ff4081;
   color: white;
+  box-shadow: 0 4px 12px rgba(255, 64, 129, 0.4);
 }
 
 button[color="accent"]:hover,
 button.mat-raised-button[color="accent"]:hover {
   background-color: #c60055;
+  box-shadow: 0 6px 16px rgba(198, 0, 85, 0.6);
 }
 
-/* Secondary button */
+/* Secondary text button */
 button[mat-button] {
   background-color: transparent;
   color: #2962ff;
   font-weight: 500;
-  padding: 0.4rem 0.8rem;
+  padding: 0.5rem 1rem;
+  box-shadow: none;
 }
 
 button[mat-button]:hover {
   background-color: rgba(41, 98, 255, 0.1);
+  box-shadow: none;
 }
 
-/* Signature canvas styling */
+/* Signature canvas container */
+.signature-pad-container {
+  position: relative;
+  border-radius: 12px;
+  box-shadow: inset 0 0 8px rgba(41, 98, 255, 0.15);
+  padding: 12px;
+  background: #f9fbff;
+  margin-bottom: 1rem;
+}
+
+/* Signature canvas */
 canvas {
-  border-radius: 8px;
+  border-radius: 12px;
   border: 2px dashed #2962ff;
   width: 100% !important;
   height: 150px !important;
@@ -165,18 +186,27 @@ canvas {
   margin-bottom: 0.8rem;
 }
 
-/* Signature clear button */
-button[type="button"]:not([color]):not([mat-button]) {
-  background-color: #e53935;
+/* Clear signature button */
+.clear-sign-btn {
+  position: absolute;
+  top: 12px;
+  right: 20px;
+  z-index: 20;
+  width: 36px;
+  height: 36px;
+  min-width: 36px !important;
+  min-height: 36px !important;
+  background-color: #f44336;
   color: white;
-  margin-top: -0.5rem;
-  padding: 0.4rem 0.8rem;
-  border-radius: 6px;
+  border-radius: 50%;
+  cursor: pointer;
   transition: background-color 0.3s ease;
+  box-shadow: 0 2px 5px rgba(244, 67, 54, 0.5);
 }
 
-button[type="button"]:not([color]):not([mat-button]):hover {
-  background-color: #ab000d;
+.clear-sign-btn:hover {
+  background-color: #d32f2f;
+  box-shadow: 0 4px 10px rgba(211, 47, 47, 0.7);
 }
 
 /* Responsive for smaller screens */
@@ -185,103 +215,198 @@ button[type="button"]:not([color]):not([mat-button]):hover {
     border-spacing: 0 0.8rem;
   }
 
-  td:first-child {
-    width: 100%;
-    padding-top: 8px;
-    font-size: 1rem;
-  }
-
+  td:first-child,
   td:last-child {
     width: 100%;
+    padding: 12px 16px;
   }
 
-  td, th {
-    padding: 8px 12px;
+  td:first-child {
+    font-size: 1rem;
   }
 }
 
-/* Form export container */
-.pdf-export-container {
-  position: relative;
-  width: 800px;
-  height: 1100px;
-  background: white;
-  border: 1px solid #ccc;
-  box-sizing: border-box;
-  margin: 0 auto;
-  overflow: hidden;
+/* Error highlight on input */
+input.ng-invalid.ng-touched,
+textarea.ng-invalid.ng-touched,
+select.ng-invalid.ng-touched {
+  border-color: #d32f2f !important;
+  box-shadow: 0 2px 0 0 #d32f2f !important;
+  outline: none !important;
 }
 
-/* Form page wrapper */
-.form-page {
-  position: relative;
-  width: 100%;
-  height: 100%;
+/* Remove red border from disabled inputs */
+input:disabled,
+textarea:disabled,
+select:disabled {
+  border-color: #ccc !important;
+  box-shadow: none !important;
+  background-color: #f9f9f9;
+  cursor: not-allowed;
 }
 
-/* Individual field */
-.field {
-  position: absolute;
-  box-sizing: border-box;
-  padding: 4px;
-}
 
-/* Main form container */
-#form-to-export {
-  position: relative;
-  width: 800px; /* or whatever width your form uses */
-  background: white;
-  box-sizing: border-box;
-  padding: 16px;
-  border: 1px solid #ccc; /* optional for preview */
-}
-/* This is the important fix */
-/* Keep absolute positioning and exact left/top for fields */
-/* Remove overrides that break layout */
-#form-to-export.exporting .field-wrapper {
-  position: absolute !important;
-  /* Remove these lines: */
-  /* left: auto !important; */
-  /* top: auto !important; */
-  /* width: auto !important; */
-  margin-bottom: 0 !important;
-}
-
-/* Styles for old export-layout table (can be removed if not used) */
-.export-layout table {
-  width: 100%;
-  border-collapse: collapse;
-  font-family: Arial, sans-serif;
-  font-size: 14px;
-}
-
-.export-layout th, .export-layout td {
-  border: 1px solid #ccc;
-  padding: 8px;
-}
-canvas {
-  image-rendering: -webkit-optimize-contrast; /* or pixelated */
-}
-
-.export-layout th {
-  background-color: #f0f0f0;
-  font-weight: bold;
-}
-
-.export-layout td {
-  vertical-align: top;
-}
-
-.export-layout img {
-  border: 1px solid #999;
-  border-radius: 4px;
-}
-
-/* Generic button adjustments */
-button {
-  font-size: 0.9rem;
-  padding: 0.5rem 1rem;
-}
+/* Each field wrapper with improved borders */
 .field-wrapper {
-  border: 1px solid red !important; /* temporary for debugging */
+  padding: 8px;
+  border: 1.5px solid #666; /* clearer border */
+  background: #fff;
+  box-sizing: border-box;
+  position: absolute; /* keep absolute */
+  border-radius: 6px;
+  box-shadow: none;
+  z-index: 2; 
+}
+.field-wrapper.no-bottom-border {
+  border-bottom: none !important;
+  box-shadow: none !important;
+}
+
+/* Inputs inside field-wrapper */
+.field-wrapper input[type="text"],
+.field-wrapper input[type="email"],
+.field-wrapper input[type="number"],
+.field-wrapper input[type="tel"],
+.field-wrapper input[type="date"],
+.field-wrapper select,
+.field-wrapper textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1.5px solid #666;
+  border-radius: 6px;
+  font-size: 1rem;
+  background: #fff;
+  box-sizing: border-box;
+  outline-offset: 2px;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Focus style */
+.field-wrapper input:focus,
+.field-wrapper select:focus,
+.field-wrapper textarea:focus {
+  border-color: #2962ff;
+  box-shadow: 0 0 8px rgba(41, 98, 255, 0.5);
+  outline: none;
+}
+
+.field-wrapper label {
+  color: #222 !important;        /* Dark text color */
+  background: transparent !important; /* No background */
+  opacity: 1 !important;         /* Fully visible */
+  user-select: text;             /* Allow selection */
+  font-weight: 600;              /* Make label bold */
+  margin-bottom: 4px;
+  display: block;
+}
+.form-page-container {
+  border-top: 2px solid #888;
+  border-left: 2px solid #888;
+  border-right: 2px solid #888;
+  border-bottom: none;  /* Remove bottom border */
+  border-radius: 10px 10px 0 0; /* Rounded corners only top left and right */
+  padding: 16px;
+  background-color: #fafafa;
+  position: relative;
+  min-height: 600px;
+  box-sizing: border-box;
+  margin-bottom: 0 !important;
+    overflow: visible;
+     z-index: 1;
+  
+}
+.field-wrapper.no-bottom-border {
+  border-bottom: none !important;
+  box-shadow: none !important;
+  border-radius: 6px 6px 0 0; /* optional: only round top corners */
+}
+.field-wrapper, 
+.field-wrapper label {
+  opacity: 1 !important;
+  filter: none !important;
+  background-color: transparent !important;
+  color: #222 !important;
+}
+input:focus, textarea:focus {
+  outline: none; /* remove default outline */
+  border-color: #2962ff;
+  box-shadow: 0 0 8px rgba(41, 98, 255, 0.7);
+}
+.floating-save-box {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 999;
+  background: #fff;
+  border: 1px solid #ccc;
+  padding: 12px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.form-action-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background-color: #f8f9fa;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.form-action-toolbar input[type="text"] {
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  min-width: 180px;
+}
+
+.error-message {
+  color: red;
+  font-size: 12px;
+}
+textarea {
+  min-width: 100px;          /* minimum width */
+  min-height: 80px;          /* minimum height */
+  max-width: 600px;          /* maximum width */
+  max-height: 400px;         /* maximum height */
+  width: auto;               /* allow width to adjust */
+  height: auto;              /* allow height to adjust */
+  overflow: auto;            /* show scrollbars if content exceeds max */
+  resize: both;              /* allow user to resize both directions */
+  box-sizing: border-box;    /* include padding/border in width/height */
+  white-space: pre-wrap;     /* preserve whitespace and wrap lines */
+  word-wrap: break-word;     /* break long words */
+}
+/* Allow only vertical resizing */
+.textarea-resizable-vertical {
+  resize: vertical;
+  overflow: auto;
+  min-height: 50px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Allow both vertical and horizontal resizing, fully */
+.textarea-resizable-both {
+  resize: both;
+  overflow: auto;
+  min-height: 50px;
+  min-width: 100px;
+  width: auto !important;
+  max-width: none !important;
+  position: relative;
+  box-sizing: content-box;
+}
+.form-row, .form-canvas {
+  overflow: visible !important;
+  max-width: none !important;
 }

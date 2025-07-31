@@ -66,6 +66,8 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
   formBuilderVisible = true;
   fieldConfigVisible = false;
   formListVisible = false;
+    popupTop = 0;
+  popupLeft = 0;
 
   paletteFields: FormField[] = [
     { id: 'project-title', label: 'Project Name', type: 'project-title' },
@@ -130,7 +132,70 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
       }
     });
   }
+  syncContainerSize(textarea: HTMLTextAreaElement, event: MouseEvent) {
+  const container = textarea.parentElement as HTMLElement;
+  if (container) {
+    // Update container width and height to match textarea's current size
+    container.style.width = textarea.offsetWidth + 'px';
+    container.style.height = textarea.offsetHeight + 'px';
+  }
+}
+  openForm(form: SavedForm): void {
+  this.loadFormById(form.formId);
+}
+openFieldConfig() {
+  const canvas = document.getElementById('formCanvas');
+  if (!canvas) return;
 
+  const rect = canvas.getBoundingClientRect();
+  const popupWidth = 400;  // approx popup width in px
+  const popupHeight = 280; // approx popup height in px
+
+  // Start positioning popup near bottom-right corner of canvas
+  let proposedTop = rect.height - popupHeight - 20; // 20px margin
+  let proposedLeft = rect.width - popupWidth - 20;
+
+  // Get all current field DOM elements inside canvas
+  const fieldElements = canvas.querySelectorAll('.form-row');
+
+  // Check if popup overlaps any field
+  const isOverlapping = () => {
+    for (let i = 0; i < fieldElements.length; i++) {
+      const fieldEl = fieldElements[i] as HTMLElement;
+      const fRect = fieldEl.getBoundingClientRect();
+
+      // Convert field coordinates relative to canvas
+      const fTop = fRect.top - rect.top;
+      const fLeft = fRect.left - rect.left;
+      const fBottom = fTop + fRect.height;
+      const fRight = fLeft + fRect.width;
+
+      // Popup boundaries
+      const pTop = proposedTop;
+      const pLeft = proposedLeft;
+      const pBottom = pTop + popupHeight;
+      const pRight = pLeft + popupWidth;
+
+      // Check for rectangle overlap
+      const overlap =
+        !(pRight < fLeft || pLeft > fRight || pBottom < fTop || pTop > fBottom);
+
+      if (overlap) return true;
+    }
+    return false;
+  };
+
+  // If overlap, move popup up by increments until no overlap or top < 10
+  while (isOverlapping() && proposedTop > 10) {
+    proposedTop -= 30;
+  }
+
+  // Set the final popup positions
+  this.popupTop = proposedTop < 10 ? 10 : proposedTop;
+  this.popupLeft = proposedLeft < 10 ? 10 : proposedLeft;
+
+  this.fieldConfigVisible = true;
+}
   private getEmptyField(): FormField {
     return {
       id: '',
@@ -390,7 +455,8 @@ startHeight = 0;
 
 startResize(event: MouseEvent, field: any, isNearRight: boolean, isNearBottom: boolean) {
   event.stopPropagation();
-  event.preventDefault(); // prevent text selection
+  event.preventDefault();
+
   this.resizingField = field;
   this.startX = event.clientX;
   this.startY = event.clientY;
@@ -412,9 +478,10 @@ onResizeMove = (event: MouseEvent) => {
 };
 
 stopResize = (event: MouseEvent) => {
-  this.resizingField = null;
   document.removeEventListener('mousemove', this.onResizeMove);
   document.removeEventListener('mouseup', this.stopResize);
+
+  this.resizingField = null;
 };
 
   loadFormById(formId: string): void {
@@ -504,7 +571,9 @@ stopResize = (event: MouseEvent) => {
 
   saveFilledForm(): void {
     const filledForms = JSON.parse(localStorage.getItem('filledForms') || '[]');
-    const filledFormName = prompt('Enter a name for this filled form:', 'Filled Form');
+
+      const projectNameField = this.formPages[0].fields.find(f => f.id === 'project-title' || f.label === 'Project Name');
+  const filledFormName = projectNameField?.value?.trim();
 
     if (!filledFormName || filledFormName.trim() === '') {
       alert('Please enter a valid name.');
@@ -661,6 +730,7 @@ addNewPage(): void {
       }
     });
   }
+
 
   getPointerPos(e: PointerEvent, canvas: HTMLCanvasElement) {
     const rect = canvas.getBoundingClientRect();

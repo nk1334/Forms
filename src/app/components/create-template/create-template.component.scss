@@ -82,9 +82,7 @@
 }
 
 .palette-item:hover {
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15); /* slightly stronger shadow on hover */
-}
-.field-item {
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15); /* slightly stronger shadow on hover */ } .field-item {
   display: flex; /* inline so it doesn't take full width */
   align-items:  flex-start;
   justify-content: center;
@@ -174,7 +172,7 @@
   max-width: 350px;
   min-width: 160px;
   cursor: grab;
-  z-index: 10;
+  z-index: 1; 
   width: 100%;
   height: auto;
     cursor: grab;
@@ -206,8 +204,7 @@
   box-sizing: border-box;
 }
 
-/* When textarea is present, switch to vertical layout */
-.form-row.textarea-row {
+/* When textarea is present, switch to vertical layout */ .form-row.textarea-row {
   flex-direction: column !important;
   align-items: stretch !important;
 }
@@ -265,8 +262,7 @@ textarea.form-input {
   border: 1px solid #ccc;
   border-radius: 6px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-  transition: top 0.1s ease, left 0.1s ease; /* smooth drag movement */
-}
+  transition: top 0.1s ease, left 0.1s ease; /* smooth drag movement */ }
 
 .delete-btn {
   flex: 0 0 30px; /* fixed width */
@@ -288,10 +284,10 @@ textarea.form-input {
   min-height: 50px;
 }
 .form-builder-wrapper {
-  display: flex;
-  flex-direction: column;
-  height: 100vh; /* Full screen */
+  position: relative; /* positioning context */
+  overflow: visible;  /* allow popup to overflow */
 }
+
 
 .draggable-field {
   position: absolute;
@@ -310,9 +306,7 @@ textarea.form-input {
 }
 .form-row.signature-field {
   min-width: 360px;  /* 300px signature + 36px delete + padding */
-  min-height: 180px; /* enough height for signature */
-}
-.field {
+  min-height: 180px; /* enough height for signature */ } .field {
   position: absolute;
   padding: 6px 10px;
   background: white;
@@ -357,18 +351,6 @@ textarea.form-input {
   font-size: 14px;
   cursor: default;
 }
-
-
-.resizable-container textarea {
-  width: 100%;
-  height: 100%;
-  resize: none;      /* Disable direct resize of textarea */
-  border: none;
-  padding: 6px;
-  box-sizing: border-box;
-  font-size: 14px;
-}
-
 .resizable {
   position: relative;
   display: inline-block;
@@ -376,22 +358,6 @@ textarea.form-input {
   background: #fff;
   box-sizing: border-box;
 }
-textarea {
-  resize: both;              /* Allow manual resize */
-  overflow: auto;            /* Show scrollbars if needed */
-  min-width: 100px;
-  min-height: 60px;
-  max-width: none;
-  max-height: none;
-  width: auto;
-  height: auto;
-  padding: 8px;
-  font-size: 14px;
-  border: 1px solid #ccc;
-  box-sizing: border-box;
-}
-
-
 
 .resize-handle {
   position: absolute;
@@ -403,7 +369,19 @@ textarea {
   cursor: se-resize;
   z-index: 10;
 }
-
+.description-field {
+  resize: both;               /* ✅ Manual vertical & horizontal resizing */
+  overflow: auto;
+  min-width: 100px;
+  min-height: 60px;
+  max-width: 300px;           /* Optional cap */
+  width: 150px;
+  height: 60px;
+  box-sizing: border-box;
+  font-size: 14px;
+  padding: 6px 10px;
+  display: inline-block;      /* ✅ Needed to stay inline in flex */
+}
 .description-field label {
   flex-shrink: 0;
   width: 120px;  /* fixed width label */
@@ -412,22 +390,16 @@ textarea {
   text-overflow: ellipsis;
 }
 .description-field textarea {
-  resize: both;       /* allow manual horizontal & vertical resize */
-  min-width: 100px;
+  flex-grow: 1;     /* take remaining space */
+  flex-shrink: 1;   /* allow shrinking */
+  min-width: 0;     /* critical for flexbox to shrink properly */
   min-height: 80px;
-  max-width: none;    /* no max limit */
-  max-height: none;   /* no max limit */
+  resize: vertical;
   padding: 8px;
   font-size: 14px;
   border: 1px solid #ccc;
   border-radius: 6px;
-  flex-grow: 1;
-  flex-shrink: 1;
-  min-width: 0;       /* allow shrinking in flex */
-  box-sizing: border-box;
-  overflow: auto;
-  width: auto;        /* Let user resize freely */
-  height: auto;       /* Start with default height */
+  /* REMOVE width: 100%; */
 }
 .form-field.full-width {
   width: 100%;
@@ -478,9 +450,7 @@ textarea {
   color: #000;
   font-weight: 500;
   border-radius: 4px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-}
-.signature-pad-container {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15); } .signature-pad-container {
   position: relative;
   width: 300px; /* or field.width */
   height: 160px; /* just above canvas height */
@@ -512,9 +482,7 @@ textarea {
   min-height: 36px !important;
   background-color: #f44336;
   color: white;
-  transition: background-color 0.3s ease;
-}
-.clear-sign-btn {
+  transition: background-color 0.3s ease; } .clear-sign-btn {
   position: absolute;
   top: 5px;
   right: 45px;
@@ -543,25 +511,6 @@ textarea {
 
 .delete-sign-btn:hover {
   background-color: #343a40;
-}
-.editable-div.project-title {
-  font-size: 24px;
-  font-weight: bold;
-  text-align: center;
-  background: linear-gradient(to right, #007bff, #00c6ff);
-  color: white;
-  border-radius: 12px;
-  padding: 12px 20px;
-  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.2);
-  margin-bottom: 16px;
-  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.15);
-  transition: all 0.3s ease;
-}
-
-.editable-div.project-title:focus {
-  background: linear-gradient(to right, #0056b3, #0096c7);
-  box-shadow: 0 0 8px rgba(0, 123, 255, 0.5);
-  outline: none;
 }
 .editable-div.placeholder::before {
   content: attr(data-placeholder);
@@ -612,8 +561,7 @@ textarea {
 
 .editable-div[contenteditable="true"]:focus {
   border-color: #007bff;
-  box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
-}
+  box-shadow: 0 0 5px rgba(0, 123, 255, 0.5); }
 
 .editable-div[contenteditable="true"] {
   cursor: text;
@@ -628,28 +576,38 @@ textarea {
 }
 
 .popup-overlay {
-  position: fixed;
+  position: fixed;            /* Fixed to the screen */
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0,0,0,0.5); /* Optional dim background */
   display: flex;
   justify-content: center;
   align-items: center;
+  z-index: 1000;              /* High z-index so it appears on top */
 }
 
+
 .popup {
-  background: #fff;
-  padding: 20px;
-  width: 400px;
-  border-radius: 10px;
+  background: white;
+  padding: 16px;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  max-width: 400px;
+  width: 90vw;               /* Responsive for small screens */
+  max-height: 90vh;          /* Prevent overflow */
+  overflow-y: auto;          /* Scroll inside if content is too long */
 }
 
 .popup input,
 .popup select {
   display: block;
   width: 100%;
+}
+.popup form .mat-form-field {
+  width: 100%;
+  max-width: 100%;
 }
 
 .main-content {
@@ -757,8 +715,7 @@ textarea {
   color: #333;
   cursor: move;
   user-select: none;
-  transition: box-shadow 0.2s ease-in-out, transform 0.1s ease-in-out;
-}
+  transition: box-shadow 0.2s ease-in-out, transform 0.1s ease-in-out; }
 
 .field-box:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -798,8 +755,7 @@ textarea {
 *, *::before, *::after {
   box-sizing: border-box;
 }
-/* For textarea fields inside .form-row, stack vertically */
-.form-row textarea.form-input {
+/* For textarea fields inside .form-row, stack vertically */ .form-row textarea.form-input {
   flex-grow: 1;
   min-width: 150px;
   max-width: 100%;
@@ -814,11 +770,7 @@ textarea {
   overflow: auto;
 }
 
-/* Stack label + textarea vertically for description fields */
-.form-row textarea.form-input,
-.form-row textarea.form-input + label,
-.form-row textarea.form-input ~ label,
-.form-row label {
+/* Stack label + textarea vertically for description fields */ .form-row textarea.form-input, .form-row textarea.form-input + label, .form-row textarea.form-input ~ label, .form-row label {
   display: block;
   width: 100%;
   margin-right: 0;
@@ -831,8 +783,7 @@ textarea {
 }
 
 /* If :has() is not supported, add a class in Angular when field.type==='textarea' */
-/* e.g. <div class="form-row textarea-row"> */
-.form-row.textarea-row {
+/* e.g. <div class="form-row textarea-row"> */ .form-row.textarea-row {
   flex-direction: column !important;
   align-items: stretch !important;
 }
@@ -864,8 +815,7 @@ textarea {
   margin-top: 0;
 }
 
-/* Optional: add some padding and border to textarea for better UX */
-textarea.form-input {
+/* Optional: add some padding and border to textarea for better UX */ textarea.form-input {
   padding: 8px;
   border: 1px solid #ccc;
   border-radius: 6px;
@@ -881,4 +831,11 @@ textarea.form-input {
     width: auto;
     margin-bottom: 6px;
   }
+}
+
+.page-navigation {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 150px;
 }
