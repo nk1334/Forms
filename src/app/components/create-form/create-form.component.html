@@ -55,6 +55,7 @@
         <div [style.position]="'relative'" [style.minHeight.px]="containerHeight" style="padding: 8px;">
           <div class="form-page-container">
             <div *ngFor="let field of page.fields" class="field-wrapper"
+             [attr.data-id]="field.id" 
        [ngStyle]="
              field.id === 'description'
                   ? {

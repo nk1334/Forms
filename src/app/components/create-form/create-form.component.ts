@@ -514,7 +514,7 @@ export class CreateFormComponent implements OnInit, AfterViewInit {
     const fields = this.selectedForm?.formPages[pageIndex]?.fields || [];
 
     fields.forEach((field, fieldIndex) => {
-      const fieldWrapper = pageEl.querySelectorAll('.field-wrapper')[fieldIndex] as HTMLElement;
+      const fieldWrapper = pageEl.querySelector(`.field-wrapper[data-id="${field.id}"]`) as HTMLElement;
       if (!fieldWrapper) return;
 
       if (field.id === 'description') {
