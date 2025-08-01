@@ -171,27 +171,25 @@
   border-radius: 6px;
   max-width: 350px;
   min-width: 160px;
-  cursor: grab;
-  z-index: 1; 
-  width: 100%;
+  cursor: move;
+  z-index: 10; 
+
   height: auto;
-    cursor: grab;
+
     flex-wrap: nowrap;
+   
+ transition: none 
+  /* Optional: create new stacking context for smoother repaint */
+
 }
 .field-header {
   display: flex;
   align-items: center;
   justify-content: space-between; /* or flex-start if you want delete button elsewhere */
-  gap: 8px;
-  user-select: none;
-  padding-bottom: 4px;
+
 }
 
-/* Hover effect */
-.form-row:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-  transform: translateY(-1px);
-}
+
 .field-textarea {
   flex: 1 1 auto;
   min-height: 60px;
@@ -247,13 +245,10 @@ textarea.form-input {
   white-space: normal;
 }
 .drag-handle {
-  flex: 0 0 24px;  /* fixed width */
-  cursor: grab;
-  color: #666;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-    user-select: none;
+  cursor: move;
+  font-size: 18px;
+  user-select: none;
+  touch-action: none;
 }
 .form-item {
   background: white;
@@ -262,7 +257,8 @@ textarea.form-input {
   border: 1px solid #ccc;
   border-radius: 6px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-  transition: top 0.1s ease, left 0.1s ease; /* smooth drag movement */ }
+  transition: none;
+}
 
 .delete-btn {
   flex: 0 0 30px; /* fixed width */
@@ -328,13 +324,21 @@ textarea.form-input {
   /* MOST IMPORTANT: take full available space */
   flex: 1 1 auto;
   width: 100%;
-  height: 100%;
+  height: 800px;
   box-sizing: border-box;
 
   /* Scroll if needed */
   overflow-x: auto;
 }
+.field {
+  position: absolute;
+  padding: 6px 10px;
+  background: white;
+  border: 1px solid #999;
+  cursor: move;
+}
 .form-field {
+
   display: flex;
   flex-direction: column;
   align-items: flex-start; /* better alignment for label+input */
@@ -576,28 +580,33 @@ textarea.form-input {
 }
 
 .popup-overlay {
-  position: fixed;            /* Fixed to the screen */
+  position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(0,0,0,0.5); /* Optional dim background */
+  background-color: rgba(0,0,0,0.5);
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 1000;              /* High z-index so it appears on top */
+  z-index: 1000;
+
+  pointer-events: auto; /* 🔁 Allow mouse events to pass through */
 }
 
-
 .popup {
+  pointer-events: auto; /* ✅ Only modal should accept pointer events */
   background: white;
   padding: 16px;
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
   max-width: 400px;
-  width: 90vw;               /* Responsive for small screens */
-  max-height: 90vh;          /* Prevent overflow */
-  overflow-y: auto;          /* Scroll inside if content is too long */
+  width: 90vw;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.popup {
+  will-change: transform;
 }
 
 .popup input,

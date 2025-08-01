@@ -35,6 +35,7 @@ interface FilledFormData {
   formId: string;
   name: string;
   data: Record<string, any>;
+    formPagesSnapshot?: FormPage[];
 }
 
 @Component({
@@ -107,6 +108,50 @@ export class CreateFormComponent implements OnInit, AfterViewInit {
     this.textareas.changes.subscribe(() => {
       this.ngAfterViewInit(); // re-run on new elements
     });
+  }
+   addNewField(pageIndex: number, newField: FormField) {
+    if (!this.selectedForm) return;
+    newField.position = this.getNextAvailablePosition(pageIndex);
+    this.selectedForm.formPages[pageIndex].fields.push(newField);
+    this.adjustFormContainerHeight();
+    this.saveForm(this.selectedForm);
+  }
+
+  deleteField(pageIndex: number, fieldIndex: number) {
+    if (!this.selectedForm) return;
+    this.selectedForm.formPages[pageIndex].fields.splice(fieldIndex, 1);
+    this.adjustFormContainerHeight();
+    this.saveForm(this.selectedForm);
+  }
+
+  createDefaultField(): FormField {
+    return {
+      id: 'field_' + Math.random().toString(36).substring(2, 9),
+      label: 'New Field',
+      type: 'text',
+      value: '',
+      width: 300,
+      height: 150,
+      required: false,
+      position: { x: 10, y: 10 },
+    };
+  }
+
+  getNextAvailablePosition(pageIndex: number): { x: number; y: number } {
+    if (!this.selectedForm) return { x: 10, y: 10 };
+    const page = this.selectedForm.formPages[pageIndex];
+    if (!page) return { x: 10, y: 10 };
+
+    const margin = 10;
+    const fieldHeight = 150;
+    let maxY = 0;
+
+    page.fields.forEach(field => {
+      const bottom = (field.position?.y || 0) + (field.height || fieldHeight);
+      if (bottom > maxY) maxY = bottom;
+    });
+
+    return { x: margin, y: maxY + margin };
   }
 
  autoGrow(element: EventTarget | null) {
@@ -234,6 +279,7 @@ export class CreateFormComponent implements OnInit, AfterViewInit {
       formId: this.selectedForm.formId,
       name: nameTrimmed,
       data: filledData,
+      formPagesSnapshot: JSON.parse(JSON.stringify(this.selectedForm.formPages))  // save layout snapshot
     };
 
     // Get existing filled forms from localStorage
@@ -434,46 +480,83 @@ export class CreateFormComponent implements OnInit, AfterViewInit {
     this.containerHeight = maxY + 20; // add some padding
   }
 
+
+
   async exportToPDF(): Promise<void> {
-    if (!this.selectedForm) return;
-    this.isExporting = true;
+  if (!this.selectedForm) return;
+  this.isExporting = true;
 
-    this.adjustFormContainerHeight();
-    this.cdr.detectChanges();
+  this.adjustFormContainerHeight();
+  this.cdr.detectChanges();
 
-    const element = document.getElementById('form-to-export');
-    if (!element) return;
+  const element = document.getElementById('form-to-export');
+  if (!element) return;
 
-    element.classList.add('exporting');
+  element.classList.add('exporting');
 
-    const clone = element.cloneNode(true) as HTMLElement;
-    clone.querySelectorAll('button').forEach(btn => btn.remove());
+  // Clone the node for clean PDF rendering
+  const clone = element.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll('button').forEach(btn => btn.remove());
 
-    clone.style.position = 'fixed';
-    clone.style.top = '-9999px';
-    clone.style.left = '-9999px';
-    clone.style.width = element.offsetWidth + 'px';
-    clone.style.background = 'white';
-    document.body.appendChild(clone);
+  clone.style.position = 'fixed';
+  clone.style.top = '-9999px';
+  clone.style.left = '-9999px';
+  clone.style.width = element.offsetWidth + 'px';
+  clone.style.background = 'white';
 
-    await new Promise(resolve => setTimeout(resolve, 300)); // wait for styles
+  // Append clone to body
+  document.body.appendChild(clone);
 
-    try {
-      const canvas = await html2canvas(clone, { scale: 2, useCORS: true, backgroundColor: '#fff' });
-      const imgData = canvas.toDataURL('image/png');
+  // --- NEW: Set field styles on cloned element to preserve layout ---
+  const pageContainers = clone.querySelectorAll('.page-container');
 
-      const pdf = new jsPDF('p', 'pt', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+  pageContainers.forEach((pageEl, pageIndex) => {
+    const fields = this.selectedForm?.formPages[pageIndex]?.fields || [];
 
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, imgHeight);
-      pdf.save(`${this.selectedForm.formName || 'form'}.pdf`);
-    } catch (error) {
-      console.error('PDF generation error:', error);
-    } finally {
-      element.classList.remove('exporting');
-      document.body.removeChild(clone);
-      this.isExporting = false;
-    }
+    fields.forEach((field, fieldIndex) => {
+      const fieldWrapper = pageEl.querySelectorAll('.field-wrapper')[fieldIndex] as HTMLElement;
+      if (!fieldWrapper) return;
+
+      if (field.id === 'description') {
+        // description field uses relative positioning
+        fieldWrapper.style.position = 'relative';
+        fieldWrapper.style.left = '';
+        fieldWrapper.style.top = '';
+        fieldWrapper.style.width = field.width ? field.width + 'px' : '100%';
+      } else {
+        // other fields use absolute positioning
+        fieldWrapper.style.position = 'absolute';
+        fieldWrapper.style.left = (field.position?.x ?? 0) + 'px';
+        fieldWrapper.style.top = (field.position?.y ?? 0) + 'px';
+        fieldWrapper.style.width = (field.width ?? 300) + 'px';
+      }
+
+      if (field.height) {
+        fieldWrapper.style.height = field.height + 'px';
+      } else {
+        fieldWrapper.style.height = '';
+      }
+    });
+  });
+
+  // Wait a moment to ensure styles are applied
+  await new Promise(resolve => setTimeout(resolve, 300));
+
+  try {
+    const canvas = await html2canvas(clone, { scale: 2, useCORS: true, backgroundColor: '#fff' });
+    const imgData = canvas.toDataURL('image/png');
+
+    const pdf = new jsPDF('p', 'pt', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+
+    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, imgHeight);
+    pdf.save(`${this.selectedForm.formName || 'form'}.pdf`);
+  } catch (error) {
+    console.error('PDF generation error:', error);
+  } finally {
+    element.classList.remove('exporting');
+    document.body.removeChild(clone);
+    this.isExporting = false;
   }
-}
+}}

@@ -121,12 +121,17 @@
     [id]="field.id"
     [required]="!!field.required"
     #textareaRef="ngModel"
-    [ngClass]="field.id === 'description' ? 'textarea-resizable-both' : 'textarea-resizable-vertical'"
+    class="textarea-resizable-both"
+      [attr.aria-describedby]="field.id + '-error'"
+          [placeholder]="field.placeholder || ''"
+      style= "min-height: 60px;"
   ></textarea>
 
-  <div *ngIf="textareaRef.invalid && (textareaRef.dirty || textareaRef.touched)" style="color: red;">
-    This field is required.
-  </div>
+<div *ngIf="textareaRef.invalid && (textareaRef.dirty || textareaRef.touched)"
+     [id]="field.id + '-error'"
+     class="error-message">
+  This field is required.
+</div>
 </ng-container>
 
               <!-- Select -->

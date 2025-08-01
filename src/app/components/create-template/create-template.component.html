@@ -42,8 +42,9 @@
       </div>
 
       <!-- Canvas and Navigation Wrapper -->
-      <div class="canvas-navigation-wrapper" style="display: flex; flex-grow: 1; box-sizing: border-box;">
+      <div class="canvas-navigation-wrapper" style="display: flex; flex: 1; box-sizing: border-box;">
 
+        
         <!-- Form Canvas -->
         <div class="form-canvas" cdkDropList id="formCanvas" 
              (cdkDropListDropped)="onDrop($event)"
@@ -56,12 +57,13 @@
                [cdkDragBoundary]="'#formCanvas'" (cdkDragStarted)="onFieldDragStarted($event, field)"
                (cdkDragMoved)="onFieldDragMoved($event, field)" (cdkDragEnded)="onFieldDragEnded($event, field)"
                class="form-row"
-                
-               [style.left.px]="field.position?.x"
-               [style.top.px]="field.position?.y"
-               [style.width.px]="field.width || 150"
-               [style.height.px]="field.height || 60"
-               style="position: absolute; cursor: move; padding: 8px; border: 1px solid #ccc; background: #fafafa; display: flex; align-items: center; gap: 8px;"
+  [ngStyle]="{
+    left: field.position?.x + 'px',
+    top: field.position?.y + 'px',
+    width: field.width + 'px',
+    height: field.height + 'px'
+  }"
+  style="position: absolute; cursor: move; padding: 8px; border: 1px solid #ccc; background: #fafafa;"
                [class.textarea-row]="field.type === 'textarea' || field.type === 'description'">
 
             <!-- Drag Handle -->
@@ -122,8 +124,7 @@ margin-bottom: 4px;">
 
               <!-- Textarea with label side-by-side -->
               <div *ngSwitchCase="'textarea'" class="textarea-container" style="display: flex; align-items: stretch; gap: 8px; width: 100%;">
-                <label class="form-label" style="width: 120px; flex-shrink: 0;">{{field.label}}</label>
-                <textarea 
+             <textarea 
                   [(ngModel)]="field.value" 
                   class="form-input" 
                   [style.min-width.px]="field.width" 
@@ -206,14 +207,12 @@ margin-bottom: 4px;">
               &times;
             </button>
           </div>
-        </div>
 
   <!-- Field Configuration Modal -->
-<div *ngIf="fieldConfigVisible" class="popup-overlay mat-dialog-overlay">
+ 
+<div *ngIf="fieldConfigVisible" class="popup-overlay"(click)="closeConfig()">
 
-    <div class="popup mat-elevation-z4"
-     [ngStyle]="{ top: popupTop + 'px', left: popupLeft + 'px' }"
-     style="position: absolute; z-index: 1000;">
+  <div class="popup mat-elevation-z4" (click)="$event.stopPropagation()">
   
   <h3 class="form-title">Configure Field</h3>
   
@@ -249,11 +248,17 @@ margin-bottom: 4px;">
         </div>
       </form>
     </div>
+    </div>
+    </div>
     <!-- Page Navigation (outside modal, in main template) -->
-<div class="page-navigation" style="display: flex; flex-direction: column; gap: 8px; min-width: 150px;">
+<div class="page-navigation" style="display: flex; flex-direction: column; gap: 8px; min-width: 150px;padding:16px;border-left:1 px solid #ddd;box-sizing:border-box;">
   <button mat-button color="primary" (click)="prevPage()" [disabled]="currentPage === 0">Previous</button>
   <span>Page {{ currentPage + 1 }} of {{ formPages.length }}</span>
   <button mat-button color="primary" (click)="nextPage()" [disabled]="currentPage >= formPages.length - 1">Next</button>
   <button mat-button color="accent" (click)="addNewPage()" style="margin-left: 16px;">Add New Page</button>
+</div>
+</div>
+</div>
+</div>
 </div>
 

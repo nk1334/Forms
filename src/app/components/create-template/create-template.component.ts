@@ -592,22 +592,53 @@ stopResize = (event: MouseEvent) => {
     alert('Filled form saved successfully!');
   }
 
-  exportToPDF(): void {
-    const filename = prompt('Enter filename for PDF', 'form');
-    if (!filename) return;
+exportToPDF(): void {
+  const filename = prompt('Enter filename for PDF', 'form');
+  if (!filename) return;
 
-    import('html2pdf.js').then(m => {
-      const content = document.querySelector('.form-canvas');
-      if (content) {
-        m.default()
-          .from(content)
-          .set({ filename: `${filename}.pdf` })
-          .save();
-      } else {
-        alert('No content to export');
-      }
-    });
+  this.ensureFieldPositions();  // Keeps your positions valid in UI (safe to leave)
+
+  const canvas = document.querySelector('.form-canvas');
+  if (!canvas) {
+    alert('No canvas found!');
+    return;
   }
+
+  // Clone canvas to avoid modifying original
+  const clone = canvas.cloneNode(true) as HTMLElement;
+
+  // Reset positioning for print-friendly output
+  clone.querySelectorAll('.field').forEach((field: Element) => {
+    const el = field as HTMLElement;
+    el.style.position = 'relative';
+    el.style.left = '0';
+    el.style.top = '0';
+    el.style.marginBottom = '10px';
+  });
+
+  // Create a hidden container to hold cloned content
+  const wrapper = document.createElement('div');
+  wrapper.style.position = 'fixed';
+  wrapper.style.top = '-10000px';
+  wrapper.appendChild(clone);
+  document.body.appendChild(wrapper);
+
+  // Generate PDF
+  import('html2pdf.js').then((html2pdf) => {
+    html2pdf.default()
+      .from(clone)
+      .set({
+        filename: `${filename}.pdf`,
+        margin: 10,
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      })
+      .save()
+      .then(() => {
+        document.body.removeChild(wrapper); // Clean up
+      });
+  });
+}
 
   private initCanvases(): void {
     this.ctxMap = {};
@@ -717,6 +748,10 @@ addNewPage(): void {
       this.currentPage--;
     }
   }
+    closeConfig(): void {
+    this.fieldConfigVisible = false;
+  }
+
 
 
   clearCanvasAfterDrop(): void {
