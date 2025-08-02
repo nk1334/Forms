@@ -45,7 +45,9 @@
     </ng-container>
   </div>
 
-  <div id="form-to-export">
+  <div id="form-to-export" style>
+
+
     <form id="dynamicForm" #formRef="ngForm" novalidate>
 
       <div *ngFor="let page of selectedForm.formPages; let p = index" class="page-container">

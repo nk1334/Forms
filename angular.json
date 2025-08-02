@@ -40,7 +40,8 @@
               "html2canvas",
               "raf",
               "rgbcolor",
-              "core-js"
+              "core-js",
+                "pdfjs-dist"
             ]
           },
           "configurations": {

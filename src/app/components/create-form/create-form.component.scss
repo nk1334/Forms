@@ -410,3 +410,11 @@ textarea {
   overflow: visible !important;
   max-width: none !important;
 }
+.page-container {
+  position: relative; /* so absolute children position relative to page */
+}
+
+.field-wrapper {
+  position: absolute; /* this will be overridden by JS, but good to default */
+  /* width and height will be set dynamically */
+}

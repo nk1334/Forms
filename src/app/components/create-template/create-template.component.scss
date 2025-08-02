@@ -326,6 +326,7 @@ textarea.form-input {
   width: 100%;
   height: 800px;
   box-sizing: border-box;
+    max-width: none !important;
 
   /* Scroll if needed */
   overflow-x: auto;
@@ -605,9 +606,7 @@ textarea.form-input {
   max-height: 90vh;
   overflow-y: auto;
 }
-.popup {
-  will-change: transform;
-}
+
 
 .popup input,
 .popup select {

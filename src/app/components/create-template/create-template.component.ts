@@ -603,18 +603,48 @@ exportToPDF(): void {
     alert('No canvas found!');
     return;
   }
+ 
 
   // Clone canvas to avoid modifying original
   const clone = canvas.cloneNode(true) as HTMLElement;
+clone.style.position = 'relative';
+  clone.style.width = '794px';   // A4 width in px at 96dpi
+  clone.style.height = '1123px'; // A4 height in px at 96dpi
+  clone.style.overflow = 'visible';
+const formCanvas = clone.querySelector('.form-canvas') as HTMLElement;
+if (formCanvas) {
+  formCanvas.style.display = 'flex';
+  formCanvas.style.flexWrap = 'nowrap';  // prevent wrap to keep 6 fields in one row
+  formCanvas.style.justifyContent = 'flex-start';
+  formCanvas.style.gap = '8px';
+  formCanvas.style.width = '100%';
+}
 
   // Reset positioning for print-friendly output
   clone.querySelectorAll('.field').forEach((field: Element) => {
     const el = field as HTMLElement;
+    const originalField = document.querySelector(`.field[data-id="${el.getAttribute('data-id')}"]`) as HTMLElement;
+
+      if (el) {
     el.style.position = 'relative';
     el.style.left = '0';
     el.style.top = '0';
     el.style.marginBottom = '10px';
-  });
+  el.style.width = el.offsetWidth + 'px';         // shrink width to fit 6 fields per row (794 / 6 ≈ 132px, 120px leaves margin)
+  el.style.boxSizing = 'border-box';
+  el.style.display = 'inline-block';  // inline block to sit side by side
+  el.style.marginRight = '8px';   
+           }     // some gap between fields
+});
+
+// If you have a row container, also set flex styles to prevent wrapping (optional)
+const row = clone.querySelector('.fields-row');
+if (row) {
+  const rowEl = row as HTMLElement;
+  rowEl.style.display = 'flex';
+  rowEl.style.flexWrap = 'nowrap';
+  rowEl.style.justifyContent = 'flex-start'; // align left, or 'space-between' if you want gaps to spread out
+}
 
   // Create a hidden container to hold cloned content
   const wrapper = document.createElement('div');
