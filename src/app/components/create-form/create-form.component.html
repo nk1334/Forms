@@ -15,12 +15,12 @@
   <!-- ACTION BUTTONS: Top toolbar -->
   <div class="form-action-toolbar">
     <ng-container *ngIf="!showNameInput">
-      <button mat-raised-button color="primary" type="button" (click)="showNameInput = true">
+      <button mat-raised-button color="primary" type="button" (click)="savePDFPreview()">
         Save
       </button>
     </ng-container>
- 
-  
+
+
 
     <ng-container *ngIf="showNameInput">
       <input
@@ -57,7 +57,7 @@
         <div [style.position]="'relative'" [style.minHeight.px]="containerHeight" style="padding: 8px;">
           <div class="form-page-container">
             <div *ngFor="let field of page.fields" class="field-wrapper"
-             [attr.data-id]="field.id" 
+             [attr.data-id]="field.id"
        [ngStyle]="
              field.id === 'description'
                   ? {
@@ -114,7 +114,7 @@
     style="width: 100%;"
     required
   />
-</ng-container> 
+</ng-container>
 
  <!-- Textarea -->
 <ng-container *ngIf="field.type === 'textarea'">

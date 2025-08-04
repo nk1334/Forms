@@ -21,7 +21,7 @@ interface FilledFormData {
 export class DashboardComponent implements OnInit {
   dashboardVisible = true;
   showDashboardUI = false;
-  userBranch:string='';
+  userBranch: string = '';
   user: any;
   formListData: any[] = [];
   displayedColumns: string[] = [
@@ -55,16 +55,16 @@ export class DashboardComponent implements OnInit {
   filledForms: FilledFormData[] = [];
   filledDataName: string = '';
   isFillingForm = false; // ✅ This fixes the error
-   welcomeMessages: { [key: string]: string } = {
+  welcomeMessages: { [key: string]: string } = {
     NSW: 'Welcome to NSW! Let’s make today productive and inspiring.',
-  YAT: 'Welcome to YATALA! We’re here to support your success.',
-  MACKAY: 'Welcome to MACKAY! Let’s create an amazing experience.',
-};
+    YAT: 'Welcome to YATALA! We’re here to support your success.',
+    MACKAY: 'Welcome to MACKAY! Let’s create an amazing experience.',
+  };
 
   constructor(private router: Router, private dialog: MatDialog) {}
 
   ngOnInit(): void {
-      this.userBranch = localStorage.getItem('userBranch') || '';
+    this.userBranch = localStorage.getItem('userBranch') || '';
     this.router.events.subscribe((event) => {
       if (event instanceof NavigationEnd) {
         this.showDashboardUI = this.router.url === '/dashboard';
@@ -77,7 +77,9 @@ export class DashboardComponent implements OnInit {
     // Initialize data source filter for searching templates
     this.dataSource.filterPredicate = (data: any, filter: string) => {
       const formName = data.formName ? data.formName.toLowerCase() : '';
-      const description = data.description ? data.description.toLowerCase() : '';
+      const description = data.description
+        ? data.description.toLowerCase()
+        : '';
       return formName.includes(filter) || description.includes(filter);
     };
 
@@ -103,6 +105,7 @@ export class DashboardComponent implements OnInit {
   loadFilledForms(): void {
     const stored = localStorage.getItem('filledForms');
     this.filledForms = stored ? JSON.parse(stored) : [];
+    console.log('Loaded filled forms:', this.filledForms);
   }
 
   applyFilter(event: Event): void {
@@ -121,7 +124,10 @@ export class DashboardComponent implements OnInit {
         result.formId = Date.now().toString();
         result.createdAt = new Date().toISOString();
         this.formListData.push(result);
-        localStorage.setItem('savedFormPages', JSON.stringify(this.formListData));
+        localStorage.setItem(
+          'savedFormPages',
+          JSON.stringify(this.formListData)
+        );
         this.dataSource.data = this.formListData;
       }
     });
@@ -191,60 +197,106 @@ export class DashboardComponent implements OnInit {
       alert('Form template not found.');
       return;
     }
-
-    const doc = new jsPDF();
-
-    // Title
-    doc.setFontSize(18);
-    doc.text(formTemplate.formName || 'Filled Form', 14, 20);
-
-    // Filled data name
-    doc.setFontSize(12);
-    doc.text(`Filled Data Name: ${filled.name}`, 14, 30);
-
-    let startY = 40;
-
-    formTemplate.formPages.forEach(
-      (
-        page: { fields: Array<{ id: string; label?: string; type: string }> },
-        pageIndex: number
-      ) => {
-        doc.setFontSize(14);
-        doc.text(`Page ${pageIndex + 1}`, 14, startY);
-        startY += 8;
-
-        const rows: any[] = [];
-
-        page.fields.forEach((field) => {
-          let value = filled.data[field.id];
-
-          if (field.type === 'signature' && value) {
-            try {
-              doc.addImage(value, 'PNG', 14, startY, 50, 30);
-              startY += 35;
-            } catch {
-              // ignore image errors
-            }
-          } else {
-            rows.push([field.label || field.id, value || '']);
-          }
-        });
-
-        if (rows.length > 0) {
-          autoTable(doc, {
-            startY,
-            head: [['Field', 'Value']],
-            body: rows,
-            theme: 'striped',
-            styles: { fontSize: 10 },
-            margin: { left: 14, right: 14 },
-          });
-          startY = (doc as any).lastAutoTable.finalY + 10;
+    // console.log('filledForms:', formTemplate);
+    const localFilledForms = localStorage.getItem('filledForms');
+    if (!localFilledForms) {
+      alert('No filled forms found.');
+      return;
+    }
+    // console.log('localFilledForms:', localFilledForms);
+    if (localFilledForms) {
+      const imgDataRes = localStorage.getItem('lastPdf-preview-image');
+      let parsedImgData: string | null = null;
+      if (imgDataRes) {
+        try {
+          // Try to parse as JSON (in case it's an object with imageData property)
+          const imgDataObj = JSON.parse(imgDataRes);
+          parsedImgData = imgDataObj?.imageData || null;
+        } catch (e) {
+          // If parsing fails, treat as plain string (data URL)
+          parsedImgData = imgDataRes;
         }
       }
-    );
 
-    doc.save(`${filled.name || 'filled_form'}.pdf`);
+      if (parsedImgData) {
+        const doc = new jsPDF();
+        // Add a title centered at the top of the page
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const title = formTemplate.formName || 'Filled Form';
+        doc.setFontSize(20);
+        const titleWidth = doc.getTextWidth(title);
+        doc.text(title, (pageWidth - titleWidth) / 2, 20);
+
+        // Filled data name
+        doc.setFontSize(12);
+        doc.text(`Filled Data Name: ${filled.name}`, 14, 30);
+
+        // Add the image to the PDF (assuming PNG/JPEG data URL)
+        try {
+          // Default: add image at (10, 40) with width 180, height auto
+          doc.addImage(parsedImgData, 'PNG', 10, 40, 180, 0);
+        } catch (e) {
+          console.log('Failed to add image to PDF:', e);
+        }
+        doc.save(`${filled.name || 'filled_form'}.pdf`);
+      } else {
+        alert('No image data found for PDF.');
+      }
+    }
+
+    // const doc = new jsPDF();
+
+    // // Title
+    // doc.setFontSize(18);
+    // doc.text(formTemplate.formName || 'Filled Form', 14, 20);
+
+    // // Filled data name
+    // doc.setFontSize(12);
+    // doc.text(`Filled Data Name: ${filled.name}`, 14, 30);
+
+    // let startY = 40;
+
+    // formTemplate.formPages.forEach(
+    //   (
+    //     page: { fields: Array<{ id: string; label?: string; type: string }> },
+    //     pageIndex: number
+    //   ) => {
+    //     doc.setFontSize(14);
+    //     doc.text(`Page ${pageIndex + 1}`, 14, startY);
+    //     startY += 8;
+
+    //     const rows: any[] = [];
+
+    //     page.fields.forEach((field) => {
+    //       let value = filled.data[field.id];
+
+    //       if (field.type === 'signature' && value) {
+    //         try {
+    //           doc.addImage(value, 'PNG', 14, startY, 50, 30);
+    //           startY += 35;
+    //         } catch {
+    //           // ignore image errors
+    //         }
+    //       } else {
+    //         rows.push([field.label || field.id, value || '']);
+    //       }
+    //     });
+
+    //     if (rows.length > 0) {
+    //       autoTable(doc, {
+    //         startY,
+    //         head: [['Field', 'Value']],
+    //         body: rows,
+    //         theme: 'striped',
+    //         styles: { fontSize: 10 },
+    //         margin: { left: 14, right: 14 },
+    //       });
+    //       startY = (doc as any).lastAutoTable.finalY + 10;
+    //     }
+    //   }
+    // );
+
+    // doc.save(`${filled.name || 'filled_form'}.pdf`);
   }
 
   deleteFilledForm(filled: FilledFormData): void {
@@ -262,22 +314,25 @@ export class DashboardComponent implements OnInit {
     this.filledDataName = '';
     this.loadFilledForms(); // refresh filled forms list after closing form editor
   }
-  
 
   logout(): void {
     localStorage.removeItem('user');
-      localStorage.removeItem('userBranch'); // clear branch on logout
+    localStorage.removeItem('userBranch'); // clear branch on logout
     this.router.navigate(['/login']);
   }
-openAddUserDialog(): void {
-  console.log('Opening Add User dialog...');  
-  this.dialog.open(AddUserComponent, {
-    width: '900px',
-    disableClose: true,
-  }).afterClosed().subscribe(result => {
-    if (result) {
-      console.log('New user created:', result);
-      // You can update your user list here if you want
-    }
-  });
-}}
+  openAddUserDialog(): void {
+    console.log('Opening Add User dialog...');
+    this.dialog
+      .open(AddUserComponent, {
+        width: '900px',
+        disableClose: true,
+      })
+      .afterClosed()
+      .subscribe((result) => {
+        if (result) {
+          console.log('New user created:', result);
+          // You can update your user list here if you want
+        }
+      });
+  }
+}

@@ -9,7 +9,7 @@ import {
   Input,
   Output,
   EventEmitter,
-  ChangeDetectorRef
+  ChangeDetectorRef,
 } from '@angular/core';
 
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -47,17 +47,19 @@ interface FilledFormData {
   name: string;
   data: Record<string, any>;
   formPagesSnapshot?: FormPage[];
+  formPdfPreview?: any; // optional
 }
 
-GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
 @Component({
   selector: 'app-create-form',
   templateUrl: './create-form.component.html',
-  styleUrls: ['./create-form.component.scss']
+  styleUrls: ['./create-form.component.scss'],
 })
 export class CreateFormComponent implements OnInit, AfterViewInit {
-    examplePdfUrl: string = 'assets/sample.pdf';
+  examplePdfUrl: string = 'assets/sample.pdf';
   forms: SavedForm[] = [];
   filledForms: FilledFormData[] = [];
   showFormEditor = false;
@@ -65,6 +67,7 @@ export class CreateFormComponent implements OnInit, AfterViewInit {
   nameError = false;
   isExporting = false;
   containerHeight: number = 600;
+  formPdfImagePreview: any;
 
   @Input() selectedForm: SavedForm | null = null;
   @Input() filledDataName: string = '';
@@ -73,10 +76,12 @@ export class CreateFormComponent implements OnInit, AfterViewInit {
   @Output() filledFormsUpdated = new EventEmitter<void>();
 
   @ViewChildren('canvas') canvasRefs!: QueryList<ElementRef<HTMLCanvasElement>>;
-  @ViewChildren('autoGrowTextarea') textareas!: QueryList<ElementRef<HTMLTextAreaElement>>;
-  @ViewChild('pdfCanvas', { static: false }) pdfCanvas!: ElementRef<HTMLCanvasElement>;
+  @ViewChildren('autoGrowTextarea') textareas!: QueryList<
+    ElementRef<HTMLTextAreaElement>
+  >;
+  @ViewChild('pdfCanvas', { static: false })
+  pdfCanvas!: ElementRef<HTMLCanvasElement>;
   pdfDoc: PDFDocumentProxy | null = null;
-
 
   ctxMap: Record<string, CanvasRenderingContext2D> = {};
   drawingMap: Record<string, boolean> = {};
@@ -104,11 +109,11 @@ export class CreateFormComponent implements OnInit, AfterViewInit {
     this.loadForms();
   }
 
-ngAfterViewInit(): void {
+  ngAfterViewInit(): void {
     this.initCanvases();
     this.loadPdf(this.examplePdfUrl);
 
-    this.textareas.forEach(textareaEl => {
+    this.textareas.forEach((textareaEl) => {
       const textarea = textareaEl.nativeElement;
       this.autoGrow(textarea);
       if (textarea.id !== 'description') {
@@ -146,14 +151,12 @@ ngAfterViewInit(): void {
     canvas.style.height = 'auto';
 
     const renderContext = {
-          canvas,
+      canvas,
       canvasContext: context,
-       viewport
-     
+      viewport,
     };
     await page.render(renderContext).promise;
   }
-
 
   addNewField(pageIndex: number, newField: FormField) {
     if (!this.selectedForm) return;
@@ -192,7 +195,7 @@ ngAfterViewInit(): void {
     const fieldHeight = 150;
     let maxY = 0;
 
-    page.fields.forEach(field => {
+    page.fields.forEach((field) => {
       const bottom = (field.position?.y || 0) + (field.height || fieldHeight);
       if (bottom > maxY) maxY = bottom;
     });
@@ -242,13 +245,15 @@ ngAfterViewInit(): void {
     const storedFilledForms = localStorage.getItem('filledForms');
     if (storedFilledForms) {
       const allFilledForms: FilledFormData[] = JSON.parse(storedFilledForms);
-      const existingFilled = allFilledForms.find(f => f.formId === form.formId);
+      const existingFilled = allFilledForms.find(
+        (f) => f.formId === form.formId
+      );
 
       if (existingFilled && existingFilled.data) {
         this.filledDataName = existingFilled.name;
         if (!this.selectedForm) return;
-        this.selectedForm.formPages.forEach(page => {
-          page.fields.forEach(field => {
+        this.selectedForm.formPages.forEach((page) => {
+          page.fields.forEach((field) => {
             const savedValue = existingFilled.data?.[field.id];
             if (savedValue !== undefined) {
               field.value = savedValue;
@@ -273,7 +278,7 @@ ngAfterViewInit(): void {
     this.closeFormEvent.emit();
   }
 
-  confirmSaveFilledForm(): void {
+  async confirmSaveFilledForm(): Promise<void> {
     const nameTrimmed = (this.filledDataName || '').trim();
     if (!this.selectedForm) return;
     if (!nameTrimmed) {
@@ -283,8 +288,8 @@ ngAfterViewInit(): void {
     this.nameError = false;
 
     // Save canvas signatures into fields
-    this.selectedForm.formPages.forEach(page => {
-      page.fields.forEach(field => {
+    this.selectedForm.formPages.forEach((page) => {
+      page.fields.forEach((field) => {
         if (field.type === 'signature') {
           const canvas = this.getCanvasById(field.id);
           if (canvas) {
@@ -296,24 +301,32 @@ ngAfterViewInit(): void {
 
     // Collect filled data
     const filledData: Record<string, any> = {};
-    this.selectedForm.formPages.forEach(page => {
-      page.fields.forEach(field => {
+    this.selectedForm.formPages.forEach((page) => {
+      page.fields.forEach((field) => {
         filledData[field.id] = field.value || null;
       });
     });
-
+    const formElement = document.querySelector(
+      '.form-page-container'
+    ) as HTMLElement;
+    if (formElement) {
+      const canvas = await html2canvas(formElement, { scale: 2 });
+      const imgData = canvas.toDataURL('image/png');
+      this.formPdfImagePreview = imgData;
+    }
+    console.log('formPdfImagePreview', this.formPdfImagePreview);
     const filledForm: FilledFormData = {
       formId: this.selectedForm.formId,
       name: nameTrimmed,
       data: filledData,
+      formPdfPreview: this.formPdfImagePreview, // optional
       // formPagesSnapshot: JSON.parse(JSON.stringify(this.selectedForm.formPages)) // optional
     };
 
     const stored = localStorage.getItem('filledForms');
     const filledForms: FilledFormData[] = stored ? JSON.parse(stored) : [];
-
     const index = filledForms.findIndex(
-      f => f.formId === filledForm.formId && f.name === filledForm.name
+      (f) => f.formId === filledForm.formId && f.name === filledForm.name
     );
 
     if (index >= 0) {
@@ -323,9 +336,12 @@ ngAfterViewInit(): void {
     }
 
     localStorage.setItem('filledForms', JSON.stringify(filledForms));
+    localStorage.setItem('lastPdf-preview-image', this.formPdfImagePreview);
     this.filledFormsUpdated.emit();
 
-    this.snackBar.open(`Form saved as "${filledForm.name}"`, 'Close', { duration: 3000 });
+    this.snackBar.open(`Form saved as "${filledForm.name}"`, 'Close', {
+      duration: 3000,
+    });
 
     this.showFormEditor = false;
     this.selectedForm = null;
@@ -354,7 +370,7 @@ ngAfterViewInit(): void {
 
     if (!this.canvasRefs) return;
 
-    this.canvasRefs.forEach(ref => {
+    this.canvasRefs.forEach((ref) => {
       const canvas = ref.nativeElement;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
@@ -376,7 +392,9 @@ ngAfterViewInit(): void {
 
   getCanvasById(fieldId: string): HTMLCanvasElement | null {
     if (!this.canvasRefs) return null;
-    const ref = this.canvasRefs.find(r => r.nativeElement.getAttribute('data-id') === fieldId);
+    const ref = this.canvasRefs.find(
+      (r) => r.nativeElement.getAttribute('data-id') === fieldId
+    );
     return ref ? ref.nativeElement : null;
   }
 
@@ -418,18 +436,23 @@ ngAfterViewInit(): void {
     const ctx = this.ctxMap[fieldId];
     if (canvas && ctx) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const field = this.selectedForm?.formPages.flatMap(p => p.fields).find(f => f.id === fieldId);
+      const field = this.selectedForm?.formPages
+        .flatMap((p) => p.fields)
+        .find((f) => f.id === fieldId);
       if (field) field.value = '';
     }
   }
 
-  getPointerPos(event: PointerEvent, fieldId: string): { x: number; y: number } {
+  getPointerPos(
+    event: PointerEvent,
+    fieldId: string
+  ): { x: number; y: number } {
     const canvas = this.getCanvasById(fieldId);
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
     return {
       x: event.clientX - rect.left,
-      y: event.clientY - rect.top
+      y: event.clientY - rect.top,
     };
   }
 
@@ -438,19 +461,24 @@ ngAfterViewInit(): void {
 
     const filledData: { formName?: string; data: Record<string, any> } = {
       formName: this.selectedForm.formName,
-      data: {}
+      data: {},
     };
 
-    this.selectedForm.formPages.forEach(page => {
-      page.fields.forEach(field => {
+    this.selectedForm.formPages.forEach((page) => {
+      page.fields.forEach((field) => {
         filledData.data[field.id] = field.value;
       });
     });
 
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(filledData));
+    const dataStr =
+      'data:text/json;charset=utf-8,' +
+      encodeURIComponent(JSON.stringify(filledData));
     const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", `${this.selectedForm.formName || 'form'}.json`);
+    downloadAnchorNode.setAttribute('href', dataStr);
+    downloadAnchorNode.setAttribute(
+      'download',
+      `${this.selectedForm.formName || 'form'}.json`
+    );
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
@@ -473,12 +501,18 @@ ngAfterViewInit(): void {
     });
   }
 
+  savePDFPreview() {
+    this.showNameInput = true;
+  }
+
   saveForm(form: SavedForm) {
-    const index = this.forms.findIndex(f => f.formId === form.formId);
+    const index = this.forms.findIndex((f) => f.formId === form.formId);
     if (index !== -1) {
       this.forms[index] = JSON.parse(JSON.stringify(form));
       localStorage.setItem('savedFormPages', JSON.stringify(this.forms));
-      this.snackBar.open(`Form "${form.formName}" saved!`, 'Close', { duration: 2000 });
+      this.snackBar.open(`Form "${form.formName}" saved!`, 'Close', {
+        duration: 2000,
+      });
     }
   }
 
@@ -486,8 +520,8 @@ ngAfterViewInit(): void {
     if (!this.selectedForm) return;
 
     let maxY = 0;
-    this.selectedForm.formPages.forEach(page => {
-      page.fields.forEach(field => {
+    this.selectedForm.formPages.forEach((page) => {
+      page.fields.forEach((field) => {
         const bottom = (field.position?.y || 0) + (field.height || 150);
         if (bottom > maxY) maxY = bottom;
       });
@@ -505,8 +539,10 @@ ngAfterViewInit(): void {
       const pageEl = container.querySelectorAll('.page-container')[pageIndex];
       if (!pageEl) return;
 
-      page.fields.forEach(field => {
-        const fieldEl = pageEl.querySelector(`.field-wrapper[data-id="${field.id}"]`) as HTMLElement;
+      page.fields.forEach((field) => {
+        const fieldEl = pageEl.querySelector(
+          `.field-wrapper[data-id="${field.id}"]`
+        ) as HTMLElement;
         if (!fieldEl) return;
 
         const containerRect = pageEl.getBoundingClientRect();
@@ -514,7 +550,7 @@ ngAfterViewInit(): void {
 
         field.position = {
           x: fieldRect.left - containerRect.left,
-          y: fieldRect.top - containerRect.top
+          y: fieldRect.top - containerRect.top,
         };
       });
     });
@@ -529,8 +565,10 @@ ngAfterViewInit(): void {
       const pageEl = container.querySelectorAll('.page-container')[pageIndex];
       if (!pageEl) return;
 
-      page.fields.forEach(field => {
-        const fieldEl = pageEl.querySelector(`.field-wrapper[data-id="${field.id}"]`) as HTMLElement;
+      page.fields.forEach((field) => {
+        const fieldEl = pageEl.querySelector(
+          `.field-wrapper[data-id="${field.id}"]`
+        ) as HTMLElement;
         if (!fieldEl) return;
 
         if (field.id === 'description') {
@@ -557,7 +595,7 @@ ngAfterViewInit(): void {
   getFieldPositionById(id: string): { x: number; y: number } | null {
     if (!this.selectedForm) return null;
     for (const page of this.selectedForm.formPages) {
-      const field = page.fields.find(f => f.id === id);
+      const field = page.fields.find((f) => f.id === id);
       if (field?.position) return field.position;
     }
     return null;
@@ -578,15 +616,18 @@ ngAfterViewInit(): void {
 
     document.fonts.ready.then(() => {
       const clone = container.cloneNode(true) as HTMLElement;
-      clone.querySelectorAll('button, .field-tools, .resize-handle').forEach(el => el.remove());
+      clone
+        .querySelectorAll('button, .field-tools, .resize-handle')
+        .forEach((el) => el.remove());
 
       clone.style.position = 'relative';
       clone.style.width = container.offsetWidth + 'px';
       clone.style.height = container.offsetHeight + 'px';
-      clone.style.background = window.getComputedStyle(container).backgroundColor || 'white';
+      clone.style.background =
+        window.getComputedStyle(container).backgroundColor || 'white';
 
-      this.selectedForm?.formPages.forEach(page => {
-        page.fields.forEach(field => {
+      this.selectedForm?.formPages.forEach((page) => {
+        page.fields.forEach((field) => {
           if (field.type === 'signature') {
             const canvas = this.getCanvasById(field.id);
             if (canvas) {
@@ -596,7 +637,9 @@ ngAfterViewInit(): void {
               img.style.width = (field.width ?? 300) + 'px';
               img.style.height = (field.height ?? 150) + 'px';
 
-              const fieldEl = clone.querySelector(`.field-wrapper[data-id="${field.id}"]`);
+              const fieldEl = clone.querySelector(
+                `.field-wrapper[data-id="${field.id}"]`
+              );
               if (fieldEl) {
                 fieldEl.innerHTML = '';
                 fieldEl.appendChild(img);
@@ -607,14 +650,18 @@ ngAfterViewInit(): void {
       });
 
       document.body.appendChild(clone);
-      html2pdf().from(clone).set({
-        margin: 10,
-        filename: `${filename}.pdf`,
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      }).save().finally(() => {
-        clone.remove();
-      });
+      html2pdf()
+        .from(clone)
+        .set({
+          margin: 10,
+          filename: `${filename}.pdf`,
+          html2canvas: { scale: 2 },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        })
+        .save()
+        .finally(() => {
+          clone.remove();
+        });
     });
   }
 }
