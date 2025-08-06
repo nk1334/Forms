@@ -75,11 +75,12 @@ move; font-size: 18px;">☰</div>
           </div>
 
           <!-- Label -->
-          <label *ngIf="field.type !== 'project-title'"
-class="form-label" [attr.for]="'field-' + i" style="display: block;
-margin-bottom: 4px;">
-            {{ field.label }}
-          </label>
+<label *ngIf="field.label && field.type !== 'project-title' && field.type !== 'empty'" 
+       class="form-label" 
+       [attr.for]="'field-' + i" 
+       style="display: block; margin-bottom: 4px;">
+  {{ field.label }}
+</label>
 
 
             <!-- Field content based on type -->
@@ -108,9 +109,16 @@ margin-bottom: 4px;">
               <input *ngSwitchCase="'email'" id="field-{{i}}" name="field-{{i}}" type="email" [(ngModel)]="field.value"
                      class="form-input" [style.width.px]="field.width" [placeholder]="field.placeholder || ''" />
 
-              <!-- Readonly ID -->
-              <input *ngSwitchCase="'id'" id="field-{{i}}" name="field-{{i}}" type="text" disabled class="form-input"
-                     [style.width.px]="field.width" placeholder="ID Field (readonly)" />
+         <!-- Your existing switch case for 'id' type field -->
+<input *ngSwitchCase="'id'" 
+       id="field-{{i}}" 
+       name="field-{{i}}" 
+       type="text" 
+       class="form-input" 
+       [style.width.px]="field.width" 
+       [value]="field.id" 
+       disabled 
+       placeholder="ID Field (readonly)" />
 
               <!-- Date input -->
               <input *ngSwitchCase="'date'" id="field-{{i}}" name="field-{{i}}" type="date" [(ngModel)]="field.value"
@@ -151,13 +159,23 @@ margin-bottom: 4px;">
               </div>
 
               <!-- Empty placeholder -->
-              <div *ngSwitchCase="'empty'" [style.width.px]="field.width" style="height: 40px; border: 1px dashed #ccc;">
-              </div>
+<div *ngSwitchCase="'empty'" 
+     [style.width.px]="field.width"
+     class="resizable-container"
+     style="border: 1px dashed #ccc;">
+  
+  <div contenteditable="true"
+       (input)="onEmptyLabelInput($event, field)"
+       style="width: 100%; min-height: 24px; outline: none; font-weight: bold; color: #555;">
+    {{ field.label || 'Spacer / Heading (click to edit)' }}
+  </div>
+</div>
 
               <!-- Submit button -->
               <button *ngSwitchCase="'submit'" mat-raised-button color="primary" (click)="onSubmit()">
                 {{ field.label || 'Submit' }}
               </button>
+           
 
               <!-- Signature pad -->
               <div *ngSwitchCase="'signature'" class="signature-pad-container form-input" [style.width.px]="field.width" style="position: relative;">
@@ -194,6 +212,7 @@ margin-bottom: 4px;">
               <!-- Default fallback -->
               <div *ngSwitchDefault>Unsupported field type: {{ field.type }}</div>
             </ng-container>
+            
 
             <!-- Resize handle -->
             <div class="resize-handle" (mousedown)="startResize($event, field, true, true)" 
@@ -250,6 +269,7 @@ margin-bottom: 4px;">
     </div>
     </div>
     </div>
+    
     <!-- Page Navigation (outside modal, in main template) -->
 <div class="page-navigation" style="display: flex; flex-direction: column; gap: 8px; min-width: 150px;padding:16px;border-left:1 px solid #ddd;box-sizing:border-box;">
   <button mat-button color="primary" (click)="prevPage()" [disabled]="currentPage === 0">Previous</button>

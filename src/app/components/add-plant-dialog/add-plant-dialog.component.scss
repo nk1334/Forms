@@ -1,0 +1,31 @@
+
+.form-wrapper {
+  padding: 1rem;
+}
+
+.form-container {
+  position: relative;
+  max-width: 400px;
+  margin: auto;
+  background: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+}
+
+.close-button {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  line-height: 1;
+  color: #666;
+  transition: color 0.3s ease;
+
+  &:hover {
+    color: #000;
+  }
+}

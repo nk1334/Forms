@@ -18,6 +18,9 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import * as html2pdf from 'html2pdf.js';
 import { getDocument, GlobalWorkerOptions, PDFDocumentProxy } from 'pdfjs-dist';
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf';
+import pdfWorker from 'pdfjs-dist/legacy/build/pdf.worker.entry';
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 interface FormField {
   id: string;
@@ -601,67 +604,104 @@ export class CreateFormComponent implements OnInit, AfterViewInit {
     return null;
   }
 
-  exportToPDF(): void {
-    const filename = prompt('Enter filename for PDF', 'form');
-    if (!filename) return;
+ exportToPDF(): void {
+  const filename = prompt('Enter filename for PDF', 'form');
+  if (!filename) return;
 
-    this.applyPositionsToLiveForm?.();
-    this.cdr.detectChanges();
+  this.applyPositionsToLiveForm?.();
+  this.cdr.detectChanges();
 
-    const container = document.getElementById('form-to-export');
-    if (!container) {
-      alert('Form container not found!');
-      return;
-    }
+  const container = document.getElementById('form-to-export');
+  if (!container) {
+    alert('Form container not found!');
+    return;
+  }
+  container.classList.add('export-pdf-icons');
 
-    document.fonts.ready.then(() => {
-      const clone = container.cloneNode(true) as HTMLElement;
-      clone
-        .querySelectorAll('button, .field-tools, .resize-handle')
-        .forEach((el) => el.remove());
+  document.fonts.ready.then(() => {
+    const clone = container.cloneNode(true) as HTMLElement;
 
-      clone.style.position = 'relative';
-      clone.style.width = container.offsetWidth + 'px';
-      clone.style.height = container.offsetHeight + 'px';
-      clone.style.background =
-        window.getComputedStyle(container).backgroundColor || 'white';
+    const mmToPx = (mm: number) => mm * (96 / 25.4);
+    const a4WidthMM = 210;
+    const a4HeightMM = 297;
 
-      this.selectedForm?.formPages.forEach((page) => {
-        page.fields.forEach((field) => {
-          if (field.type === 'signature') {
-            const canvas = this.getCanvasById(field.id);
-            if (canvas) {
-              const base64 = canvas.toDataURL();
-              const img = document.createElement('img');
-              img.src = base64;
-              img.style.width = (field.width ?? 300) + 'px';
-              img.style.height = (field.height ?? 150) + 'px';
+    clone.style.position = 'relative';
+    clone.style.width = mmToPx(a4WidthMM) + 'px';
+    clone.style.height = mmToPx(a4HeightMM) + 'px';
+    clone.style.background = window.getComputedStyle(container).backgroundColor || 'white';
 
-              const fieldEl = clone.querySelector(
-                `.field-wrapper[data-id="${field.id}"]`
-              );
-              if (fieldEl) {
-                fieldEl.innerHTML = '';
-                fieldEl.appendChild(img);
-              }
+    // Scale icons via transform
+    const iconScale = 3;
+    const icons = clone.querySelectorAll('svg, i, .mat-icon, img');
+    icons.forEach(icon => {
+      const el = icon as HTMLElement;
+      el.style.setProperty('transform', `scale(${iconScale})`, 'important');
+      el.style.setProperty('transform-origin', 'center center', 'important');
+      el.style.setProperty('width', 'auto', 'important');
+      el.style.setProperty('height', 'auto', 'important');
+    });
+
+    // Resize labels
+    const labels = clone.querySelectorAll('label, .label, .form-label');
+    labels.forEach(label => {
+      const el = label as HTMLElement;
+      el.style.setProperty('font-size', '22px', 'important');
+      el.style.setProperty('font-weight', '700', 'important');
+      el.style.setProperty('color', '#000', 'important');
+    });
+
+    // Replace signature canvases with images
+    this.selectedForm?.formPages.forEach(page => {
+      page.fields.forEach(field => {
+        if (field.type === 'signature') {
+          const canvas = this.getCanvasById(field.id);
+          if (canvas) {
+            const base64 = canvas.toDataURL();
+            const img = document.createElement('img');
+            img.src = base64;
+            img.style.width = (field.width ?? 300) + 'px';
+            img.style.height = (field.height ?? 150) + 'px';
+
+            const fieldEl = clone.querySelector(`.field-wrapper[data-id="${field.id}"]`);
+            if (fieldEl) {
+              fieldEl.innerHTML = '';
+              fieldEl.appendChild(img);
             }
           }
-        });
+        }
       });
-
-      document.body.appendChild(clone);
-      html2pdf()
-        .from(clone)
-        .set({
-          margin: 10,
-          filename: `${filename}.pdf`,
-          html2canvas: { scale: 2 },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        })
-        .save()
-        .finally(() => {
-          clone.remove();
-        });
     });
-  }
-}
+
+    // Add zoom-in tip note inside PDF
+    const note = document.createElement('div');
+    note.textContent = 'Tip: Zoom in the PDF viewer (e.g., 150%+) for clearer icons.';
+    note.style.position = 'absolute';
+    note.style.bottom = '10px';
+    note.style.left = '10px';
+    note.style.fontSize = '12px';
+    note.style.color = '#666';
+    note.style.fontStyle = 'italic';
+    clone.appendChild(note);
+
+    // Append clone offscreen for rendering
+    clone.style.position = 'fixed';
+    clone.style.top = '-9999px';
+    clone.style.left = '-9999px';
+    document.body.appendChild(clone);
+
+    html2pdf()
+      .from(clone)
+      .set({
+        margin: 10,
+        filename: `${filename}.pdf`,
+        html2canvas: { scale: 5, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      })
+      .save()
+      .finally(() => {
+        clone.remove();
+        container.classList.remove('export-pdf-icons');
+        alert('PDF exported successfully! For best viewing, please zoom in the PDF viewer (e.g., 150% or more) to see icons clearly.');
+      });
+  });
+}}

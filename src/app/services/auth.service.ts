@@ -16,8 +16,9 @@ export class AuthService {
   private users = [
     { username: 'admin', password: 'admin', role: 'crew-leader' },
     { username: 'crew', password: 'crew123', role: 'crew-member' },
+    {username:'operations',password:'ops123',role:'ops'},
   ];
-
+ private userRole: string | null = null;
   private currentUser: any = null;
 
   constructor(private auth: Auth) {
@@ -52,11 +53,13 @@ export class AuthService {
     this.users.push(newUser);
     this.currentUser = newUser;
     localStorage.setItem('user', JSON.stringify(newUser));
+      localStorage.setItem('isLoggedIn', 'true'); // ✅ ADD THIS LINE
     return true;
   }
 
   isLoggedIn() {
     localStorage.removeItem('user');
+      localStorage.removeItem('isLoggedIn'); 
     this.currentUser = null;
   }
 
@@ -71,7 +74,15 @@ export class AuthService {
   }
 
   isLoggedInLocal(): boolean {
+      const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
     return !!this.getCurrentUserLocal();
+  }
+   getUserRole(): string | null {
+    const user = this.getCurrentUserLocal();
+    return user ? user.role : null;
+  }
+    isAdmin(): boolean {
+    return this.getUserRole()?.toLowerCase() === 'admin';
   }
 
   // Firebase Auth login/signup methods
@@ -98,6 +109,7 @@ export class AuthService {
       return false;
     }
   }
+   
 
   logoutFirebase(): Promise<void> {
     return signOut(this.auth);

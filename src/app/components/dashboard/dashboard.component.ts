@@ -6,6 +6,10 @@ import { AddNewTemplateModalComponent } from '../add-new-template-modal/add-new-
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { AddUserComponent } from '../add-user/add-user.component';
+import { AuthService } from '../../services/auth.service'; // correct path to your service
+import { PlantService } from '../../services/plant.service';  // update path if needed
+import { AddPlantDialogComponent } from '../../components/add-plant-dialog/add-plant-dialog.component';
+import { Observable } from 'rxjs';
 
 interface FilledFormData {
   formId: string;
@@ -19,6 +23,8 @@ interface FilledFormData {
   styleUrls: ['./dashboard.component.scss'],
 })
 export class DashboardComponent implements OnInit {
+    plants$!: Observable<any[]>
+    showForm: boolean = false; 
   dashboardVisible = true;
   showDashboardUI = false;
   userBranch: string = '';
@@ -34,6 +40,10 @@ export class DashboardComponent implements OnInit {
   selectedForm: any = null;
   showFormEditor: boolean = false;
   dataSource = new MatTableDataSource<any>([]);
+  plants: any[] = [];
+selectedPlants: string[] = []; // store selected plant regoNames or IDs
+ 
+  
 
   paletteFields = [
     { id: 'project-title', label: 'Project Name', type: 'project-title' },
@@ -61,19 +71,26 @@ export class DashboardComponent implements OnInit {
     MACKAY: 'Welcome to MACKAY! Let’s create an amazing experience.',
   };
 
-  constructor(private router: Router, private dialog: MatDialog) {}
+  isAdmin: boolean = false;
+
+  constructor(private router: Router, private dialog: MatDialog,private authService: AuthService,private plantService: PlantService ) {}
 
   ngOnInit(): void {
     this.userBranch = localStorage.getItem('userBranch') || '';
     this.router.events.subscribe((event) => {
       if (event instanceof NavigationEnd) {
         this.showDashboardUI = this.router.url === '/dashboard';
+            this.isAdmin = this.authService.isAdmin();
       }
     });
 
+    this.loadPlants();
     this.loadSavedForms();
     this.loadFilledForms();
-
+  this.plants$ = this.plantService.getPlants();
+    this.plants$.subscribe(plants => {
+    this.plants = plants;
+  });
     // Initialize data source filter for searching templates
     this.dataSource.filterPredicate = (data: any, filter: string) => {
       const formName = data.formName ? data.formName.toLowerCase() : '';
@@ -314,7 +331,34 @@ export class DashboardComponent implements OnInit {
     this.filledDataName = '';
     this.loadFilledForms(); // refresh filled forms list after closing form editor
   }
+  
+openAddPlantDialog() {
+  const dialogRef = this.dialog.open(AddPlantDialogComponent, {
+    width: '400px'
+  });
 
+  dialogRef.afterClosed().subscribe((newPlant) => {
+    if (newPlant) {
+      // Reload plants after adding new one
+      this.loadPlants();
+    }
+  });
+}
+
+  loadPlants() {
+    this.plants$ = this.plantService.getPlants();
+    this.plants$.subscribe(plants => {
+      this.plants = plants;
+    });
+  }
+togglePlantSelection(plantRego: string) {
+  const index = this.selectedPlants.indexOf(plantRego);
+  if (index > -1) {
+    this.selectedPlants.splice(index, 1);
+  } else {
+    this.selectedPlants.push(plantRego);
+  }
+}
   logout(): void {
     localStorage.removeItem('user');
     localStorage.removeItem('userBranch'); // clear branch on logout

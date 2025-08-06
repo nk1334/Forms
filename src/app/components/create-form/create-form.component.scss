@@ -280,7 +280,15 @@ select:disabled {
   outline-offset: 2px;
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
-
+.field-wrapper svg,
+.field-wrapper i,
+.field-wrapper .mat-icon,
+.field-wrapper img {
+  width: 32px !important;
+  height: 32px !important;
+  font-size: 32px !important;
+  object-fit: contain;
+}
 /* Focus style */
 .field-wrapper input:focus,
 .field-wrapper select:focus,
@@ -288,6 +296,18 @@ select:disabled {
   border-color: #2962ff;
   box-shadow: 0 0 8px rgba(41, 98, 255, 0.5);
   outline: none;
+}
+.export-pdf-icons svg,
+.export-pdf-icons i,
+.export-pdf-icons .mat-icon,
+.export-pdf-icons img {
+  width: 100px !important;
+  height: 100px !important;
+  min-width: 100px !important;
+  min-height: 100px !important;
+  font-size: 100px !important;
+  object-fit: contain !important;
+  line-height: 100px !important;
 }
 
 .field-wrapper label {

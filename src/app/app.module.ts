@@ -23,7 +23,9 @@ import { RouterModule } from '@angular/router';
 import { provideFirebaseApp, initializeApp } from '@angular/fire/app';
 import { provideAuth, getAuth } from '@angular/fire/auth';
 import { environment } from '../environments/environment';
-
+import { AddPlantDialogComponent } from './components/add-plant-dialog/add-plant-dialog.component';
+import { provideFirestore, getFirestore } from '@angular/fire/firestore';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 const clientId = 'YOUR_CLIENT_ID_HERE';
 const tenantId = 'YOUR_TENANT_ID_HERE';
 
@@ -48,6 +50,7 @@ export function MSALInstanceFactory() {
     CreateFormComponent,
     ProblemTrackerComponent,
     AddUserComponent,
+    AddPlantDialogComponent,
    
      
    ],
@@ -62,9 +65,10 @@ export function MSALInstanceFactory() {
      MatSnackBarModule,
      MsalModule ,
      MatDialogModule,
+         MatCheckboxModule,
      RouterModule,
-       BrowserModule,
-    provideFirebaseApp(() => initializeApp(environment.firebaseConfig)),
+    provideFirebaseApp(() => initializeApp(environment.firebase)),
+    provideFirestore(() => getFirestore()),
     provideAuth(() => getAuth()),
   ],
   providers: [

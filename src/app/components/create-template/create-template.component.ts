@@ -105,7 +105,7 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
 
   pointerPosition = { x: 0, y: 0 };
   allowedWidths = [150, 300, 400];
-
+selectedForm: SavedForm | null = null;
   constructor(
     private router: Router,
     private route: ActivatedRoute,
@@ -253,6 +253,7 @@ openFieldConfig() {
       this.freeDragPositions[field.id] = field.position;
     });
   }
+  
 
   onFileSelected(event: Event, field: FormField): void {
     const input = event.target as HTMLInputElement;
@@ -415,7 +416,10 @@ openFieldConfig() {
       this.initializeFreeDragPositions();
     }, 50);
   }
-
+onEmptyLabelInput(event: Event, field: any): void {
+  const target = event.target as HTMLElement;
+  field.label = target.innerText.trim();
+}
   private ensureGridPositions(): void {
     this.formPages.forEach(page => {
       page.fields.forEach((field, index) => {
@@ -487,6 +491,7 @@ stopResize = (event: MouseEvent) => {
   loadFormById(formId: string): void {
     const form = this.savedForms.find(f => f.formId === formId);
     if (form) {
+      
       this.formPages = JSON.parse(JSON.stringify(form.formPages));
 
       this.fixDuplicateIds();

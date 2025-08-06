@@ -1,12 +1,13 @@
+// src/environments/firebase-config.ts
 export const environment = {
   production: false,
-  firebaseConfig: {
-    apiKey: "AIzaSyAD0hBXH6cl0WPBH52VyOkgtuIdyNnZFqs",
-    authDomain: "myappauthdemo-e850a.firebaseapp.com",
-    projectId: "myappauthdemo-e850a",
-    storageBucket: "myappauthdemo-e850a.appspot.com",
-    messagingSenderId: "524745100691",
-    appId: "1:524745100691:web:7f46c15da1f3d77a31ec66",
-    measurementId: "G-FF9SSQ4L5F"
+  firebase: {
+    apiKey: "AIzaSyBSSwleV6TnLJ5U_bpEGwhQ-AJHvFa1Z4w",
+    authDomain: "avante-3b787.firebaseapp.com",
+    projectId: "avante-3b787",
+    storageBucket: "avante-3b787.appspot.com",
+    messagingSenderId: "165142327454",
+    appId: "1:165142327454:web:62d62505a606f00120cb8f",
+    measurementId: "G-X2WY1HEET8"
   }
 };

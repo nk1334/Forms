@@ -12,7 +12,8 @@ export class LoginComponent {
   loginForm = this.fb.group({
     username: ['', Validators.required],
     password: ['', Validators.required],
-    branch:['',Validators.required]
+    branch:['',Validators.required],
+      role: ['', Validators.required] 
   });
   branches=[
 {label:'NSW',value:'NSW'},
@@ -21,6 +22,25 @@ export class LoginComponent {
  ];
 
   error = '';
+  roles: string[] = [
+    'Crew',
+    'Crew Leader',
+    'OPS Supervisor',
+    'R&M Person',
+    'R&M Supervisor',
+    'Branch Manager',
+    'Payroll Team',
+    'Payroll Supervisor',
+    'HO',
+    'Corporate',
+    'Admin',
+    'Guest',
+    'GM',
+    'CEO',
+    'Finance Manager',
+    'ISO Consultant'
+  ];
+
 
   constructor(private fb: FormBuilder, private auth: AuthService, private router: Router) {}
   ngOnInit(): void {}
@@ -32,18 +52,17 @@ export class LoginComponent {
 
   const username = this.loginForm.get('username')?.value || '';
   const password = this.loginForm.get('password')?.value || '';
-  const Branch=this.loginForm.get('branch')?.value||'';
+  const branch = this.loginForm.get('branch')?.value || '';
+  const role = this.loginForm.get('role')?.value || '';
 
   const success = this.auth.login(username, password);
-  console.log('Login attempt:', { username, password,Branch, success });
+
+  console.log('Login attempt:', { username, password, branch, role, success });
 
   if (!success) {
     this.error = 'Invalid username or password';
   } else {
-    this.router.navigate(['dashboard']);
-  }
-  if(success){
-   localStorage.setItem('userBranch', this.loginForm.get('branch')?.value || '');
+    localStorage.setItem('userBranch', branch);
     this.router.navigate(['dashboard']);
   }
 }

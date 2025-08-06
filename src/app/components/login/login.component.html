@@ -25,9 +25,17 @@
             <mat-option *ngFor="let b of branches" [value]="b.value">{{b.label}}</mat-option>
             </mat-select>
             </mat-form-field>
-        <button mat-raised-button color="primary" type="submit" class="full-width">Login</button>
+     
+<mat-form-field appearance="outline" class="full-width">
+    <mat-label>AccessLevel</mat-label>
+    <mat-select formControlName="role">
+      <mat-option *ngFor="let r of roles" [value]="r">{{ r }}</mat-option>
+    </mat-select>
+  </mat-form-field>
+     <button mat-raised-button color="primary" type="submit" class="full-width">Login</button>
         <div class="error" *ngIf="error">{{ error }}</div>
       </form>
+
 
       <!-- Sign Up Link -->
       <div class="signup-link">

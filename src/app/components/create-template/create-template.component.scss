@@ -17,6 +17,13 @@
   display: flex;
   gap: 10px;
 }
+.editable-placeholder:empty::before {
+  content: attr(data-placeholder);
+  color: #aaa;
+  font-weight: normal;
+  pointer-events: none;
+  user-select: none;
+}
 
 .modal {
   display: flex;
@@ -28,6 +35,13 @@
   justify-content: center;
   align-items: center;
   background-color: rgba(0, 0, 0, 0.4);
+}
+.resizable-container {
+  resize: both;
+  overflow: auto;
+  min-width: 100px;
+  min-height: 40px;
+  padding: 4px;
 }
 
 .modal-content {
