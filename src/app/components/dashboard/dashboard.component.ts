@@ -339,8 +339,8 @@ openAddPlantDialog() {
 
   dialogRef.afterClosed().subscribe((newPlant) => {
     if (newPlant) {
-      // Reload plants after adding new one
-      this.loadPlants();
+      // Refresh the list
+      this.plants$ = this.plantService.getPlants();
     }
   });
 }
@@ -364,6 +364,12 @@ togglePlantSelection(plantRego: string) {
     localStorage.removeItem('userBranch'); // clear branch on logout
     this.router.navigate(['/login']);
   }
+  
+  saveSelectedPlants(): void {
+  console.log('✅ Saving Selected Plants:', this.selectedPlants);
+  localStorage.setItem('selectedPlants', JSON.stringify(this.selectedPlants));
+  alert('Selected plants saved successfully!');
+}
   openAddUserDialog(): void {
     console.log('Opening Add User dialog...');
     this.dialog

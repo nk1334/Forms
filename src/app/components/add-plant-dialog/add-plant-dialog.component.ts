@@ -13,10 +13,11 @@ interface Plant {
   styleUrls: ['./add-plant-dialog.component.scss']
 })
 export class AddPlantDialogComponent {
+
   showForm = false;
   plantName = '';
   regoName = '';
-  
+  selectedPlant: Plant | null = null;
   plants$: Observable<Plant[]>; // Replace Plant with your interface/model
 
  constructor(
@@ -41,7 +42,11 @@ export class AddPlantDialogComponent {
       console.error('❌ Error adding plant:', error);
     });
   }
-
+ selectPlant() {
+    if (this.selectedPlant) {
+      this.dialogRef.close(this.selectedPlant);
+    }
+  }
   onCancel() {
     this.dialogRef.close();
   }

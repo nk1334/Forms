@@ -19,20 +19,22 @@
     <button mat-raised-button color="accent" (click)="openAddUserDialog()">
       <mat-icon>person_add</mat-icon> Add New User
     </button>
+  <!-- ✅ Add this block here -->
+  <button mat-raised-button color="primary" (click)="openAddPlantDialog()" style="margin-left: 1rem;">
+    <mat-icon>add</mat-icon> Add New Plant
+  </button>
+</div>
+<mat-form-field appearance="fill" style="width: 100%; max-width: 400px;">
+  <mat-label>Select Plants</mat-label>
+  <mat-select [(value)]="selectedPlants" multiple>
+    <mat-option *ngFor="let plant of plants$ | async" [value]="plant.regoName">
+      <mat-checkbox [checked]="selectedPlants.includes(plant.regoName)">
+        {{ plant.plantName }} ({{ plant.regoName }})
+      </mat-checkbox>
+    </mat-option>
+  </mat-select>
+</mat-form-field>
 
-      <!-- Add Plant Button -->
-<!-- Add Plant Dialog Button -->
-<button mat-raised-button color="primary" (click)="openAddPlantDialog()">
-  <mat-icon>local_florist</mat-icon> Add Plant
-</button>
- <div *ngFor="let plant of plants$ | async" style="margin-top: 1rem;">
-    <mat-checkbox
-      [checked]="selectedPlants.includes(plant.regoName)"
-      (change)="togglePlantSelection(plant.regoName)">
-      {{ plant.plantName }} ({{ plant.regoName }})
-    </mat-checkbox>
-  </div>
-  </div> <!-- close padding: 1rem div -->
   
   <!-- Sidebar + Main Content -->
   <div class="container">

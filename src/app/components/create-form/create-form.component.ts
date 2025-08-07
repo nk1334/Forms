@@ -20,6 +20,7 @@ import * as html2pdf from 'html2pdf.js';
 import { getDocument, GlobalWorkerOptions, PDFDocumentProxy } from 'pdfjs-dist';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf';
 import pdfWorker from 'pdfjs-dist/legacy/build/pdf.worker.entry';
+import { FormService } from 'src/app/services/form.service';
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 interface FormField {
@@ -94,7 +95,8 @@ export class CreateFormComponent implements OnInit, AfterViewInit {
   constructor(
     private cdr: ChangeDetectorRef,
     private snackBar: MatSnackBar,
-    private dialog: MatDialog
+    private dialog: MatDialog,
+    private formService: FormService  
   ) {}
 
   get hasValidFormsData(): boolean {
@@ -108,10 +110,17 @@ export class CreateFormComponent implements OnInit, AfterViewInit {
     );
   }
 
-  ngOnInit(): void {
-    this.loadForms();
-  }
-
+ngOnInit(): void {
+  this.formService.getFormTemplates().then((fetchedForms) => {
+    if (fetchedForms.length) {
+      this.forms = fetchedForms;
+    } else {
+      this.loadForms(); // fallback
+    }
+  }).catch(() => {
+    this.loadForms(); // fallback on error
+  });
+}
   ngAfterViewInit(): void {
     this.initCanvases();
     this.loadPdf(this.examplePdfUrl);
@@ -137,6 +146,28 @@ export class CreateFormComponent implements OnInit, AfterViewInit {
       this.renderPage(1);
     }
   }
+  saveTemplateToFirestore(): void {
+  if (!this.selectedForm || !this.selectedForm.formName) {
+    this.snackBar.open('Form name is required to save template.', 'Close', {
+      duration: 3000,
+    });
+    return;
+  }
+
+  this.formService
+    .saveFormTemplate(this.selectedForm.formName, this.selectedForm.formPages)
+    .then(() => {
+      this.snackBar.open('Form template saved to Firestore!', 'Close', {
+        duration: 3000,
+      });
+    })
+    .catch((err) => {
+      console.error('Error saving template:', err);
+      this.snackBar.open('Failed to save template!', 'Close', {
+        duration: 3000,
+      });
+    });
+}
 
   async renderPage(pageNum: number) {
     if (!this.pdfDoc) return;
@@ -227,6 +258,16 @@ export class CreateFormComponent implements OnInit, AfterViewInit {
     this.forms = savedFormPages ? JSON.parse(savedFormPages) : [];
   }
 
+loadFormsFromFirebase(): void {
+  this.formService.getFormTemplates().then((fetchedForms) => {
+    this.forms = fetchedForms;
+  }).catch((err) => {
+    console.error('Error loading forms from Firestore:', err);
+    this.snackBar.open('Failed to load forms from Firebase.', 'Close', {
+      duration: 3000,
+    });
+  });
+}
   onFileSelected(event: Event, field: any) {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
@@ -303,58 +344,72 @@ export class CreateFormComponent implements OnInit, AfterViewInit {
     });
 
     // Collect filled data
-    const filledData: Record<string, any> = {};
-    this.selectedForm.formPages.forEach((page) => {
-      page.fields.forEach((field) => {
-        filledData[field.id] = field.value || null;
-      });
-    });
-    const formElement = document.querySelector(
-      '.form-page-container'
-    ) as HTMLElement;
-    if (formElement) {
-      const canvas = await html2canvas(formElement, { scale: 2 });
-      const imgData = canvas.toDataURL('image/png');
-      this.formPdfImagePreview = imgData;
-    }
-    console.log('formPdfImagePreview', this.formPdfImagePreview);
-    const filledForm: FilledFormData = {
-      formId: this.selectedForm.formId,
-      name: nameTrimmed,
-      data: filledData,
-      formPdfPreview: this.formPdfImagePreview, // optional
-      // formPagesSnapshot: JSON.parse(JSON.stringify(this.selectedForm.formPages)) // optional
-    };
+    // Collect filled data
+const filledData: Record<string, any> = {};
+this.selectedForm.formPages.forEach((page) => {
+  page.fields.forEach((field) => {
+    filledData[field.id] = field.value || null;
+  });
+});
 
-    const stored = localStorage.getItem('filledForms');
-    const filledForms: FilledFormData[] = stored ? JSON.parse(stored) : [];
-    const index = filledForms.findIndex(
-      (f) => f.formId === filledForm.formId && f.name === filledForm.name
-    );
+// Generate form image preview
+const formElement = document.querySelector('.form-page-container') as HTMLElement;
+if (formElement) {
+  const canvas = await html2canvas(formElement, { scale: 2 });
+  const imgData = canvas.toDataURL('image/png');
+  this.formPdfImagePreview = imgData;
+}
+console.log('formPdfImagePreview', this.formPdfImagePreview);
 
-    if (index >= 0) {
-      filledForms[index] = filledForm;
-    } else {
-      filledForms.push(filledForm);
-    }
+// Build filled form object
+const filledForm: FilledFormData = {
+  formId: this.selectedForm.formId,
+  name: nameTrimmed,
+  data: filledData,
+  formPdfPreview: this.formPdfImagePreview, // optional
+  // formPagesSnapshot: JSON.parse(JSON.stringify(this.selectedForm.formPages)) // optional
+};
 
-    localStorage.setItem('filledForms', JSON.stringify(filledForms));
-    localStorage.setItem('lastPdf-preview-image', this.formPdfImagePreview);
-    this.filledFormsUpdated.emit();
+// Save locally
+const stored = localStorage.getItem('filledForms');
+const filledForms: FilledFormData[] = stored ? JSON.parse(stored) : [];
+const index = filledForms.findIndex(
+  (f) => f.formId === filledForm.formId && f.name === filledForm.name
+);
 
-    this.snackBar.open(`Form saved as "${filledForm.name}"`, 'Close', {
-      duration: 3000,
-    });
+if (index >= 0) {
+  filledForms[index] = filledForm;
+} else {
+  filledForms.push(filledForm);
+}
 
-    this.showFormEditor = false;
-    this.selectedForm = null;
-    this.filledDataName = '';
+localStorage.setItem('filledForms', JSON.stringify(filledForms));
+localStorage.setItem('lastPdf-preview-image', this.formPdfImagePreview);
+this.filledFormsUpdated.emit();
 
-    if (typeof this.loadFilledForms === 'function') {
-      this.loadFilledForms();
-    }
-  }
+// ✅ Show success message
+this.snackBar.open(`Form saved as "${filledForm.name}"`, 'Close', {
+  duration: 3000,
+});
 
+// ✅ Save to Firestore
+this.formService
+  .saveFormSubmission(filledForm.formId, filledForm.data)
+  .then(() => {
+    console.log('✅ Filled form submitted to Firestore.');
+  })
+  .catch((err) => {
+    console.error('❌ Error submitting form to Firestore:', err);
+  });
+
+// ✅ Reset UI state
+this.showFormEditor = false;
+this.selectedForm = null;
+this.filledDataName = '';
+
+if (typeof this.loadFilledForms === 'function') {
+  this.loadFilledForms();
+}}
   loadFilledForms(): void {
     const stored = localStorage.getItem('filledForms');
     this.filledForms = stored ? JSON.parse(stored) : [];

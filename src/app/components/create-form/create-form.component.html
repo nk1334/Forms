@@ -1,5 +1,9 @@
 <div *ngIf="!showFormEditor">
   <h2>Saved Forms</h2>
+  <div style="margin-bottom: 1rem;">
+    <button mat-button color="primary" (click)="loadForms()">Load from LocalStorage</button>
+    <button mat-button color="accent" (click)="loadFormsFromFirebase()">Load from Firebase</button>
+  </div>
   <ul>
     <li *ngFor="let form of forms">
       {{ form.formName }}

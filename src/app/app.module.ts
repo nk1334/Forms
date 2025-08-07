@@ -26,6 +26,7 @@ import { environment } from '../environments/environment';
 import { AddPlantDialogComponent } from './components/add-plant-dialog/add-plant-dialog.component';
 import { provideFirestore, getFirestore } from '@angular/fire/firestore';
 import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 const clientId = 'YOUR_CLIENT_ID_HERE';
 const tenantId = 'YOUR_TENANT_ID_HERE';
 
@@ -66,6 +67,7 @@ export function MSALInstanceFactory() {
      MsalModule ,
      MatDialogModule,
          MatCheckboxModule,
+             MatButtonToggleModule,
      RouterModule,
     provideFirebaseApp(() => initializeApp(environment.firebase)),
     provideFirestore(() => getFirestore()),
