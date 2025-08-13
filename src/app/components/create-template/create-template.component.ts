@@ -33,6 +33,8 @@ export interface FormField {
   position?: { x: number; y: number };
   row?: number;
   col?: number;
+  problemItems?: { no: number; text: string }[];
+nextNo?:number;
 }
 
 interface FormPage {
@@ -107,10 +109,13 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
   allowedWidths = [150, 300, 400];
 selectedForm: SavedForm | null = null;
   constructor(
+    
     private router: Router,
     private route: ActivatedRoute,
     private cdr: ChangeDetectorRef,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    
+
   ) { }
 
   ngOnInit(): void {
@@ -132,6 +137,29 @@ selectedForm: SavedForm | null = null;
       }
     });
   }
+  addProblemItem(field: FormField): void {
+  if(!field.problemItems)field.problemItems=[];
+  if(!field.nextNo)field.nextNo=1;
+  field.problemItems.push({no:field.nextNo,text:""});
+  field.nextNo++;
+  this.cdr.detectChanges();
+}
+
+// Update problem text (used by your (ngModelChange))
+updateProblemText(field: FormField, idx: number, value: string): void {
+  if (!field.problemItems ) return;
+  field.problemItems[idx].text=value;
+}
+
+// Delete problem and re-number
+removeProblemItem(field: FormField, idx: number): void {
+  if (!field.problemItems) return;
+  field.problemItems.splice(idx, 1);
+  field.problemItems.forEach((item, i) => item.no = i + 1);
+  field.nextNo = field.problemItems.length + 1;
+  this.cdr.detectChanges();
+}
+
   syncContainerSize(textarea: HTMLTextAreaElement, event: MouseEvent) {
   const container = textarea.parentElement as HTMLElement;
   if (container) {
@@ -253,7 +281,7 @@ openFieldConfig() {
       this.freeDragPositions[field.id] = field.position;
     });
   }
-  
+
 
   onFileSelected(event: Event, field: FormField): void {
     const input = event.target as HTMLInputElement;
@@ -470,15 +498,17 @@ startResize(event: MouseEvent, field: any, isNearRight: boolean, isNearBottom: b
   document.addEventListener('mousemove', this.onResizeMove);
   document.addEventListener('mouseup', this.stopResize);
 }
-
+isDescFree(field: FormField): boolean {
+  return field.type === 'textarea' && (field.id === 'description' || field.label === 'Description Field');
+}
 onResizeMove = (event: MouseEvent) => {
   if (!this.resizingField) return;
 
   const dx = event.clientX - this.startX;
   const dy = event.clientY - this.startY;
 
-  this.resizingField.width = Math.max(this.startWidth + dx, 50);
-  this.resizingField.height = Math.max(this.startHeight + dy, 30);
+  this.resizingField.width = Math.max(this.startWidth + dx, 1);
+  this.resizingField.height = Math.max(this.startHeight + dy, 1);
 };
 
 stopResize = (event: MouseEvent) => {

@@ -17,9 +17,11 @@ import { MatListModule } from '@angular/material/list';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule  } from '@angular/material/dialog';
 import { MatSelectModule } from '@angular/material/select';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
+import { MatTabsModule } from '@angular/material/tabs';
 @NgModule({
   exports: [
     CommonModule,
@@ -38,8 +40,10 @@ import { MatNativeDateModule } from '@angular/material/core';
     MatDialogModule,
     MatSelectModule,
      MatDatepickerModule,    // <-- added
-    MatNativeDateModule,    
-    MatTooltipModule
+    MatNativeDateModule,  
+      MatTabsModule   ,  
+    MatTooltipModule,
+    MatCheckboxModule,
   ],
 })
 export class MaterialModule {}

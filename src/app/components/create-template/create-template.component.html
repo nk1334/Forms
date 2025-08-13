@@ -1,4 +1,6 @@
+
 <div class="form-builder-wrapper">
+  <!-- Top Section -->
   <div class="top-section">
     <h2>Form Builder</h2>
     <div class="top-actions">
@@ -22,18 +24,22 @@
     <button mat-button color="warn" (click)="formListVisible = false; formBuilderVisible = true;">Back to Form Builder</button>
   </div>
 
-  <!-- Form Builder Section -->
+  <!-- Form Builder -->
   <div *ngIf="formBuilderVisible" class="form-builder">
-    <div class="main-content" cdkDropListGroup style="display: flex; width: 100%; height: calc(100vh - 60px); gap: 16px; box-sizing: border-box;">
+    <div class="main-content" cdkDropListGroup style="display:flex; width:100%; height:calc(100vh - 60px); gap:16px; box-sizing:border-box;">
 
       <!-- Field Palette -->
-      <div class="field-palette" cdkDropList id="fieldPalette" 
-           [cdkDropListData]="paletteFields" 
-           [cdkDropListConnectedTo]="['formCanvas']" 
-           (cdkDropListDropped)="onDrop($event)" 
-           style="width: 200px; min-width: 180px; border: 1px solid #ccc; padding: 8px; box-sizing: border-box;">
+      <div class="field-palette" cdkDropList id="fieldPalette"
+           [cdkDropListData]="paletteFields"
+           [cdkDropListConnectedTo]="['formCanvas']"
+           (cdkDropListDropped)="onDrop($event)"
+           style="width:200px; min-width:180px; border:1px solid #ccc; padding:8px; box-sizing:border-box;">
         <h3>Field Palette</h3>
-        <div *ngFor="let field of paletteFields" class="field-item" cdkDrag [cdkDragData]="field" (cdkDragMoved)="onDragMoved($event)">
+        <div *ngFor="let field of paletteFields"
+             class="field-item"
+             cdkDrag
+             [cdkDragData]="field"
+             (cdkDragMoved)="onDragMoved($event)">
           <ng-container *cdkDragPreview>
             <div class="drag-preview">{{ field.label }}</div>
           </ng-container>
@@ -41,244 +47,247 @@
         </div>
       </div>
 
-      <!-- Canvas and Navigation Wrapper -->
-      <div class="canvas-navigation-wrapper" style="display: flex; flex: 1; box-sizing: border-box;">
+      <!-- Canvas -->
+      <div class="form-canvas" cdkDropList id="formCanvas"
+           (cdkDropListDropped)="onDrop($event)"
+           [cdkDropListConnectedTo]="['fieldPalette']"
+           [cdkDropListData]="formPages[currentPage].fields"
+           style="position:relative; min-height:500px; border:1px solid #ddd; padding:8px; flex:1; box-sizing:border-box;">
 
-        
-        <!-- Form Canvas -->
-        <div class="form-canvas" cdkDropList id="formCanvas" 
-             (cdkDropListDropped)="onDrop($event)"
-             [cdkDropListConnectedTo]="['fieldPalette']" 
-             [cdkDropListData]="formPages[currentPage].fields"
-             style="position: relative; min-height: 500px; border: 1px solid #ddd; padding: 8px; flex-grow: 1; box-sizing: border-box;">
+        <!-- Render Fields -->
+        <div *ngFor="let field of formPages[currentPage].fields; let i = index; trackBy: trackByFieldId"
+             cdkDrag
+             [cdkDragData]="field"
+             [cdkDragFreeDragPosition]="field.position || { x: 0, y: 0 }"
+            [attr.cdkDragBoundary]="'#formCanvas'"
+             (cdkDragStarted)="onFieldDragStarted($event, field)"
+             (cdkDragMoved)="onFieldDragMoved($event, field)"
+             (cdkDragEnded)="onFieldDragEnded($event, field)"
+             class="form-row"
+             [style.maxWidth]="(field.type==='textarea' && (field.id==='description' || field.label==='Description Field')) ? 'none' : null"
+             [style.maxHeight]="(field.type==='textarea' && (field.id==='description' || field.label==='Description Field')) ? 'none' : null"
+             [ngStyle]="{ left: field.position?.x + 'px', top: field.position?.y + 'px', width: field.width + 'px', height: field.height + 'px' }"
+             style="position:absolute; cursor:move; padding:8px; border:1px solid #ccc; background:#fafafa;"
+             [class.textarea-row]="field.type === 'textarea' || field.type === 'description'">
 
-          <div *ngFor="let field of formPages[currentPage].fields; let i = index; trackBy: trackByFieldId" cdkDrag
-               [cdkDragData]="field" [cdkDragFreeDragPosition]="field.position || { x: 0, y: 0 }"
-               [cdkDragBoundary]="'#formCanvas'" (cdkDragStarted)="onFieldDragStarted($event, field)"
-               (cdkDragMoved)="onFieldDragMoved($event, field)" (cdkDragEnded)="onFieldDragEnded($event, field)"
-               class="form-row"
-  [ngStyle]="{
-    left: field.position?.x + 'px',
-    top: field.position?.y + 'px',
-    width: field.width + 'px',
-    height: field.height + 'px'
-  }"
-  style="position: absolute; cursor: move; padding: 8px; border: 1px solid #ccc; background: #fafafa;"
-               [class.textarea-row]="field.type === 'textarea' || field.type === 'description'">
-
-            <!-- Drag Handle -->
-
-              <div class="field-header" style="display: flex; justify-content:
-space-between; align-items: center;">
-            <div cdkDragHandle class="drag-handle" style="cursor:
-move; font-size: 18px;">☰</div>
+          <!-- Header / Drag handle -->
+          <div class="field-header" style="display:flex; justify-content:space-between; align-items:center;">
+            <div cdkDragHandle class="drag-handle" style="cursor:move; font-size:18px;">☰</div>
           </div>
 
-          <!-- Label -->
-<label *ngIf="field.label && field.type !== 'project-title' && field.type !== 'empty'" 
-       class="form-label" 
-       [attr.for]="'field-' + i" 
-       style="display: block; margin-bottom: 4px;">
-  {{ field.label }}
-</label>
+          <!-- Label (if not a title/empty) -->
+        <div *ngIf="field.label && field.type !== 'project-title' && field.type !== 'empty'"
+     style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+  <label class="form-label" [attr.for]="'field-' + i" style="margin:0;">
+    {{ field.label }}
+  </label>
 
-
-            <!-- Field content based on type -->
-            <ng-container [ngSwitch]="field.type">
-
-              <!-- Project Title -->
-              <div *ngSwitchCase="'project-title'" contenteditable="true" class="form-input editable-div"
-                   (input)="onContentEditableInput($event, field)" [attr.aria-label]="'Project Name'" spellcheck="false"
-                   [ngClass]="{'has-value': field.value}">
-                <span *ngIf="!field.value" class="placeholder">Enter project name</span>
-              </div>
-
-              <!-- Text input -->
-              <input *ngSwitchCase="'text'" id="field-{{i}}" name="field-{{i}}" type="text" [(ngModel)]="field.value"
-                     class="form-input" [style.width.px]="field.width" [placeholder]="field.placeholder || ''" />
-
-              <!-- Number input -->
-              <input *ngSwitchCase="'number'" id="field-{{i}}" name="field-{{i}}" type="number" [(ngModel)]="field.value"
-                     class="form-input" [style.width.px]="field.width" [placeholder]="field.placeholder || ''" />
-
-              <!-- Telephone input -->
-              <input *ngSwitchCase="'tel'" id="field-{{i}}" name="field-{{i}}" type="tel" [(ngModel)]="field.value"
-                     class="form-input" [style.width.px]="field.width" [placeholder]="field.placeholder || ''" />
-
-              <!-- Email input -->
-              <input *ngSwitchCase="'email'" id="field-{{i}}" name="field-{{i}}" type="email" [(ngModel)]="field.value"
-                     class="form-input" [style.width.px]="field.width" [placeholder]="field.placeholder || ''" />
-
-         <!-- Your existing switch case for 'id' type field -->
-<input *ngSwitchCase="'id'" 
-       id="field-{{i}}" 
-       name="field-{{i}}" 
-       type="text" 
-       class="form-input" 
-       [style.width.px]="field.width" 
-       [value]="field.id" 
-       disabled 
-       placeholder="ID Field (readonly)" />
-
-              <!-- Date input -->
-              <input *ngSwitchCase="'date'" id="field-{{i}}" name="field-{{i}}" type="date" [(ngModel)]="field.value"
-                     class="form-input" [style.width.px]="field.width" />
-
-              <!-- Select branch -->
-              <select *ngSwitchCase="'branch'" id="field-{{i}}" name="field-{{i}}" [(ngModel)]="field.value"
-                      class="form-input" [style.width.px]="field.width">
-                <option *ngFor="let option of field.options || []" [value]="option.value">{{ option.label }}</option>
-              </select>
-
-              <!-- Textarea with label side-by-side -->
-              <div *ngSwitchCase="'textarea'" class="textarea-container" style="display: flex; align-items: stretch; gap: 8px; width: 100%;">
-             <textarea 
-                  [(ngModel)]="field.value" 
-                  class="form-input" 
-                  [style.min-width.px]="field.width" 
-                  [placeholder]="field.placeholder || ''" 
-                  style="flex-grow: 1; resize: both; min-height: 60px;">
-                </textarea>
-              </div>
-
-              <!-- Radio buttons -->
-              <div *ngSwitchCase="'radio'" class="form-input" [style.width.px]="field.width">
-                <label *ngFor="let option of field.options || []" style="margin-right: 8px;">
-                  <input type="radio" [name]="'radio-' + i" [value]="option.value" [(ngModel)]="field.value" />
-                  {{ option.label }}
-                </label>
-              </div>
-
-              <!-- File upload -->
-              <div *ngSwitchCase="'file'" style="margin-top: 8px; position: relative;">
-                <input type="file" accept="image/*" (change)="onFileSelected($event, field)" />
-                <div *ngIf="field.value" style="margin-top: 8px;">
-                  <img [src]="field.value" alt="Uploaded Image"
-                       style="max-width: 200px; max-height: 200px; border: 1px solid #ccc; border-radius: 4px;" />
-                </div>
-              </div>
-
-              <!-- Empty placeholder -->
-<div *ngSwitchCase="'empty'" 
-     [style.width.px]="field.width"
-     class="resizable-container"
-     style="border: 1px dashed #ccc;">
-  
-  <div contenteditable="true"
-       (input)="onEmptyLabelInput($event, field)"
-       style="width: 100%; min-height: 24px; outline: none; font-weight: bold; color: #555;">
-    {{ field.label || 'Spacer / Heading (click to edit)' }}
-  </div>
+  <!-- Add button shown ONLY for the Description textarea -->
+  <button *ngIf="field.type === 'textarea' && (field.id === 'description' || field.label === 'Description Field')"
+          mat-stroked-button type="button" (click)="addProblemItem(field)">
+    <mat-icon>add</mat-icon>
+    Add
+  </button>
 </div>
 
-              <!-- Submit button -->
-              <button *ngSwitchCase="'submit'" mat-raised-button color="primary" (click)="onSubmit()">
-                {{ field.label || 'Submit' }}
-              </button>
-           
+          <!-- Field content by type -->
+          <ng-container [ngSwitch]="field.type">
 
-              <!-- Signature pad -->
-              <div *ngSwitchCase="'signature'" class="signature-pad-container form-input" [style.width.px]="field.width" style="position: relative;">
-                <canvas 
-                  #canvasElement 
-                  [attr.data-id]="field.id" 
-                  [attr.width]="field.width || 300"  
-                  [attr.height]="150"                   
-                  [style.width.px]="field.width || 300" 
-                  [style.height.px]="150" 
-                  aria-label="Signature Pad">
-                </canvas> 
-
-                <button mat-fab class="clear-sign-btn" aria-label="Clear signature"
-                  style="position: absolute; top: 5px; right: 45px; z-index: 10;"
-                  (click)="clearSignatureCanvas(field.id); $event.stopPropagation()">
-                  <mat-icon>clear</mat-icon>
-                </button>
-              </div>
-
-              <!-- Table -->
-              <div *ngSwitchCase="'table'" class="table-container" [style.width.px]="field.width || 400"
-                   style="border: 1px solid #ccc; padding: 8px; overflow-x: auto;">
-                <table style="border-collapse: collapse; width: 100%;">
-                  <tbody>
-                    <tr *ngFor="let row of [1, 2, 3, 4]">
-                      <td *ngFor="let col of [1, 2, 3, 4]" style="border: 1px dashed #999; width: 80px; height: 40px;">
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <!-- Default fallback -->
-              <div *ngSwitchDefault>Unsupported field type: {{ field.type }}</div>
-            </ng-container>
-            
-
-            <!-- Resize handle -->
-            <div class="resize-handle" (mousedown)="startResize($event, field, true, true)" 
-                 style="position: absolute; width: 12px; height: 12px; bottom: 4px; right: 4px; cursor: se-resize; background-color: transparent; border-right: 2px solid #666; border-bottom: 2px solid #666; box-sizing: border-box; z-index: 10;">
+            <!-- Project Title -->
+            <div *ngSwitchCase="'project-title'" contenteditable="true" class="form-input editable-div"
+                 (input)="onContentEditableInput($event, field)" [attr.aria-label]="'Project Name'" spellcheck="false"
+                 [ngClass]="{'has-value': field.value}">
+              <span *ngIf="!field.value" class="placeholder">Enter project name</span>
             </div>
 
-            <!-- Delete button -->
-            <button (click)="removeField(currentPage, field); $event.stopPropagation()" 
-                    class="delete-button" title="Delete field" 
-                    style="color: red; font-size: 20px; border: none; background: transparent; cursor: pointer; position: absolute; top: 4px; right: 4px;">
-              &times;
-            </button>
-          </div>
+            <!-- Text -->
+            <input *ngSwitchCase="'text'" id="field-{{i}}" name="field-{{i}}" type="text"
+                   [(ngModel)]="field.value" class="form-input" [style.width.px]="field.width" [placeholder]="field.placeholder || ''" />
 
-  <!-- Field Configuration Modal -->
- 
-<div *ngIf="fieldConfigVisible" class="popup-overlay">
+            <!-- Number -->
+            <input *ngSwitchCase="'number'" id="field-{{i}}" name="field-{{i}}" type="number"
+                   [(ngModel)]="field.value" class="form-input" [style.width.px]="field.width" [placeholder]="field.placeholder || ''" />
 
-  <div class="popup mat-elevation-z4" (click)="$event.stopPropagation()">
-  
-  <h3 class="form-title">Configure Field</h3>
-  
-  <form (ngSubmit)="createField()" #form="ngForm" class="field-form">
+            <!-- Tel -->
+            <input *ngSwitchCase="'tel'" id="field-{{i}}" name="field-{{i}}" type="tel"
+                   [(ngModel)]="field.value" class="form-input" [style.width.px]="field.width" [placeholder]="field.placeholder || ''" />
 
-    <mat-form-field appearance="outline" class="full-width">
-      <mat-label>Label</mat-label>
-      <input matInput [(ngModel)]="newField.label" name="label" required #labelCtrl="ngModel" />
-      <div *ngIf="labelCtrl.invalid && (labelCtrl.dirty || labelCtrl.touched)" class="error-msg" style="color: red;">
-        Label is required.
+            <!-- Email -->
+            <input *ngSwitchCase="'email'" id="field-{{i}}" name="field-{{i}}" type="email"
+                   [(ngModel)]="field.value" class="form-input" [style.width.px]="field.width" [placeholder]="field.placeholder || ''" />
+
+            <!-- ID (readonly) -->
+            <input *ngSwitchCase="'id'" id="field-{{i}}" name="field-{{i}}" type="text" class="form-input"
+                   [style.width.px]="field.width" [value]="field.id" disabled placeholder="ID Field (readonly)" />
+
+            <!-- Date -->
+            <input *ngSwitchCase="'date'" id="field-{{i}}" name="field-{{i}}" type="date"
+                   [(ngModel)]="field.value" class="form-input" [style.width.px]="field.width" />
+
+            <!-- Branch select -->
+            <select *ngSwitchCase="'branch'" id="field-{{i}}" name="field-{{i}}" [(ngModel)]="field.value"
+                    class="form-input" [style.width.px]="field.width">
+              <option *ngFor="let option of field.options || []" [value]="option.value">{{ option.label }}</option>
+            </select>
+<!-- Textarea (normal) + Description (numbered items) -->
+<div *ngSwitchCase="'textarea'" style="width:100%;">
+  <!-- Description mode -->
+  <ng-container *ngIf="field.id === 'description' || field.label === 'Description Field'; else normalTextarea">
+   <div class="desc-list" style="display:flex;flex-direction:column;gap:6px;">
+      <div class="desc-row"
+           *ngFor="let item of (field.problemItems || []); let i = index"
+           style="display:flex;align-items:center;gap:8px;">
+        <span class="desc-no" style="width:24px;text-align:right;">{{ item.no }}.</span>
+
+        <textarea class="desc-input"
+                  [ngModel]="item.text"
+                  (ngModelChange)="updateProblemText(field, i, $event)"
+                  placeholder="Write problem description..."
+                 style="flex:0 0 auto; min-width:160px; max-width:none; min-height:40px;
+       padding:4px; border:1px solid #ccc; border-radius:4px;
+       resize:both; overflow:auto;">
+                </textarea>
+
+        <button mat-icon-button type="button" (click)="removeProblemItem(field, i)" aria-label="Remove">
+          <mat-icon>close</mat-icon>
+        </button>
       </div>
-    </mat-form-field>
+    </div>
+  </ng-container>
 
+  <!-- Normal textarea fallback -->
+  <ng-template #normalTextarea>
+    <div class="textarea-container" style="display:flex;align-items:stretch;gap:8px;width:100%;">
+   <textarea
+  [(ngModel)]="field.value"
+  [name]="field.id"
+  [id]="field.id"
 
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Placeholder</mat-label>
-          <input matInput [(ngModel)]="newField.placeholder" name="placeholder" />
-        </mat-form-field>
+  #textareaRef="ngModel"
+  class="textarea-resizable-both"
+  [ngClass]="{'desc-fill': field.type === 'textarea' && (field.id === 'description' || field.label === 'Description Field')}"
+  [attr.aria-describedby]="field.id + '-error'"
+  [placeholder]="field.placeholder || ''"
+  style="min-height:60px"></textarea>
+    </div>
+  </ng-template>
+</div>
+      
 
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Width</mat-label>
-          <mat-select [(ngModel)]="newField.width" name="width">
-            <mat-option [value]="150">Small</mat-option>
-            <mat-option [value]="300">Medium</mat-option>
-            <mat-option [value]="400">Large</mat-option>
-          </mat-select>
-        </mat-form-field>
-   
+            <!-- Radio group -->
+            <div *ngSwitchCase="'radio'" class="form-input" [style.width.px]="field.width">
+              <label *ngFor="let option of field.options || []" style="margin-right:8px;">
+                <input type="radio" [name]="'radio-' + i" [value]="option.value" [(ngModel)]="field.value" />
+                {{ option.label }}
+              </label>
+            </div>
 
-        <div class="action-buttons">
-          <button mat-raised-button color="primary" type="submit">Create</button>
-          <button mat-button color="warn" type="button" (click)="cancelFieldConfig()">Cancel</button>
+            <!-- File upload -->
+            <div *ngSwitchCase="'file'" style="margin-top:8px; position:relative;">
+              <input type="file" accept="image/*" (change)="onFileSelected($event, field)" />
+              <div *ngIf="field.value" style="margin-top:8px;">
+                <img [src]="field.value" alt="Uploaded Image" style="max-width:200px; max-height:200px; border:1px solid #ccc; border-radius:4px;" />
+              </div>
+            </div>
+
+            <!-- Empty / Spacer with editable label -->
+            <div *ngSwitchCase="'empty'" [style.width.px]="field.width" class="resizable-container" style="border:1px dashed #ccc;">
+              <div contenteditable="true" (input)="onEmptyLabelInput($event, field)"
+                   style="width:100%; min-height:24px; outline:none; font-weight:bold; color:#555;">
+                {{ field.label || 'Spacer / Heading (click to edit)' }}
+              </div>
+            </div>
+
+            <!-- Submit button -->
+            <button *ngSwitchCase="'submit'" mat-raised-button color="primary" (click)="onSubmit()">
+              {{ field.label || 'Submit' }}
+            </button>
+
+            <!-- Signature pad -->
+            <div *ngSwitchCase="'signature'" class="signature-pad-container form-input" [style.width.px]="field.width" style="position:relative;">
+              <canvas #canvasElement [attr.data-id]="field.id" [attr.width]="field.width || 300" [attr.height]="150"
+                      [style.width.px]="field.width || 300" [style.height.px]="150" aria-label="Signature Pad"></canvas>
+
+              <button mat-fab class="clear-sign-btn" aria-label="Clear signature"
+                      style="position:absolute; top:5px; right:45px; z-index:10;"
+                      (click)="clearSignatureCanvas(field.id); $event.stopPropagation()">
+                <mat-icon>clear</mat-icon>
+              </button>
+            </div>
+
+            <!-- Table placeholder -->
+            <div *ngSwitchCase="'table'" class="table-container" [style.width.px]="field.width || 400"
+                 style="border:1px solid #ccc; padding:8px; overflow-x:auto;">
+              <table style="border-collapse:collapse; width:100%;">
+                <tbody>
+                  <tr *ngFor="let row of [1,2,3,4]">
+                    <td *ngFor="let col of [1,2,3,4]" style="border:1px dashed #999; width:80px; height:40px;"></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Fallback -->
+            <div *ngSwitchDefault>Unsupported field type: {{ field.type }}</div>
+          </ng-container>
+
+          <!-- Resize handle -->
+          <div class="resize-handle" (mousedown)="startResize($event, field, true, true)"
+               style="position:absolute; width:12px; height:12px; bottom:4px; right:4px; cursor:se-resize; background-color:transparent; border-right:2px solid #666; border-bottom:2px solid #666; box-sizing:border-box; z-index:10;"></div>
+
+          <!-- Delete field -->
+          <button (click)="removeField(currentPage, field); $event.stopPropagation()" class="delete-button" title="Delete field"
+                  style="color:red; font-size:20px; border:none; background:transparent; cursor:pointer; position:absolute; top:4px; right:4px;">
+            &times;
+          </button>
         </div>
-      </form>
-    </div>
-    </div>
-    </div>
-    
-    <!-- Page Navigation (outside modal, in main template) -->
-<div class="page-navigation" style="display: flex; flex-direction: column; gap: 8px; min-width: 150px;padding:16px;border-left:1 px solid #ddd;box-sizing:border-box;">
-  <button mat-button color="primary" (click)="prevPage()" [disabled]="currentPage === 0">Previous</button>
-  <span>Page {{ currentPage + 1 }} of {{ formPages.length }}</span>
-  <button mat-button color="primary" (click)="nextPage()" [disabled]="currentPage >= formPages.length - 1">Next</button>
-  <button mat-button color="accent" (click)="addNewPage()" style="margin-left: 16px;">Add New Page</button>
-</div>
-</div>
-</div>
-</div>
-</div>
 
+        <!-- Field Config Modal -->
+        <div *ngIf="fieldConfigVisible" class="popup-overlay">
+          <div class="popup mat-elevation-z4" (click)="$event.stopPropagation()">
+            <h3 class="form-title">Configure Field</h3>
+            <form (ngSubmit)="createField()" #form="ngForm" class="field-form">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Label</mat-label>
+                <input matInput [(ngModel)]="newField.label" name="label" required #labelCtrl="ngModel" />
+                <div *ngIf="labelCtrl.invalid && (labelCtrl.dirty || labelCtrl.touched)" class="error-msg" style="color:red;">
+                  Label is required.
+                </div>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Placeholder</mat-label>
+                <input matInput [(ngModel)]="newField.placeholder" name="placeholder" />
+              </mat-form-field>
+
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Width</mat-label>
+                <mat-select [(ngModel)]="newField.width" name="width">
+                  <mat-option [value]="150">Small</mat-option>
+                  <mat-option [value]="300">Medium</mat-option>
+                  <mat-option [value]="400">Large</mat-option>
+                </mat-select>
+              </mat-form-field>
+
+              <div class="action-buttons">
+                <button mat-raised-button color="primary" type="submit">Create</button>
+                <button mat-button color="warn" type="button" (click)="cancelFieldConfig()">Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Page Navigation (Right) -->
+      <div class="page-navigation"
+           style="display:flex; flex-direction:column; gap:8px; min-width:160px; padding:16px; border-left:1px solid #ddd; box-sizing:border-box;">
+        <button mat-button color="primary" (click)="prevPage()" [disabled]="currentPage === 0">Previous</button>
+        <span>Page {{ currentPage + 1 }} of {{ formPages.length }}</span>
+        <button mat-button color="primary" (click)="nextPage()" [disabled]="currentPage >= formPages.length - 1">Next</button>
+        <button mat-button color="accent" (click)="addNewPage()">Add New Page</button>
+      </div>
+
+    </div>
+  </div>
+</div>

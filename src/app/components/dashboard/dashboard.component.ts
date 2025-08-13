@@ -23,6 +23,10 @@ interface FilledFormData {
   styleUrls: ['./dashboard.component.scss'],
 })
 export class DashboardComponent implements OnInit {
+  searchValue = '';
+  tabIndex = 0; 
+isAddUserOpen = false;
+isAddPlantOpen = false;
     plants$!: Observable<any[]>
     showForm: boolean = false; 
   dashboardVisible = true;
@@ -104,6 +108,57 @@ selectedPlants: string[] = []; // store selected plant regoNames or IDs
     const userData = localStorage.getItem('user');
     this.user = userData ? JSON.parse(userData) : null;
   }
+  
+clearSearch(): void {
+  this.searchValue = '';
+  this.dataSource.filter = '';
+}
+
+// keep your existing applyFilter but make sure it updates searchValue too:
+
+
+// hook for the + button in the Templates header
+createTemplate(): void {
+  // reuse your existing add-new flow
+  this.addNew();
+}
+  onSubtabChange(i: number) {
+  if (i === 1) {            // Add Plant
+    if (!this.isAddPlantOpen) {
+      this.isAddPlantOpen = true;
+      const ref = this.dialog.open(AddPlantDialogComponent, { width: '400px', disableClose: true });
+      ref.afterClosed().subscribe((newPlant) => {
+        this.isAddPlantOpen = false;
+        if (newPlant) this.plants$ = this.plantService.getPlants();
+      });
+    }
+    this.tabIndex = 0;      // bounce back to Select Plants (keeps UI short)
+  }
+
+  if (i === 2) {            // Add User
+    if (!this.isAddUserOpen) {
+      this.isAddUserOpen = true;
+      const ref = this.dialog.open(AddUserComponent, { width: '900px', disableClose: true });
+      ref.afterClosed().subscribe(() => this.isAddUserOpen = false);
+    }
+    this.tabIndex = 0;      // bounce back
+  }
+  }
+  private _dialogPositionNear(trigger?: HTMLElement):
+  { top: string; left: string } | undefined {
+  if (!trigger) return undefined;
+  const r = trigger.getBoundingClientRect();
+  const top  = r.bottom + window.scrollY + 8; // 8px below
+  const left = r.left   + window.scrollX;     // left-aligned
+  return { top: `${top}px`, left: `${left}px` };
+}
+
+
+onUserCreated(user: any) {
+  console.log('User created:', user);
+  // do any list refresh here if needed
+  this.tabIndex = 0; // optional: bounce back to Select Plants
+}
 
   loadSavedForms(): void {
     const savedFormPages = localStorage.getItem('savedFormPages');
@@ -332,19 +387,28 @@ selectedPlants: string[] = []; // store selected plant regoNames or IDs
     this.loadFilledForms(); // refresh filled forms list after closing form editor
   }
   
-openAddPlantDialog() {
-  const dialogRef = this.dialog.open(AddPlantDialogComponent, {
-    width: '400px'
+openAddPlantDialog(ev: MouseEvent) {
+  if (this.isAddPlantOpen) return;
+  this.isAddPlantOpen = true;
+
+  const ref = this.dialog.open(AddPlantDialogComponent, {
+    panelClass: 'full-screen-dialog-pane',
+    width: '100vw',
+    height: '100vh',
+    maxWidth: '100vw',
+    maxHeight: '100vh',
+    disableClose: true,
+    autoFocus: false,
+     data: { branch: this.userBranch }
   });
 
-  dialogRef.afterClosed().subscribe((newPlant) => {
+  ref.afterClosed().subscribe((newPlant) => {
+    this.isAddPlantOpen = false;
     if (newPlant) {
-      // Refresh the list
       this.plants$ = this.plantService.getPlants();
     }
   });
 }
-
   loadPlants() {
     this.plants$ = this.plantService.getPlants();
     this.plants$.subscribe(plants => {
@@ -370,19 +434,23 @@ togglePlantSelection(plantRego: string) {
   localStorage.setItem('selectedPlants', JSON.stringify(this.selectedPlants));
   alert('Selected plants saved successfully!');
 }
-  openAddUserDialog(): void {
-    console.log('Opening Add User dialog...');
-    this.dialog
-      .open(AddUserComponent, {
-        width: '900px',
-        disableClose: true,
-      })
-      .afterClosed()
-      .subscribe((result) => {
-        if (result) {
-          console.log('New user created:', result);
-          // You can update your user list here if you want
-        }
-      });
-  }
+openAddUserDialog(ev: MouseEvent) {
+  if (this.isAddUserOpen) return;
+  this.isAddUserOpen = true;
+
+  const ref = this.dialog.open(AddUserComponent, {
+    panelClass: 'full-screen-dialog-pane',
+    width: '100vw',
+    height: '100vh',
+    maxWidth: '100vw',
+    maxHeight: '100vh',
+    disableClose: true,
+    autoFocus: false
+  });
+
+  ref.afterClosed().subscribe(() => {
+    this.isAddUserOpen = false;
+  });
+}
+
 }

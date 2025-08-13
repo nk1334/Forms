@@ -324,26 +324,22 @@ textarea.form-input {
   cursor: move;
 }
 .form-canvas {
-  position:relative;
+  position: relative;
   display: flex;
- flex-wrap: wrap;
+  flex-wrap: wrap;
   align-items: flex-start;
   gap: 12px;
   padding: 16px;
   background-color: #fff;
   border: 2px dashed #ccc;
-  border-radius: 0px; /* flat borders */
+  border-radius: 0px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
-
-  /* MOST IMPORTANT: take full available space */
   flex: 1 1 auto;
   width: 100%;
-  height: 800px;
+  min-height: 1000px;   /* Start safe */
+  max-height: 4000px;   /* Limit to avoid infinite scroll issues */
+  overflow-x: auto;       /* Enable scroll */
   box-sizing: border-box;
-    max-width: none !important;
-
-  /* Scroll if needed */
-  overflow-x: auto;
 }
 .field {
   position: absolute;
@@ -861,3 +857,4 @@ textarea.form-input {
   gap: 8px;
   min-width: 150px;
 }
+.desc-free { max-width: none !important; }

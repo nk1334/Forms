@@ -27,6 +27,15 @@ import { AddPlantDialogComponent } from './components/add-plant-dialog/add-plant
 import { provideFirestore, getFirestore } from '@angular/fire/firestore';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
+import { provideStorage, getStorage } from '@angular/fire/storage'; // ✅ Added import
+import { MatChipsModule } from '@angular/material/chips';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTabsModule } from '@angular/material/tabs';
+import { MatSidenavModule } from '@angular/material/sidenav';
+
+
+
+
 const clientId = 'YOUR_CLIENT_ID_HERE';
 const tenantId = 'YOUR_TENANT_ID_HERE';
 
@@ -52,6 +61,7 @@ export function MSALInstanceFactory() {
     ProblemTrackerComponent,
     AddUserComponent,
     AddPlantDialogComponent,
+  
    
      
    ],
@@ -65,13 +75,22 @@ export function MSALInstanceFactory() {
      FormsModule,
      MatSnackBarModule,
      MsalModule ,
+        MatChipsModule, 
      MatDialogModule,
          MatCheckboxModule,
              MatButtonToggleModule,
      RouterModule,
+       MatProgressSpinnerModule,
+          MatTabsModule,
+  MatSidenavModule,
+
+  RouterModule,
+
     provideFirebaseApp(() => initializeApp(environment.firebase)),
     provideFirestore(() => getFirestore()),
+    
     provideAuth(() => getAuth()),
+      provideStorage(() => getStorage()),
   ],
   providers: [
     {

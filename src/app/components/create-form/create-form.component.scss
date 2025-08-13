@@ -438,3 +438,407 @@ textarea {
   position: absolute; /* this will be overridden by JS, but good to default */
   /* width and height will be set dynamically */
 }
+.toolbar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  align-items: center;
+}
+
+/* If both buttons look the same blue, force distinct colors via MDC vars */
+.btn-local {
+  --mdc-filled-button-container-color: #1e88e5; /* blue */
+  --mdc-filled-button-label-text-color: #fff;
+}
+
+.btn-firebase {
+  --mdc-filled-button-container-color: #43a047; /* green */
+  --mdc-filled-button-label-text-color: #fff;
+}
+
+.mat-mdc-button .mat-icon,
+.mat-mdc-unelevated-button .mat-icon,
+.mat-mdc-raised-button .mat-icon,
+.mat-mdc-outlined-button .mat-icon {
+  margin-right: 6px;
+  font-size: 18px;
+  height: 18px;
+  width: 18px;
+  line-height: 18px;
+}
+.forms-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.form-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.form-row .name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.form-row .row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#form-to-export {
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.page-container {
+  border: 1px dashed #e0e0e0;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fafafa;
+  margin-bottom: 16px;
+}
+
+.field-wrapper {
+  box-shadow: 0 0 0 1px #e6e6e6 inset;
+  border-radius: 8px;
+}
+
+.textarea-resizable-both {
+  resize: both;
+   overflow: auto;
+}
+.view-root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.toolbar__left {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+
+.toolbar__title {
+  font-weight: 600;
+}
+
+.toolbar__actions {
+  margin-left: auto;
+  display: flex;
+  gap: .5rem;
+  align-items: center;
+}
+
+.content {
+  padding: 16px;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.card {
+  width: 100%;
+}
+
+.table-wrap {
+  overflow: auto;
+}
+
+table {
+  width: 100%;
+}
+
+.name-cell {
+  display: inline-flex;
+  gap: .5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.name {
+  font-weight: 600;
+}
+
+.actions-col {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+}
+
+.empty {
+  padding: 48px 16px;
+  text-align: center;
+  color: #666;
+}
+
+.empty__icon {
+  font-size: 56px;
+  width: 56px;
+  height: 56px;
+  line-height: 56px;
+  display: block;
+  margin: 0 auto 12px;
+  opacity: .6;
+}
+
+.empty__title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.empty__subtitle {
+  margin-bottom: 12px;
+}
+
+.empty__actions {
+  display: flex;
+  gap: .5rem;
+  justify-content: center;
+}
+
+/* Editor view */
+.editor-content {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.editor-card {
+  overflow: auto;
+}
+
+.form-export-surface {
+  padding: 8px;
+}
+
+.page-container {
+  margin-bottom: 24px;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.page-title {
+  font-weight: 600;
+}
+
+.page-surface {
+  position: relative;
+  padding: 8px;
+  background: #fafafa;
+  border: 1px solid #e0e0e0;
+}
+
+.field-wrapper {
+  box-sizing: border-box;
+  background: #fff;
+  border: 1px solid #e6e6e6;
+  padding: 8px;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.req {
+  color: #e53935;
+}
+
+.w-100 { width: 100%; }
+
+.textarea-resizable-both {
+  resize: both;
+  overflow: auto;
+}
+
+.uploaded-img {
+  max-width: 100%;
+  margin-top: 8px;
+  display: block;
+}
+
+.signature-canvas {
+  border: 1px solid #000;
+  touch-action: none;
+  display: block;
+  margin-top: 4px;
+}
+
+/* Name bar */
+.namebar {
+  position: sticky;
+  top: 64px; /* below toolbar */
+  z-index: 1;
+  background: #fff;
+  border-radius: 8px;
+  padding: 8px 12px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.namebar__field {
+  flex: 1;
+  min-width: 260px;
+}
+
+.namebar__actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Responsive tweaks */
+@media (max-width: 720px) {
+  .toolbar__actions {
+    gap: .25rem;
+  }
+  .row-actions {
+    gap: .25rem;
+  }
+}
+.form-tile {
+  padding: 10px 12px;
+  border-radius: 10px;
+  box-shadow: 0 1px 6px rgba(0,0,0,.06);
+  transition: box-shadow .18s ease, transform .12s ease;
+}
+.form-tile:hover {
+  box-shadow: 0 6px 16px rgba(0,0,0,.12);
+  transform: translateY(-1px);
+}
+
+/* Head row */
+.tile-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+/* Title cluster */
+.tile-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tile-title mat-icon { color: var(--cf-primary); }
+.tile-title .texts { display: grid; line-height: 1.15; }
+.tile-title .name { font-weight: 600; color: #111827; letter-spacing: .15px; }
+.tile-title .meta { font-size: 12px; color: #6b7280; }
+
+/* Actions cluster */
+.tile-actions { display: inline-flex; align-items: center; gap: 4px; }
+.tile-actions button[mat-icon-button] { width: 36px; height: 36px; line-height: 36px; }
+
+/* Slightly tighter grid gap */
+.forms-grid { gap: 12px; }
+/* ===== Dashboard top bar & action row ===== */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.top-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 0;
+}
+
+.top-actions .buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.top-actions .buttons button .mat-icon {
+  margin-right: 6px;
+}
+
+/* Welcome chip on the right */
+.welcome-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: #fff3cd;              /* soft amber */
+  color: #8a6d3b;
+  box-shadow: 0 1px 6px rgba(0,0,0,.08);
+  white-space: nowrap;
+}
+
+/* ===== Compact "Select Plants" row ===== */
+.select-plants-row {
+  display: grid;
+  grid-template-columns: 1fr auto;  /* selector grows, buttons hug right */
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.select-plants-row .plant-select {
+  min-width: 280px;
+  width: 100%;
+}
+
+.select-plants-row .load-buttons {
+  display: inline-flex;
+  gap: 10px;
+}
+
+/* Optional: tighten mat-select panel so it’s not too tall */
+.plant-select .mat-mdc-form-field-infix {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+/* Title bar like your screenshot */
+.tpl-title { text-align: center; padding: 12px 8px 10px; }
+.tpl-title > span { font-weight: 600; color: #3f51b5; letter-spacing: .3px; }
+.tpl-title::after {
+  content: ""; display: block; height: 2px; background: #3f51b5;
+  width: 52%; margin: 8px auto 0; opacity: .9;
+}
+
+/* Row: Templates | search | + */
+.tpl-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 6px 12px 0;
+}
+.tpl-label { font-weight: 600; color: #444; min-width: 92px; }
+.tpl-search { width: 320px; max-width: 45vw; }
+.tpl-plus { color: #e91e63 !important; } /* pink + icon */
+
+/* Compact tiles (keeps your current aesthetic tidy) */
+.form-tile { padding: 10px 12px; }
+.tile-head { display: flex; align-items: center; justify-content: space-between; }
+.tile-title { display: flex; align-items: center; gap: 8px; }
+.tile-title .texts .name { font-weight: 600; }
+.tile-title .texts .meta { font-size: .8rem; color: #777; }
+.tile-actions { display: inline-flex; align-items: center; gap: 6px; }
