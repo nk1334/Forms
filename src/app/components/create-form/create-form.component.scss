@@ -1,844 +1,143 @@
-/* --- Table layout --- */
-table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0 1rem; /* vertical spacing between rows */
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  font-size: 1rem;
-  border: none;
+/* ===== Editor (one clean set) ===== */
+:root{
+  --toolbar-h: 48px;   /* match your compact toolbar height */
 }
 
-/* Each row styled as a subtle card */
-tr {
-  background-color: #fff;
-  border-radius: 12px;
-  box-shadow: 0 1px 4px rgba(41, 98, 255, 0.08);
-  display: table-row;
+/* Page layout */
+.editor-content{
+  display: grid;
+  grid-template-rows: auto auto 1fr;   /* toolbar, name bar, content */
+  height: 100vh;
 }
 
-/* Table cells */
-th, td {
-  border: none;
-  padding: 16px 24px;
-  vertical-align: top;
+/* Sticky bars with correct stacking order */
+.editor-toolbar{
+  position: sticky; top: 0; z-index: 2000;
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+}
+.form-action-toolbar{
+  position: sticky; top: var(--toolbar-h); z-index: 1500;
+  background: #fff; border-bottom: 1px solid #eee; padding: 8px 12px;
 }
 
-/* Label cells */
-td:first-child {
-  width: 30%;
-  font-weight: 600;
-  color: #222;
-  padding-top: 20px;
-  user-select: none;
-}
-
-/* Input cells */
-td:last-child {
-  width: 70%;
-  padding: 18px 24px 24px 24px;
-}
-
-/* Inputs, selects, textarea styling */
-td:last-child input[type="text"],
-td:last-child input[type="email"],
-td:last-child input[type="number"],
-td:last-child input[type="tel"],
-td:last-child input[type="date"],
-td:last-child select,
-td:last-child textarea {
-  width: 100% !important;
-  padding: 0.75rem 0.75rem;
-  border: 1.8px solid #666;       /* Darker border for visibility */
-  border-radius: 8px;
-  background-color: #fff;          /* White background for contrast */
-  font-size: 1rem;
-  font-family: inherit;
-  box-sizing: border-box;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
-  box-shadow: none;
-  outline-offset: 2px;
-  resize: both; /* For textarea */
-}
-
-/* Textarea specific */
-td:last-child textarea {
-  height: 120px;
+/* Make sure grid child can scroll */
+.editor-scroll{
+  min-height: 0;              /* critical inside CSS grid */
   overflow: auto;
-}
-
-/* Focus state with blue border and glow */
-td:last-child input:focus,
-td:last-child textarea:focus,
-td:last-child select:focus {
-  border-color: #2962ff;
-  box-shadow: 0 0 8px rgba(41, 98, 255, 0.7);
-  outline: none;
-  background-color: #fff;
-}
-
-/* Error messages */
-.error-message,
-div[style*="color: red"] {
-  color: #d32f2f;
-  font-size: 0.875rem;
-  margin-top: 0.25rem;
-  font-weight: 500;
-  user-select: none;
-}
-
-/* Radio button container */
-div[ng-reflect-ng-if][style*="margin-bottom"] > div {
-  display: flex;
-  gap: 1.25rem;
-  flex-wrap: wrap;
-  margin-top: 0.3rem;
-}
-
-/* Radio label */
-div[ng-reflect-ng-if][style*="margin-bottom"] > div label {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-weight: 500;
-  cursor: pointer;
-  user-select: none;
-}
-
-/* Radio pointer */
-input[type="radio"] {
-  cursor: pointer;
-}
-
-/* Button styling */
-button {
-  padding: 0.75rem 1.5rem;
-  font-size: 1rem;
-  border-radius: 12px;
-  border: none;
-  cursor: pointer;
-  font-weight: 700;
-  transition: background-color 0.3s ease, box-shadow 0.3s ease;
-  user-select: none;
-  box-shadow: 0 3px 6px rgba(0,0,0,0.1);
-}
-
-/* Primary button */
-button[color="primary"],
-button.mat-raised-button[color="primary"] {
-  background: linear-gradient(135deg, #2962ff 0%, #0039cb 100%);
-  color: white;
-  box-shadow: 0 4px 12px rgba(41, 98, 255, 0.4);
-}
-
-button[color="primary"]:hover,
-button.mat-raised-button[color="primary"]:hover {
-  background: linear-gradient(135deg, #0039cb 0%, #2962ff 100%);
-  box-shadow: 0 6px 16px rgba(0, 57, 203, 0.6);
-}
-
-/* Accent button */
-button[color="accent"],
-button.mat-raised-button[color="accent"] {
-  background-color: #ff4081;
-  color: white;
-  box-shadow: 0 4px 12px rgba(255, 64, 129, 0.4);
-}
-
-button[color="accent"]:hover,
-button.mat-raised-button[color="accent"]:hover {
-  background-color: #c60055;
-  box-shadow: 0 6px 16px rgba(198, 0, 85, 0.6);
-}
-
-/* Secondary text button */
-button[mat-button] {
-  background-color: transparent;
-  color: #2962ff;
-  font-weight: 500;
-  padding: 0.5rem 1rem;
-  box-shadow: none;
-}
-
-button[mat-button]:hover {
-  background-color: rgba(41, 98, 255, 0.1);
-  box-shadow: none;
-}
-
-/* Signature canvas container */
-.signature-pad-container {
-  position: relative;
-  border-radius: 12px;
-  box-shadow: inset 0 0 8px rgba(41, 98, 255, 0.15);
-  padding: 12px;
-  background: #f9fbff;
-  margin-bottom: 1rem;
-}
-
-/* Signature canvas */
-canvas {
-  border-radius: 12px;
-  border: 2px dashed #2962ff;
-  width: 100% !important;
-  height: 150px !important;
-  cursor: crosshair;
-  box-sizing: border-box;
-  display: block;
-  margin-bottom: 0.8rem;
-}
-
-/* Clear signature button */
-.clear-sign-btn {
-  position: absolute;
-  top: 12px;
-  right: 20px;
-  z-index: 20;
-  width: 36px;
-  height: 36px;
-  min-width: 36px !important;
-  min-height: 36px !important;
-  background-color: #f44336;
-  color: white;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-  box-shadow: 0 2px 5px rgba(244, 67, 54, 0.5);
-}
-
-.clear-sign-btn:hover {
-  background-color: #d32f2f;
-  box-shadow: 0 4px 10px rgba(211, 47, 47, 0.7);
-}
-
-/* Responsive for smaller screens */
-@media (max-width: 600px) {
-  table {
-    border-spacing: 0 0.8rem;
-  }
-
-  td:first-child,
-  td:last-child {
-    width: 100%;
-    padding: 12px 16px;
-  }
-
-  td:first-child {
-    font-size: 1rem;
-  }
-}
-
-/* Error highlight on input */
-input.ng-invalid.ng-touched,
-textarea.ng-invalid.ng-touched,
-select.ng-invalid.ng-touched {
-  border-color: #d32f2f !important;
-  box-shadow: 0 2px 0 0 #d32f2f !important;
-  outline: none !important;
-}
-
-/* Remove red border from disabled inputs */
-input:disabled,
-textarea:disabled,
-select:disabled {
-  border-color: #ccc !important;
-  box-shadow: none !important;
-  background-color: #f9f9f9;
-  cursor: not-allowed;
-}
-
-
-/* Each field wrapper with improved borders */
-.field-wrapper {
-  padding: 8px;
-  border: 1.5px solid #666; /* clearer border */
-  background: #fff;
-  box-sizing: border-box;
-  position: absolute; /* keep absolute */
-  border-radius: 6px;
-  box-shadow: none;
-  z-index: 2; 
-}
-.field-wrapper.no-bottom-border {
-  border-bottom: none !important;
-  box-shadow: none !important;
-}
-
-/* Inputs inside field-wrapper */
-.field-wrapper input[type="text"],
-.field-wrapper input[type="email"],
-.field-wrapper input[type="number"],
-.field-wrapper input[type="tel"],
-.field-wrapper input[type="date"],
-.field-wrapper select,
-.field-wrapper textarea {
-  width: 100%;
-  padding: 8px 10px;
-  border: 1.5px solid #666;
-  border-radius: 6px;
-  font-size: 1rem;
-  background: #fff;
-  box-sizing: border-box;
-  outline-offset: 2px;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
-}
-.field-wrapper svg,
-.field-wrapper i,
-.field-wrapper .mat-icon,
-.field-wrapper img {
-  width: 32px !important;
-  height: 32px !important;
-  font-size: 32px !important;
-  object-fit: contain;
-}
-/* Focus style */
-.field-wrapper input:focus,
-.field-wrapper select:focus,
-.field-wrapper textarea:focus {
-  border-color: #2962ff;
-  box-shadow: 0 0 8px rgba(41, 98, 255, 0.5);
-  outline: none;
-}
-.export-pdf-icons svg,
-.export-pdf-icons i,
-.export-pdf-icons .mat-icon,
-.export-pdf-icons img {
-  width: 100px !important;
-  height: 100px !important;
-  min-width: 100px !important;
-  min-height: 100px !important;
-  font-size: 100px !important;
-  object-fit: contain !important;
-  line-height: 100px !important;
-}
-
-.field-wrapper label {
-  color: #222 !important;        /* Dark text color */
-  background: transparent !important; /* No background */
-  opacity: 1 !important;         /* Fully visible */
-  user-select: text;             /* Allow selection */
-  font-weight: 600;              /* Make label bold */
-  margin-bottom: 4px;
-  display: block;
-}
-.form-page-container {
-  border-top: 2px solid #888;
-  border-left: 2px solid #888;
-  border-right: 2px solid #888;
-  border-bottom: none;  /* Remove bottom border */
-  border-radius: 10px 10px 0 0; /* Rounded corners only top left and right */
   padding: 16px;
-  background-color: #fafafa;
+  background: #f5f6f8;
+}
+
+/* Card shouldn’t constrain width */
+.editor-card{ width: 100%; }
+
+/* Single visible frame lives here */
+.form-export-surface{
   position: relative;
-  min-height: 600px;
-  box-sizing: border-box;
-  margin-bottom: 0 !important;
-    overflow: visible;
-     z-index: 1;
-  
-}
-.field-wrapper.no-bottom-border {
-  border-bottom: none !important;
-  box-shadow: none !important;
-  border-radius: 6px 6px 0 0; /* optional: only round top corners */
-}
-.field-wrapper, 
-.field-wrapper label {
-  opacity: 1 !important;
-  filter: none !important;
-  background-color: transparent !important;
-  color: #222 !important;
-}
-input:focus, textarea:focus {
-  outline: none; /* remove default outline */
-  border-color: #2962ff;
-  box-shadow: 0 0 8px rgba(41, 98, 255, 0.7);
-}
-.floating-save-box {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  z-index: 999;
-  background: #fff;
-  border: 1px solid #ccc;
-  padding: 12px;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.form-action-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  background-color: #f8f9fa;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  margin-bottom: 16px;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.form-action-toolbar input[type="text"] {
-  padding: 6px 10px;
-  border-radius: 4px;
-  border: 1px solid #ccc;
-  min-width: 180px;
-}
-
-.error-message {
-  color: red;
-  font-size: 12px;
-}
-textarea {
-  min-width: 100px;          /* minimum width */
-  min-height: 80px;          /* minimum height */
-  max-width: 600px;          /* maximum width */
-  max-height: 400px;         /* maximum height */
-  width: auto;               /* allow width to adjust */
-  height: auto;              /* allow height to adjust */
-  overflow: auto;            /* show scrollbars if content exceeds max */
-  resize: both;              /* allow user to resize both directions */
-  box-sizing: border-box;    /* include padding/border in width/height */
-  white-space: pre-wrap;     /* preserve whitespace and wrap lines */
-  word-wrap: break-word;     /* break long words */
-}
-/* Allow only vertical resizing */
-.textarea-resizable-vertical {
-  resize: vertical;
-  overflow: auto;
-  min-height: 50px;
   width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
-/* Allow both vertical and horizontal resizing, fully */
-.textarea-resizable-both {
-  resize: both !important;
-  overflow: auto;
-  min-width: 150px;
-  min-height: 60px;
-  max-width: 100%;
-  box-sizing: border-box;
-  width: 300px;
-  height: 150px;
-}
-.form-row, .form-canvas {
-  overflow: visible !important;
-  max-width: none !important;
-}
-.page-container {
-  position: relative; /* so absolute children position relative to page */
-}
-
-.field-wrapper {
-  position: absolute; /* this will be overridden by JS, but good to default */
-  /* width and height will be set dynamically */
-}
-.toolbar {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
-  align-items: center;
-}
-
-/* If both buttons look the same blue, force distinct colors via MDC vars */
-.btn-local {
-  --mdc-filled-button-container-color: #1e88e5; /* blue */
-  --mdc-filled-button-label-text-color: #fff;
-}
-
-.btn-firebase {
-  --mdc-filled-button-container-color: #43a047; /* green */
-  --mdc-filled-button-label-text-color: #fff;
-}
-
-.mat-mdc-button .mat-icon,
-.mat-mdc-unelevated-button .mat-icon,
-.mat-mdc-raised-button .mat-icon,
-.mat-mdc-outlined-button .mat-icon {
-  margin-right: 6px;
-  font-size: 18px;
-  height: 18px;
-  width: 18px;
-  line-height: 18px;
-}
-.forms-list {
-  list-style: none;
-  padding: 0;
+  min-height: calc(100vh - var(--toolbar-h) - 120px);
   margin: 0;
-}
-
-.form-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 0;
-  border-bottom: 1px solid #eee;
-}
-
-.form-row .name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-}
-
-.form-row .row-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-#form-to-export {
   background: #fff;
-  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(0,0,0,.08);
   padding: 16px;
-}
-
-.page-container {
-  border: 1px dashed #e0e0e0;
-  border-radius: 8px;
-  padding: 12px;
-  background: #fafafa;
-  margin-bottom: 16px;
-}
-
-.field-wrapper {
-  box-shadow: 0 0 0 1px #e6e6e6 inset;
-  border-radius: 8px;
-}
-
-.textarea-resizable-both {
-  resize: both;
-   overflow: auto;
-}
-.view-root {
-  display: flex;
-  flex-direction: column;
-  min-height: 100%;
-}
-
-.toolbar {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-}
-
-.toolbar__left {
-  display: flex;
-  align-items: center;
-  gap: .5rem;
-}
-
-.toolbar__title {
-  font-weight: 600;
-}
-
-.toolbar__actions {
-  margin-left: auto;
-  display: flex;
-  gap: .5rem;
-  align-items: center;
-}
-
-.content {
-  padding: 16px;
-  max-width: 1200px;
-  margin: 0 auto;
-  width: 100%;
-}
-
-.card {
-  width: 100%;
-}
-
-.table-wrap {
-  overflow: auto;
-}
-
-table {
-  width: 100%;
-}
-
-.name-cell {
-  display: inline-flex;
-  gap: .5rem;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.name {
-  font-weight: 600;
-}
-
-.actions-col {
-  width: 1%;
-  white-space: nowrap;
-}
-
-.row-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: .5rem;
-}
-
-.empty {
-  padding: 48px 16px;
-  text-align: center;
-  color: #666;
-}
-
-.empty__icon {
-  font-size: 56px;
-  width: 56px;
-  height: 56px;
-  line-height: 56px;
-  display: block;
-  margin: 0 auto 12px;
-  opacity: .6;
-}
-
-.empty__title {
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-
-.empty__subtitle {
-  margin-bottom: 12px;
-}
-
-.empty__actions {
-  display: flex;
-  gap: .5rem;
-  justify-content: center;
-}
-
-/* Editor view */
-.editor-content {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 16px;
-}
-
-.editor-card {
-  overflow: auto;
-}
-
-.form-export-surface {
-  padding: 8px;
-}
-
-.page-container {
-  margin-bottom: 24px;
-}
-
-.page-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.page-title {
-  font-weight: 600;
-}
-
-.page-surface {
-  position: relative;
-  padding: 8px;
-  background: #fafafa;
-  border: 1px solid #e0e0e0;
-}
-
-.field-wrapper {
   box-sizing: border-box;
-  background: #fff;
-  border: 1px solid #e6e6e6;
-  padding: 8px;
-}
-
-.field-label {
-  display: block;
-  margin-bottom: 4px;
-}
-
-.req {
-  color: #e53935;
-}
-
-.w-100 { width: 100%; }
-
-.textarea-resizable-both {
-  resize: both;
   overflow: auto;
-}
-
-.uploaded-img {
-  max-width: 100%;
-  margin-top: 8px;
-  display: block;
-}
-
-.signature-canvas {
-  border: 1px solid #000;
-  touch-action: none;
-  display: block;
-  margin-top: 4px;
-}
-
-/* Name bar */
-.namebar {
-  position: sticky;
-  top: 64px; /* below toolbar */
   z-index: 1;
-  background: #fff;
-  border-radius: 8px;
-  padding: 8px 12px;
-  display: flex;
-  gap: 12px;
-  align-items: center;
 }
 
-.namebar__field {
-  flex: 1;
-  min-width: 260px;
-}
-
-.namebar__actions {
-  display: flex;
-  gap: 8px;
-}
-
-/* Responsive tweaks */
-@media (max-width: 720px) {
-  .toolbar__actions {
-    gap: .25rem;
-  }
-  .row-actions {
-    gap: .25rem;
-  }
-}
-.form-tile {
-  padding: 10px 12px;
-  border-radius: 10px;
-  box-shadow: 0 1px 6px rgba(0,0,0,.06);
-  transition: box-shadow .18s ease, transform .12s ease;
-}
-.form-tile:hover {
-  box-shadow: 0 6px 16px rgba(0,0,0,.12);
-  transform: translateY(-1px);
-}
-
-/* Head row */
-.tile-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-/* Title cluster */
-.tile-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.tile-title mat-icon { color: var(--cf-primary); }
-.tile-title .texts { display: grid; line-height: 1.15; }
-.tile-title .name { font-weight: 600; color: #111827; letter-spacing: .15px; }
-.tile-title .meta { font-size: 12px; color: #6b7280; }
-
-/* Actions cluster */
-.tile-actions { display: inline-flex; align-items: center; gap: 4px; }
-.tile-actions button[mat-icon-button] { width: 36px; height: 36px; line-height: 36px; }
-
-/* Slightly tighter grid gap */
-.forms-grid { gap: 12px; }
-/* ===== Dashboard top bar & action row ===== */
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.top-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px 0;
-}
-
-.top-actions .buttons {
-  display: flex;
-  gap: 12px;
-}
-
-.top-actions .buttons button .mat-icon {
-  margin-right: 6px;
-}
-
-/* Welcome chip on the right */
-.welcome-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  border-radius: 999px;
-  background: #fff3cd;              /* soft amber */
-  color: #8a6d3b;
-  box-shadow: 0 1px 6px rgba(0,0,0,.08);
-  white-space: nowrap;
-}
-
-/* ===== Compact "Select Plants" row ===== */
-.select-plants-row {
-  display: grid;
-  grid-template-columns: 1fr auto;  /* selector grows, buttons hug right */
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.select-plants-row .plant-select {
-  min-width: 280px;
+/* Positioning context ONLY – no frame here (prevents double layout) */
+.page-surface{
+  position: relative;
   width: 100%;
+  min-height: calc(100vh - var(--toolbar-h) - 120px);
+  background: #fff;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  box-sizing: border-box;
+  overflow: visible;
+  z-index: 0;
 }
 
-.select-plants-row .load-buttons {
-  display: inline-flex;
-  gap: 10px;
+/* Absolute fields = exactly where you placed them in Template */
+.form-page-container{
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.field-wrapper{
+  position: absolute !important;
+  padding: 0; border: 0; background: transparent; box-sizing: border-box;
+}
+.field-label{ display:block; margin:0 0 4px; font-weight:600; }
+
+/* Controls fill their rect */
+.field-wrapper input,
+.field-wrapper textarea,
+.field-wrapper select,
+.field-wrapper .mat-mdc-form-field{
+  width: 100%;
+  box-sizing: border-box;
+}
+.field-wrapper .mat-mdc-form-field{ display: block; }
+
+/* Optional: allow textarea resize in editor */
+.editor-content textarea{
+  min-width: 100px; min-height: 80px;
+  width: auto; height: auto; resize: both; overflow: auto;
+  box-sizing: border-box; white-space: pre-wrap; word-wrap: break-word;
+  max-width: none !important; max-height: none !important;
 }
 
-/* Optional: tighten mat-select panel so it’s not too tall */
-.plant-select .mat-mdc-form-field-infix {
-  padding-top: 10px;
-  padding-bottom: 10px;
-}
-/* Title bar like your screenshot */
-.tpl-title { text-align: center; padding: 12px 8px 10px; }
-.tpl-title > span { font-weight: 600; color: #3f51b5; letter-spacing: .3px; }
-.tpl-title::after {
-  content: ""; display: block; height: 2px; background: #3f51b5;
-  width: 52%; margin: 8px auto 0; opacity: .9;
+/* Toolbar button visibility (ensure label shows on primary bar) */
+.editor-toolbar .btn{ color:#fff; }
+.editor-toolbar .btn.mat-mdc-stroked-button:not(:disabled){ border-color: rgba(255,255,255,.5); }
+.editor-toolbar .btn .mdc-button__label{ display:inline-flex; align-items:center; gap:6px; }
+/* default: disable resizing everywhere */
+.field-wrapper textarea,
+.textarea-default {
+  resize: none !important;
 }
 
-/* Row: Templates | search | + */
-.tpl-row {
-  display: flex; align-items: center; gap: 12px;
-  padding: 6px 12px 0;
+/* enable both-way resize ONLY for the Description field */
+.field-wrapper.desc-resize .desc-textarea {
+  resize: both !important;   /* horizontal + vertical */
+  overflow: auto;            /* show scrollbars when smaller than content */
 }
-.tpl-label { font-weight: 600; color: #444; min-width: 92px; }
-.tpl-search { width: 320px; max-width: 45vw; }
-.tpl-plus { color: #e91e63 !important; } /* pink + icon */
 
-/* Compact tiles (keeps your current aesthetic tidy) */
-.form-tile { padding: 10px 12px; }
-.tile-head { display: flex; align-items: center; justify-content: space-between; }
-.tile-title { display: flex; align-items: center; gap: 8px; }
-.tile-title .texts .name { font-weight: 600; }
-.tile-title .texts .meta { font-size: .8rem; color: #777; }
-.tile-actions { display: inline-flex; align-items: center; gap: 6px; }
+/* optional: slightly bigger native handle area on WebKit browsers */
+.field-wrapper.desc-resize .desc-textarea::-webkit-resizer {
+  width: 12px;
+  height: 12px;
+}
+.editor-content .desc-input {
+  resize: both !important;
+  overflow: auto !important;
+  min-width: 140px;
+  min-height: 60px;
+  max-width: none;
+  max-height: none;
+  box-sizing: border-box;
+  display: block;
+  flex: 0 0 auto; /* critical for Chrome inside flex rows */
+}
+.field-wrapper {
+  position: absolute;
+  overflow: auto; /* safe; lets inner controls scroll if smaller than content */
+}
+
+/* faint corner “L” so users know where to grab; doesn't intercept clicks */
+.field-wrapper::after {
+  content: "";
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 12px;
+  height: 12px;
+  border-right: 2px solid #666;
+  border-bottom: 2px solid #666;
+  pointer-events: none;
+}

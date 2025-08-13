@@ -231,16 +231,23 @@
             <div *ngSwitchDefault>Unsupported field type: {{ field.type }}</div>
           </ng-container>
 
-          <!-- Resize handle -->
-          <div class="resize-handle" (mousedown)="startResize($event, field, true, true)"
-               style="position:absolute; width:12px; height:12px; bottom:4px; right:4px; cursor:se-resize; background-color:transparent; border-right:2px solid #666; border-bottom:2px solid #666; box-sizing:border-box; z-index:10;"></div>
+          <div class="rh rh-n"  (mousedown)="startResize($event, field, true,  true, 'n')"></div>
+  <div class="rh rh-s"  (mousedown)="startResize($event, field, true,  true, 's')"></div>
+  <div class="rh rh-e"  (mousedown)="startResize($event, field, true,  true, 'e')"></div>
+  <div class="rh rh-w"  (mousedown)="startResize($event, field, true,  true, 'w')"></div>
 
-          <!-- Delete field -->
-          <button (click)="removeField(currentPage, field); $event.stopPropagation()" class="delete-button" title="Delete field"
-                  style="color:red; font-size:20px; border:none; background:transparent; cursor:pointer; position:absolute; top:4px; right:4px;">
-            &times;
-          </button>
-        </div>
+  <!-- Inner resize handles (corners) -->
+  <div class="rh rh-ne" (mousedown)="startResize($event, field, true,  true, 'ne')"></div>
+  <div class="rh rh-nw" (mousedown)="startResize($event, field, true,  true, 'nw')"></div>
+  <div class="rh rh-se" (mousedown)="startResize($event, field, true,  true, 'se')"></div>
+  <div class="rh rh-sw" (mousedown)="startResize($event, field, true,  true, 'sw')"></div>
+
+  <!-- Delete button (unchanged) -->
+  <button (click)="removeField(currentPage, field); $event.stopPropagation()" class="delete-button" title="Delete field"
+          style="color:red; font-size:20px; border:none; background:transparent; cursor:pointer; position:absolute; top:4px; right:4px;">
+    &times;
+  </button>
+</div>
 
         <!-- Field Config Modal -->
         <div *ngIf="fieldConfigVisible" class="popup-overlay">

@@ -38,6 +38,8 @@ interface FormField {
   position?: { x: number; y: number };
   required?: boolean;
   height?: number;
+    problemItems?: { no: number; text: string }[];
+  problemCounter?: number;
 }
 interface FormPage { fields: FormField[]; }
 
@@ -145,15 +147,9 @@ export class CreateFormComponent implements OnInit, AfterViewInit {
       this.ngAfterViewInit();
     });
   }
-  onAddPlant(): void {
-  // TODO: replace with your real flow (dialog, route, etc.)
-  this.snackBar.open('Add Plant clicked', 'Close', { duration: 2000 });
-}
 
-onAddUser(): void {
-  // TODO: replace with your real flow
-  this.snackBar.open('Add User clicked', 'Close', { duration: 2000 });
-}
+
+
 asKey(id: unknown): string {
   return String(id ?? '');
 }
@@ -163,11 +159,12 @@ getFieldStyle(field: any) {
     return {
       position: 'relative',
       width: field?.width ? `${field.width}px` : '100%',
+      ...(field?.height ? { height: `${field.height}px` } : {}),
       padding: '8px',
       border: '1px solid #ccc',
       background: '#fafafa',
       boxSizing: 'border-box',
-      marginBottom: '1rem'
+      marginBottom: '1rem',
     };
   }
   return {
@@ -175,6 +172,7 @@ getFieldStyle(field: any) {
     left: `${field?.position?.x || 0}px`,
     top: `${field?.position?.y || 0}px`,
     width: `${field?.width || 300}px`,
+    ...(field?.height ? { height: `${field.height}px` } : {}),
     padding: '8px',
     border: '1px solid #ccc',
     background: '#fff',
@@ -300,9 +298,34 @@ onAddTemplate(): void {
   loadFormsFromFirebase(): void {
     this.loadFromFirebase('both');
   }
+getPageHeight(page: { fields: any[] }): number {
+  const MIN = 800;   // baseline height for empty/short pages
+  const PAD = 120;   // breathing room at the bottom
 
+  if (!page?.fields?.length) return MIN;
+
+  const maxY = page.fields.reduce((m, f) => {
+    const y = Number(f?.position?.y ?? 0);
+    const h =
+      Number(f?.height) ||
+      (f?.type === 'signature' ? 150 :
+       f?.type === 'textarea'  ? 120 : 48);
+    return Math.max(m, y + h);
+  }, 0);
+
+  return Math.max(MIN, Math.ceil(maxY + PAD));
+}
   /* ---------------- Opening for edit ---------------- */
+getAdjustedHeight(fieldHeight?: number, min = 40, labelSpace = 22): number | null {
+  if (!fieldHeight) return null;
+  return Math.max(min, fieldHeight - labelSpace);
+}
 
+// signature canvas needs a larger minimum
+getSignatureCanvasHeight(fieldHeight?: number, min = 120, labelSpace = 22): number {
+  if (!fieldHeight) return min;
+  return Math.max(min, fieldHeight - labelSpace);
+}
   openForm(form: SavedForm): void {
     const instance: FilledInstance = {
       instanceId: form.source === 'filled' ? form.formId : null,
@@ -331,7 +354,101 @@ onAddTemplate(): void {
     this.adjustFormContainerHeight();
     setTimeout(() => this.initCanvases(), 0);
   }
+  private ensureProblemInit(field: any) { if (!field.problemItems) field.problemItems = []; }
 
+addProblemItem(field: any) {
+  this.ensureProblemInit(field);
+  field.problemItems.push({ no: field.problemItems.length + 1, text: '' });
+}
+
+updateProblemText(field: any, idx: number, val: string) {
+  if (!field?.problemItems?.[idx]) return;
+  field.problemItems[idx].text = val ?? '';
+}
+
+removeProblemItem(field: any, idx: number) {
+  if (!field?.problemItems) return;
+  field.problemItems.splice(idx, 1);
+  field.problemItems.forEach((it: any, i: number) => it.no = i + 1);
+}
+isDescriptionField(field: any): boolean {
+  if (!field) return false;
+
+  const typeOk = field.type === 'textarea' || field.type === 'description';
+  const label = (field.label || '').toString().trim();
+
+  return typeOk && (
+    /description/i.test(label) ||          // label has “description”
+    field.id === 'description' ||          // id is “description”
+    field.isDescription === true ||        // explicit flag, if present
+    Array.isArray(field.problemItems)      // already has items
+  );
+}
+
+resizingField: FormField | null = null;
+private startX = 0;
+private startY = 0;
+private startW = 0;
+private startH = 0;
+
+startResize(e: MouseEvent, field: FormField) {
+  e.preventDefault();
+  e.stopPropagation();
+  this.resizingField = field;
+  this.startX = e.clientX;
+  this.startY = e.clientY;
+  this.startW = field.width  ?? 240;
+  this.startH = field.height ?? this.getWrapperCurrentHeight(field);
+
+  document.addEventListener('mousemove', this.onResizeMove);
+  document.addEventListener('mouseup', this.stopResize);
+}
+
+onResizeMove = (e: MouseEvent) => {
+  if (!this.resizingField) return;
+  const dx = e.clientX - this.startX;
+  const dy = e.clientY - this.startY;
+
+  // No real limits, keep just a tiny positive min so it doesn't collapse
+  this.resizingField.width  = Math.max(20, this.startW + dx);
+  this.resizingField.height = Math.max(20, this.startH + dy);
+};
+
+stopResize = () => {
+  document.removeEventListener('mousemove', this.onResizeMove);
+  document.removeEventListener('mouseup', this.stopResize);
+  this.resizingField = null;
+};
+
+// Helper: read live wrapper height if none set yet
+private getWrapperCurrentHeight(field: FormField): number {
+  const el = document.querySelector<HTMLElement>(`.field-wrapper[data-id="${field.id}"]`);
+  return el ? el.getBoundingClientRect().height : 120;
+}
+private readonly edgeGrab = 20;
+onWrapperMouseDown(e: MouseEvent, field: FormField) {
+  const el = e.currentTarget as HTMLElement;
+  const rect = el.getBoundingClientRect();
+  const offsetX = e.clientX - rect.left;
+  const offsetY = e.clientY - rect.top;
+
+  // only start resize when grabbing near the right/bottom edges
+  const nearRight  = rect.width  - offsetX <= this.edgeGrab;
+  const nearBottom = rect.height - offsetY <= this.edgeGrab;
+  if (!nearRight && !nearBottom) return; // let normal clicks/drag happen
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  this.resizingField = field;
+  this.startX = e.clientX;
+  this.startY = e.clientY;
+  this.startW = field.width  ?? rect.width;
+  this.startH = field.height ?? rect.height;
+
+  document.addEventListener('mousemove', this.onResizeMove);
+  document.addEventListener('mouseup', this.stopResize);
+}
   closeForm(): void {
     this.showFormEditor = false;
     this.selectedForm = null;
@@ -841,6 +958,7 @@ async onPdfClick(form: SavedForm) {
     this.cdr.detectChanges();
   }
 }
+
 
 /** Export current selectedForm to PDF, upload to Storage, save URL in Firestore, download */
 private async exportToPDFAndUpload(): Promise<void> {

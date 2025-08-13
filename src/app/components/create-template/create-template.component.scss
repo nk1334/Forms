@@ -858,3 +858,23 @@ textarea.form-input {
   min-width: 150px;
 }
 .desc-free { max-width: none !important; }
+.form-row { position: absolute; box-sizing: border-box; }
+.rh { position: absolute; pointer-events: auto; }
+
+/* Edge bars inside the field */
+.rh-n, .rh-s { left: 6px; right: 6px; height: 6px; }
+.rh-e, .rh-w { top: 6px; bottom: 6px; width: 6px; }
+
+.rh-n { top: 2px;    cursor: ns-resize; }
+.rh-s { bottom: 2px; cursor: ns-resize; }
+.rh-e { right: 2px;  cursor: ew-resize; }
+.rh-w { left: 2px;   cursor: ew-resize; }
+
+/* Corner squares */
+.rh-ne, .rh-nw, .rh-se, .rh-sw {
+  width: 10px; height: 10px; background: rgba(0,0,0,0.25);
+}
+.rh-ne { top: 2px;    right: 2px;  cursor: nesw-resize; }
+.rh-nw { top: 2px;    left: 2px;   cursor: nwse-resize; }
+.rh-se { bottom: 2px; right: 2px;  cursor: nwse-resize; }
+.rh-sw { bottom: 2px; left: 2px;   cursor: nesw-resize; }

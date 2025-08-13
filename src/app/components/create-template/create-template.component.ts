@@ -478,28 +478,38 @@ onEmptyLabelInput(event: Event, field: any): void {
       });
     });
   }
-
 resizingField: any = null;
 startX = 0;
 startY = 0;
 startWidth = 0;
 startHeight = 0;
+resizeEdge: 'n'|'s'|'e'|'w'|'ne'|'nw'|'se'|'sw'|null = null;
+startLeft = 0;
+startTop = 0;
+private readonly MIN_W = 10;
+private readonly MIN_H = 10;
 
-startResize(event: MouseEvent, field: any, isNearRight: boolean, isNearBottom: boolean) {
+startResize(
+  event: MouseEvent,
+  field: any,
+  isNearRight: boolean,
+  isNearBottom: boolean,
+  edge?: 'n'|'s'|'e'|'w'|'ne'|'nw'|'se'|'sw'   // NEW optional arg
+) {
   event.stopPropagation();
   event.preventDefault();
 
   this.resizingField = field;
+  this.resizeEdge = edge ?? (isNearRight || isNearBottom ? 'se' : 'se'); // default to SE if old call
   this.startX = event.clientX;
   this.startY = event.clientY;
   this.startWidth = field.width || 150;
   this.startHeight = field.height || 60;
+  this.startLeft = field.position?.x ?? 0;
+  this.startTop = field.position?.y ?? 0;
 
-  document.addEventListener('mousemove', this.onResizeMove);
-  document.addEventListener('mouseup', this.stopResize);
-}
-isDescFree(field: FormField): boolean {
-  return field.type === 'textarea' && (field.id === 'description' || field.label === 'Description Field');
+  document.addEventListener('mousemove', this.onResizeMove, true);
+  document.addEventListener('mouseup', this.stopResize, true);
 }
 onResizeMove = (event: MouseEvent) => {
   if (!this.resizingField) return;
@@ -507,15 +517,40 @@ onResizeMove = (event: MouseEvent) => {
   const dx = event.clientX - this.startX;
   const dy = event.clientY - this.startY;
 
-  this.resizingField.width = Math.max(this.startWidth + dx, 1);
-  this.resizingField.height = Math.max(this.startHeight + dy, 1);
+ const edge = this.resizeEdge ?? 'se';
+
+  let newW = this.startWidth;
+  let newH = this.startHeight;
+  let newLeft = this.startLeft;
+  let newTop = this.startTop;
+
+  const fromN = edge.includes('n');
+  const fromS = edge.includes('s');
+  const fromW = edge.includes('w');
+  const fromE = edge.includes('e');
+
+  // Horizontal
+  if (fromE) newW = this.startWidth + dx;
+  if (fromW) { newW = this.startWidth - dx; newLeft = this.startLeft + dx; }
+
+  // Vertical
+  if (fromS) newH = this.startHeight + dy;
+  if (fromN) { newH = this.startHeight - dy; newTop = this.startTop + dy; }
+
+  // Clamp to small positive sizes so handles remain usable
+  newW = Math.max(this.MIN_W, Math.round(newW));
+  newH = Math.max(this.MIN_H, Math.round(newH));
+
+  this.resizingField.width = newW;
+  this.resizingField.height = newH;
+  this.resizingField.position = { x: Math.round(newLeft), y: Math.round(newTop) };
 };
 
 stopResize = (event: MouseEvent) => {
-  document.removeEventListener('mousemove', this.onResizeMove);
-  document.removeEventListener('mouseup', this.stopResize);
-
+  document.removeEventListener('mousemove', this.onResizeMove, true);
+  document.removeEventListener('mouseup', this.stopResize, true);
   this.resizingField = null;
+  this.resizeEdge = null;
 };
 
   loadFormById(formId: string): void {

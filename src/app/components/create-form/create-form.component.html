@@ -5,19 +5,22 @@
 </mat-toolbar>
 
 <!-- ===== LIST VIEW ===== -->
-<div *ngIf="!showFormEditor" class="templates-container">
+<div *ngIf="!showFormEditor" class="templates-container page">
 
-  <div class="actions-row">
-    <button mat-stroked-button color="primary" (click)="loadForms()">
-      <mat-icon>folder</mat-icon>
-      Load Local
-    </button>
-    <button mat-raised-button color="accent" (click)="loadFormsFromFirebase()">
-      <mat-icon>cloud_download</mat-icon>
-      Load Firebase
-    </button>
+  <div class="page-header-row">
+    <h2 class="page-title">Forms</h2>
+
+    <div class="actions-row">
+      <button mat-flat-button color="primary" (click)="loadForms()">
+        <mat-icon>folder</mat-icon>
+        Load Local
+      </button>
+      <button mat-flat-button color="accent" (click)="loadFormsFromFirebase()">
+        <mat-icon>cloud_download</mat-icon>
+        Load Firebase
+      </button>
+    </div>
   </div>
-
   <!-- Empty state -->
   <mat-card *ngIf="!forms || !forms.length" class="section-card empty-card">
     <mat-card-content class="empty">
@@ -31,22 +34,6 @@
 <mat-card *ngIf="forms && forms.length" class="section-card templates-block">
 
   <!-- centered title with thin underline -->
-<div class="tpl-row">
-  <span class="tpl-label">Templates</span>
-
-  <mat-form-field appearance="outline" class="tpl-search">
-    <mat-label>Search templates</mat-label>
-    <!-- no ngModel; purely local -->
-    <input #tplSearch matInput placeholder="Search templates" />
-    <button *ngIf="tplSearch.value" mat-icon-button matSuffix (click)="tplSearch.value=''">
-      <mat-icon>close</mat-icon>
-    </button>
-  </mat-form-field>
-
-  <button mat-icon-button class="tpl-plus" (click)="onAddTemplate()" aria-label="Add Template">
-    <mat-icon>add</mat-icon>
-  </button>
-</div>
 
   <mat-card-content>
     <div class="forms-grid">
@@ -86,12 +73,7 @@
 
   <!-- FILLED FORMS -->
   <mat-card *ngIf="forms && forms.length" class="section-card">
-    <mat-card-header>
-      <mat-card-title>
-        <mat-icon>assignment_turned_in</mat-icon>
-        <span>Filled Forms</span>
-      </mat-card-title>
-    </mat-card-header>
+   
 
     <mat-card-content>
       <div class="forms-grid">
@@ -184,9 +166,10 @@
   </ng-template>
 
   <!-- FORM CANVAS -->
+   <div class="editor-scroll">
   <mat-card class="editor-card">
     <mat-card-content>
-
+     
       <canvas #pdfCanvas style="display:none"></canvas>
 
       <div id="form-to-export" class="form-export-surface">
@@ -203,9 +186,10 @@
                 <!-- FIELD -->
                 <div *ngFor="let field of page.fields"
                      class="field-wrapper"
+                     
                      [attr.data-id]="field.id"
-                     [ngStyle]="getFieldStyle(field)">
-
+                     [ngStyle]="getFieldStyle(field)"
+                      (mousedown)="onWrapperMouseDown($event, field)">
                   <label class="field-label" [attr.for]="field.id" [attr.id]="field.id + '__label'">
                     {{ field.label }} <span *ngIf="field.required" class="req">*</span>
                   </label>
@@ -219,7 +203,7 @@
                       [id]="field.id"
                      [required]="!!field.required"
                       #inputRef="ngModel"
-                      class="w-100" />
+                     style="width:100%" />
                     <mat-error *ngIf="inputRef.invalid && (inputRef.dirty || inputRef.touched)">
                       This field is required.
                     </mat-error>
@@ -237,23 +221,61 @@
                   </ng-container>
 
                   <!-- Textarea -->
-                  <ng-container *ngIf="field.type === 'textarea'">
-                    <textarea
-                      #autoGrowTextarea
-                      [(ngModel)]="field.value"
-                      [name]="field.id"
-                      [id]="field.id"
-                        [required]="!!field.required"
-                      #textareaRef="ngModel"
-                      class="textarea-resizable-both"
-                      [attr.aria-describedby]="field.id + '-error'"
-                      [placeholder]="field.placeholder || ''"
-                      style="min-height: 60px"></textarea>
-                    <mat-error *ngIf="textareaRef.invalid && (textareaRef.dirty || textareaRef.touched)"
-                               [id]="field.id + '-error'">
-                      This field is required.
-                    </mat-error>
-                  </ng-container>
+              <!-- Textarea (normal) + Description (numbered) -->
+<ng-container *ngIf="field.type === 'textarea' || field.type === 'description'">
+  <!-- Description mode when it's the Description Field -->
+  <ng-container *ngIf="isDescriptionField(field); else normalTextarea">
+    <div style="display:flex; justify-content:flex-end; margin-bottom:6px;">
+      <button mat-stroked-button color="primary" type="button"
+              (click)="addProblemItem(field)">
+        Add problem
+      </button>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:6px;">
+      <div *ngFor="let item of (field.problemItems || []); let i = index"
+           style="display:flex; align-items:center; gap:8px;">
+        <span style="width:24px; text-align:right;">{{ item.no }}.</span>
+
+        <textarea
+  class="desc-input"
+  [ngModel]="item.text"
+  (ngModelChange)="updateProblemText(field, i, $event)"
+  placeholder="Write problem description..."
+  style="
+    flex: 0 0 auto;         /* <-- was flex:1; this enables the resize handle */
+    display: block;         
+    min-width: 140px;
+    min-height: 60px;
+    max-width: none;
+    max-height: none;
+    padding: 4px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    resize: both;           /* both directions */
+    overflow: auto;         /* required for resize handle */
+  "
+></textarea>
+
+        <button mat-icon-button type="button"
+                (click)="removeProblemItem(field, i)" aria-label="Remove">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+    </div>
+  </ng-container>
+
+  <!-- Normal textarea fallback -->
+  <ng-template #normalTextarea>
+    <textarea
+      [(ngModel)]="field.value"
+      [name]="field.id"
+      [id]="field.id"
+      class="textarea-resizable-both"
+      [placeholder]="field.placeholder || ''"
+      style="min-height:60px; resize:both; overflow:auto;"></textarea>
+  </ng-template>
+</ng-container>
 
                   <!-- Select -->
                   <ng-container *ngIf="field.type === 'branch' && field.options">
@@ -315,10 +337,12 @@
                       (pointerup)="stopDrawing($event, field.id)"
                       (pointerleave)="stopDrawing($event, field.id)">
                     </canvas>
+
                     <button mat-stroked-button type="button" (click)="clearSignatureCanvas(field.id)">
                       Clear Signature
                     </button>
                   </div>
+                  
 
                 </div>
                 <!-- /FIELD -->
@@ -331,4 +355,5 @@
       </div>
     </mat-card-content>
   </mat-card>
+</div>
 </div>
