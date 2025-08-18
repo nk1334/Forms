@@ -30,50 +30,49 @@
     </mat-card-content>
   </mat-card>
 
-<!-- TEMPLATES -->
-<mat-card *ngIf="forms && forms.length" class="section-card templates-block">
 
-  <!-- centered title with thin underline -->
+<!-- ===== LIST: FILLED ===== -->
+<mat-card *ngIf="forms?.length" class="section-card">
+  <mat-card-header>
+    <mat-card-title>Filled Forms</mat-card-title>
+  </mat-card-header>
 
   <mat-card-content>
-    <div class="forms-grid">
-      <ng-container *ngFor="let form of forms">
-        <mat-card class="form-tile" *ngIf="form.source === 'template'">
-          <div class="tile-head">
-            <div class="tile-title">
-              <mat-icon>description</mat-icon>
-              <div class="texts">
-                <div class="name">{{ form.formName || 'Untitled Template' }}</div>
-                <div class="meta">Template</div>
-              </div>
-            </div>
-
-            <div class="tile-actions">
-              <button mat-icon-button (click)="openForm(form)" aria-label="Fill or Edit">
-                <mat-icon>edit</mat-icon>
-              </button>
-
-              <button
-                mat-icon-button
-                (click)="onPdfClick(form)"
-               [disabled]="downloading.has(asKey(form.formId))">
-                <mat-icon>download</mat-icon>
-              </button>
-
-              <button mat-icon-button color="warn" (click)="deleteForm(form)" aria-label="Delete">
-                <mat-icon>delete</mat-icon>
-              </button>
-            </div>
+    <ul class="forms-list">
+      <li class="form-row" *ngFor="let form of forms" [hidden]="form.source !== 'filled'">
+        <div class="left">
+          <mat-icon class="doc filled">assignment</mat-icon>
+          <div class="meta">
+            <div class="name" [title]="form.formName">{{ form.formName || 'Untitled Filled Form' }}</div>
+            <div class="sub">Filled</div>
           </div>
-        </mat-card>
-      </ng-container>
-    </div>
+        </div>
+
+        <div class="actions">
+          <button mat-icon-button matTooltip="Open" aria-label="Open" (click)="openForm(form)">
+            <mat-icon>edit</mat-icon>
+          </button>
+
+          <button
+            mat-icon-button
+            matTooltip="Download"
+            aria-label="Download"
+              (click)="onClickDownloadIcon(form)"
+           [disabled]="downloading.has(asKey(form.formId))">
+            <mat-icon>download</mat-icon>
+          </button>
+
+          <button mat-icon-button color="warn" matTooltip="Delete" aria-label="Delete" (click)="deleteForm(form)">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </div>
+      </li>
+    </ul>
   </mat-card-content>
 </mat-card>
-
   <!-- FILLED FORMS -->
   <mat-card *ngIf="forms && forms.length" class="section-card">
-   
+
 
     <mat-card-content>
       <div class="forms-grid">
@@ -93,10 +92,7 @@
                   <mat-icon>edit</mat-icon>
                 </button>
 
-                <button
-                  mat-icon-button
-                  (click)="onPdfClick(form)"
-                  [disabled]="downloading.has(asKey(form.formId))">
+                <button mat-icon-button (click)="onClickDownloadIcon(form)" [disabled]="downloading.has(asKey(form.formId))">
                   <mat-icon>download</mat-icon>
                 </button>
 
@@ -121,10 +117,9 @@
     </button>
     <span class="toolbar-title">Fill/Edit: {{ selectedForm.formName }}</span>
     <span class="spacer"></span>
-    <button mat-raised-button color="accent" (click)="exportToPDF()">
-      <mat-icon>picture_as_pdf</mat-icon>
-      Download PDF
-    </button>
+   <button mat-raised-button color="accent" (click)="downloadFilledFormAsPDF()">
+  <mat-icon>picture_as_pdf</mat-icon> Download PDF
+</button>
   </mat-toolbar>
 
   <!-- Inline naming / save bar -->
@@ -166,83 +161,65 @@
   </ng-template>
 
   <!-- FORM CANVAS -->
-   <div class="editor-scroll">
-  <mat-card class="editor-card">
-    <mat-card-content>
-     
-      <canvas #pdfCanvas style="display:none"></canvas>
+  <div class="editor-scroll">
+    <mat-card class="editor-card">
+      <mat-card-content>
 
-      <div id="form-to-export" class="form-export-surface">
-        <form id="dynamicForm" #formRef="ngForm" novalidate>
+        <canvas #pdfCanvas style="display:none"></canvas>
 
-          <div *ngFor="let page of selectedForm.formPages; let p = index" class="page-container">
-            <div class="page-header">
-              <span class="page-title">Page {{ p + 1 }}</span>
-            </div>
+        <div id="form-to-export" class="form-export-surface">
+          <form id="dynamicForm" #formRef="ngForm" novalidate>
 
-            <div class="page-surface" style="position: relative" [style.minHeight.px]="containerHeight">
-              <div class="form-page-container">
+            <div *ngFor="let page of selectedForm.formPages; let p = index" class="page-container">
+              <div class="page-header">
+                <span class="page-title">Page {{ p + 1 }}</span>
+              </div>
 
-                <!-- FIELD -->
-                <div *ngFor="let field of page.fields"
-                     class="field-wrapper"
-                     
-                     [attr.data-id]="field.id"
-                     [ngStyle]="getFieldStyle(field)"
-                      (mousedown)="onWrapperMouseDown($event, field)">
-                  <label class="field-label" [attr.for]="field.id" [attr.id]="field.id + '__label'">
-                    {{ field.label }} <span *ngIf="field.required" class="req">*</span>
-                  </label>
+              <div class="page-surface" style="position: relative" [style.minHeight.px]="getPageHeight(page)">
+                <div class="form-page-container">
 
-                  <!-- Text-like inputs (no array.includes) -->
-                  <ng-container *ngIf="field.type === 'text' || field.type === 'email' || field.type === 'number' || field.type === 'tel' || field.type === 'date' || !field.type">
-                    <input
-                      [type]="field.type || 'text'"
-                      [(ngModel)]="field.value"
-                      [name]="field.id"
-                      [id]="field.id"
-                     [required]="!!field.required"
-                      #inputRef="ngModel"
-                     style="width:100%" />
-                    <mat-error *ngIf="inputRef.invalid && (inputRef.dirty || inputRef.touched)">
-                      This field is required.
-                    </mat-error>
-                  </ng-container>
+                  <!-- FIELD -->
+                  <div *ngFor="let field of page.fields" class="field-wrapper" [attr.data-id]="field.id"
+                    [ngStyle]="getFieldStyle(field)" (mousedown)="onWrapperMouseDown($event, field)">
+                    <label class="field-label" [attr.for]="field.id" [attr.id]="field.id + '__label'">
+                      {{ field.label }} <span *ngIf="field.required" class="req">*</span>
+                    </label>
 
-                  <!-- Project Title -->
-                  <ng-container *ngIf="field.type === 'project-title'">
-                    <input type="text"
-                           [(ngModel)]="field.value"
-                           [name]="field.id"
-                           [id]="field.id"
-                           placeholder="Enter project name"
-                           required
-                           class="w-100" />
-                  </ng-container>
+                    <!-- Text-like inputs (no array.includes) -->
+                    <ng-container
+                      *ngIf="field.type === 'text' || field.type === 'email' || field.type === 'number' || field.type === 'tel' || field.type === 'date' || !field.type">
+                      <input [type]="field.type || 'text'" [(ngModel)]="field.value" [name]="field.id" [id]="field.id"
+                        [required]="!!field.required" #inputRef="ngModel" style="width:100%" />
+                      <mat-error *ngIf="inputRef.invalid && (inputRef.dirty || inputRef.touched)">
+                        This field is required.
+                      </mat-error>
+                    </ng-container>
 
-                  <!-- Textarea -->
-              <!-- Textarea (normal) + Description (numbered) -->
-<ng-container *ngIf="field.type === 'textarea' || field.type === 'description'">
-  <!-- Description mode when it's the Description Field -->
-  <ng-container *ngIf="isDescriptionField(field); else normalTextarea">
-    <div style="display:flex; justify-content:flex-end; margin-bottom:6px;">
-      <button mat-stroked-button color="primary" type="button"
-              (click)="addProblemItem(field)">
-        Add problem
-      </button>
-    </div>
+                    <!-- Project Title -->
+                    <ng-container *ngIf="field.type === 'project-title'">
+                      <input type="text" [(ngModel)]="field.value" [name]="field.id" [id]="field.id"
+                        placeholder="Enter project name" required class="w-100" />
+                    </ng-container>
 
-    <div style="display:flex; flex-direction:column; gap:6px;">
-      <div *ngFor="let item of (field.problemItems || []); let i = index"
-           style="display:flex; align-items:center; gap:8px;">
-        <span style="width:24px; text-align:right;">{{ item.no }}.</span>
+                    <!-- Textarea -->
+                    <!-- Textarea (normal) + Description (numbered) -->
+                    <ng-container *ngIf="field.type === 'textarea' || field.type === 'description'">
+                      <!-- Description mode when it's the Description Field -->
+                      <ng-container *ngIf="isDescriptionField(field); else normalTextarea">
+                        <div style="display:flex; justify-content:flex-end; margin-bottom:6px;">
+                          <button mat-stroked-button color="primary" type="button" (click)="addProblemItem(field)">
+                            Add problem
+                          </button>
+                        </div>
 
-        <textarea
-  class="desc-input"
-  [ngModel]="item.text"
-  (ngModelChange)="updateProblemText(field, i, $event)"
-  placeholder="Write problem description..."
-  style="
+                        <div style="display:flex; flex-direction:column; gap:6px;">
+                          <div *ngFor="let item of (field.problemItems || []); let i = index"
+                            style="display:flex; align-items:center; gap:8px;">
+                            <span style="width:24px; text-align:right;">{{ item.no }}.</span>
+
+                            <textarea class="desc-input" [ngModel]="item.text"
+                              (ngModelChange)="updateProblemText(field, i, $event)"
+                              [ngModelOptions]="{ standalone: true }" placeholder="Write problem description..." style="
     flex: 0 0 auto;         /* <-- was flex:1; this enables the resize handle */
     display: block;         
     min-width: 140px;
@@ -254,106 +231,83 @@
     border-radius: 4px;
     resize: both;           /* both directions */
     overflow: auto;         /* required for resize handle */
-  "
-></textarea>
+  "></textarea>
 
-        <button mat-icon-button type="button"
-                (click)="removeProblemItem(field, i)" aria-label="Remove">
-          <mat-icon>close</mat-icon>
-        </button>
-      </div>
-    </div>
-  </ng-container>
+                            <button mat-icon-button type="button" (click)="removeProblemItem(field, i)"
+                              aria-label="Remove">
+                              <mat-icon>close</mat-icon>
+                            </button>
+                          </div>
+                        </div>
+                      </ng-container>
 
-  <!-- Normal textarea fallback -->
-  <ng-template #normalTextarea>
-    <textarea
-      [(ngModel)]="field.value"
-      [name]="field.id"
-      [id]="field.id"
-      class="textarea-resizable-both"
-      [placeholder]="field.placeholder || ''"
-      style="min-height:60px; resize:both; overflow:auto;"></textarea>
-  </ng-template>
-</ng-container>
+                      <!-- Normal textarea fallback -->
+                      <ng-template #normalTextarea>
+                        <textarea [(ngModel)]="field.value" [name]="field.id" [id]="field.id"
+                          class="textarea-resizable-both" [placeholder]="field.placeholder || ''"
+                          style="min-height:60px; resize:both; overflow:auto;"></textarea>
+                      </ng-template>
+                    </ng-container>
 
-                  <!-- Select -->
-                  <ng-container *ngIf="field.type === 'branch' && field.options">
-                    <mat-form-field appearance="fill" class="w-100">
-                      <mat-label>Select</mat-label>
-                      <mat-select
-                        [(ngModel)]="field.value"
-                        [name]="field.id"
-                        [id]="field.id"
-                        [required]="!!field.required"
-                        #selectRef="ngModel">
-                        <mat-option [value]="''">-- Select --</mat-option>
-                        <mat-option *ngFor="let opt of field.options" [value]="opt.value">
-                          {{ opt.label }}
-                        </mat-option>
-                      </mat-select>
-                      <mat-error *ngIf="selectRef.invalid && (selectRef.dirty || selectRef.touched)">
-                        This field is required.
-                      </mat-error>
-                    </mat-form-field>
-                  </ng-container>
+                    <!-- Select -->
+                    <ng-container *ngIf="field.type === 'branch' && field.options">
+                      <mat-form-field appearance="fill" class="w-100">
+                        <mat-label>Select</mat-label>
+                        <mat-select [(ngModel)]="field.value" [name]="field.id" [id]="field.id"
+                          [required]="!!field.required" #selectRef="ngModel">
+                          <mat-option [value]="''">-- Select --</mat-option>
+                          <mat-option *ngFor="let opt of field.options" [value]="opt.value">
+                            {{ opt.label }}
+                          </mat-option>
+                        </mat-select>
+                        <mat-error *ngIf="selectRef.invalid && (selectRef.dirty || selectRef.touched)">
+                          This field is required.
+                        </mat-error>
+                      </mat-form-field>
+                    </ng-container>
 
-                  <!-- Radio -->
-                  <div *ngIf="field.type === 'radio' && field.options"
-                       class="radio-group"
-                       role="radiogroup"
-                       [attr.aria-labelledby]="field.id + '__label'">
+                    <!-- Radio -->
+                    <div *ngIf="field.type === 'radio' && field.options" class="radio-group" role="radiogroup"
+                      [attr.aria-labelledby]="field.id + '__label'">
 
-                    <label *ngFor="let opt of field.options; let i = index"
-                           class="radio-option"
-                           [attr.for]="field.id + '_opt_' + i">
-                      <input
-                        type="radio"
-                        [id]="field.id + '_opt_' + i"
-                        [name]="field.id"
-                        [value]="opt.value"
-                        [(ngModel)]="field.value"
-                       [required]="!!field.required">
-                      {{ opt.label }}
-                    </label>
+                      <label *ngFor="let opt of field.options; let i = index" class="radio-option"
+                        [attr.for]="field.id + '_opt_' + i">
+                        <input type="radio" [id]="field.id + '_opt_' + i" [name]="field.id" [value]="opt.value"
+                          [(ngModel)]="field.value" [required]="!!field.required">
+                        {{ opt.label }}
+                      </label>
+                    </div>
+
+                    <!-- File -->
+                    <ng-container *ngIf="field.type === 'file'">
+                      <input type="file" accept="image/*" (change)="onFileSelected($event, field)" />
+                      <img *ngIf="field.value" [src]="field.value" alt="Uploaded photo" class="uploaded-img" />
+                    </ng-container>
+
+                    <!-- Signature -->
+                    <div *ngIf="field.type === 'signature'">
+                      <canvas #canvas [attr.data-id]="field.id" width="400" height="150" class="signature-canvas"
+                        (pointerdown)="startDrawing($event, field.id)" (pointermove)="draw($event, field.id)"
+                        (pointerup)="stopDrawing($event, field.id)" (pointerleave)="stopDrawing($event, field.id)">
+                      </canvas>
+                    
+<button mat-stroked-button type="button" data-nonprint (click)="clearSignatureCanvas(field.id)">
+  Clear Signature
+</button>
+                    
+                    </div>
+
+
                   </div>
-
-                  <!-- File -->
-                  <ng-container *ngIf="field.type === 'file'">
-                    <input type="file" accept="image/*" (change)="onFileSelected($event, field)" />
-                    <img *ngIf="field.value" [src]="field.value" alt="Uploaded photo" class="uploaded-img" />
-                  </ng-container>
-
-                  <!-- Signature -->
-                  <div *ngIf="field.type === 'signature'">
-                    <canvas
-                      #canvas
-                      [attr.data-id]="field.id"
-                      width="400"
-                      height="150"
-                      class="signature-canvas"
-                      (pointerdown)="startDrawing($event, field.id)"
-                      (pointermove)="draw($event, field.id)"
-                      (pointerup)="stopDrawing($event, field.id)"
-                      (pointerleave)="stopDrawing($event, field.id)">
-                    </canvas>
-
-                    <button mat-stroked-button type="button" (click)="clearSignatureCanvas(field.id)">
-                      Clear Signature
-                    </button>
-                  </div>
-                  
+                  <!-- /FIELD -->
 
                 </div>
-                <!-- /FIELD -->
-
               </div>
             </div>
-          </div>
 
-        </form>
-      </div>
-    </mat-card-content>
-  </mat-card>
-</div>
+          </form>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
 </div>

@@ -22,6 +22,7 @@ export interface SavedForm {
   formPages: any[]; 
    source?: 'template' | 'filled';
   pdfUrl?: string | null;
+  firebaseId?: string;
  
 }
 
@@ -64,6 +65,7 @@ async uploadPdfBlob(
   return await getDownloadURL(storageRef);
 }
 
+
 async attachPdfUrl(
   kind: 'filled' | 'template',
   id: string,
@@ -88,6 +90,16 @@ async attachPdfUrl(
       updatedAt: serverTimestamp(),
     });
   }
+  async fetchPdfBlob(form: { pdfUrl?: string | null }): Promise<Blob | null> {
+  try {
+    if (!form?.pdfUrl) return null;
+    const res = await fetch(form.pdfUrl, { mode: 'cors' });
+    if (!res.ok) return null;
+    return await res.blob();
+  } catch {
+    return null;
+  }
+}
 
   /** Update a template’s name/layout */
   async updateFormTemplate(templateId: string, data: { formName?: string; formPages?: any[] }) {
@@ -111,20 +123,27 @@ async attachPdfUrl(
     const formPages = data.formPages ?? (data.fields ? [{ fields: data.fields }] : []);
     return { formId: snap.id, formName, formPages };
   }
+  
 
   /** List templates (normalized) */
-  async getFormTemplates(): Promise<SavedForm[]> {
-    const colRef = collection(this.afs, TEMPLATES);
-    const snap = await getDocs(query(colRef, orderBy('createdAt', 'desc')));
-    return snap.docs.map((d) => {
-      const data: any = d.data();
-      const formName = data.formName ?? data.templateName ?? '(Untitled)';
-      const formPages =
-        data.formPages ??
-        (data.fields ? [{ fields: data.fields }] : []); // normalize legacy
-    return { formId: d.id, formName, formPages, pdfUrl: data.pdfUrl ?? null };
-    });
-  }
+async getFormTemplates(): Promise<SavedForm[]> {
+  const colRef = collection(this.afs, TEMPLATES);
+  const snap = await getDocs(query(colRef, orderBy('createdAt', 'desc')));
+  return snap.docs.map((d) => {
+    const data: any = d.data();
+    const formName = data.formName ?? data.templateName ?? '(Untitled)';
+    const formPages =
+      data.formPages ??
+      (data.fields ? [{ fields: data.fields }] : []);
+    return {
+      formId: d.id,
+      firebaseId: d.id,           // 👈 important for de-dupe
+      formName,
+      formPages,
+      pdfUrl: data.pdfUrl ?? null
+    };
+  });
+}
 
   // ====== FILLED FORMS (FULL SNAPSHOT: LAYOUT + VALUES) ==============
 
@@ -168,6 +187,10 @@ async attachPdfUrl(
     const ref = doc(this.afs, FILLED, formId);
     await deleteDoc(ref);
   }
+async deleteFormTemplate(id: string): Promise<void> {
+  const refDoc = doc(this.afs, TEMPLATES, id);
+  await deleteDoc(refDoc);
+}
 
   /** Get a single FILLED instance by id (normalized) */
   async getFilledFormById(formId: string): Promise<SavedForm | null> {

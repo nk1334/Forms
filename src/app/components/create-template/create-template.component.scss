@@ -202,6 +202,13 @@
   justify-content: space-between; /* or flex-start if you want delete button elsewhere */
 
 }
+/* Ensure positioned surface is a containing block */
+.page-surface,
+.form-page-container,
+.page-container {
+  position: relative;
+  background: #fff;
+}
 
 
 .field-textarea {

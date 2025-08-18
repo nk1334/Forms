@@ -5,28 +5,51 @@
     <h2>Form Builder</h2>
     <div class="top-actions">
       <button mat-raised-button color="primary" (click)="backToDashboard()">Back to Dashboard</button>
-      <button mat-raised-button color="primary" (click)="saveForm()">Save Form</button>
+      <button mat-raised-button color="primary" (click)="saveForm()">Save </button>
+  <button mat-raised-button color="primary" (click)="openNewTemplate()">Template</button>
       <button mat-raised-button color="primary" (click)="exportToPDF()">Save as PDF</button>
-      <button mat-raised-button color="accent" (click)="loadSavedFormsList()">Load Saved Forms</button>
-      <button mat-raised-button color="accent" (click)="saveFilledForm()">Save Filled Form</button>
+      <button mat-raised-button color="accent" (click)="loadSavedFormsList()">Load Saved Templates</button>
+   <button mat-raised-button color="accent"
+        (click)="saveFilledForm()"
+        [disabled]="hasRequiredMissing()">
+  Save Filled Form
+</button>
     </div>
   </div>
 
   <!-- Saved Forms List -->
   <div *ngIf="formListVisible" class="saved-forms-list">
+    <div class="saved-forms-header" style="display:flex;align-items:center;gap:12px"></div>
     <h2>Saved Forms</h2>
-    <ul>
-      <li *ngFor="let form of savedForms">
-        <strong>{{ form.formName }}</strong>
-        <button mat-raised-button color="primary" (click)="loadFormById(form.formId)">Edit</button>
-      </li>
-    </ul>
-    <button mat-button color="warn" (click)="formListVisible = false; formBuilderVisible = true;">Back to Form Builder</button>
-  </div>
+    <button
+    mat-raised-button
+    color="warn"
+    (click)="clearAllSavedForms()"
+    [disabled]="isClearing || !savedForms.length"
+    aria-label="Clear all saved forms">
+    {{ isClearing ? 'Clearing…' : 'Clear All' }}
+  </button>
+
+
+<ul>
+  <li *ngFor="let f of savedForms; trackBy: trackBySavedForm">
+    <span>{{ f.formName }}</span>
+    <button mat-raised-button color="primary" (click)="openForm(f)">Edit</button>
+  </li>
+</ul>
+
+ <button mat-button color="primary"
+          (click)="formListVisible=false; formBuilderVisible=true">
+    Back to Form Builder
+  </button>
+</div>
+
+ 
 
   <!-- Form Builder -->
-  <div *ngIf="formBuilderVisible" class="form-builder">
-    <div class="main-content" cdkDropListGroup style="display:flex; width:100%; height:calc(100vh - 60px); gap:16px; box-sizing:border-box;">
+  <div *ngIf="formBuilderVisible" class="form-builder"
+   style="display:flex; flex-direction:column; height:100vh; overflow:hidden;">
+    <div class="main-content" cdkDropListGroup style="display:flex;align-items:stretch; width:100%; gap:16px; box-sizing:border-box;">
 
       <!-- Field Palette -->
       <div class="field-palette" cdkDropList id="fieldPalette"
@@ -52,7 +75,11 @@
            (cdkDropListDropped)="onDrop($event)"
            [cdkDropListConnectedTo]="['fieldPalette']"
            [cdkDropListData]="formPages[currentPage].fields"
-           style="position:relative; min-height:500px; border:1px solid #ddd; padding:8px; flex:1; box-sizing:border-box;">
+        style="position:relative; flex:1; height:100%; min-height:0; border:1px solid #ddd; padding:8px;
+            padding-bottom:240px; /* 👈 real space */
+            box-sizing:border-box; overflow:auto;
+            scroll-padding-bottom:240px;">
+         
 
         <!-- Render Fields -->
         <div *ngFor="let field of formPages[currentPage].fields; let i = index; trackBy: trackByFieldId"
@@ -78,9 +105,11 @@
           <!-- Label (if not a title/empty) -->
         <div *ngIf="field.label && field.type !== 'project-title' && field.type !== 'empty'"
      style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
-  <label class="form-label" [attr.for]="'field-' + i" style="margin:0;">
-    {{ field.label }}
-  </label>
+<label class="form-label" [attr.for]="'field-' + i" style="margin:0;"
+       [attr.aria-required]="isRequiredField(field) ? 'true' : null">
+  {{ field.label }}
+  <span *ngIf="isRequiredField(field)" aria-hidden="true" style="color:#d32f2f;">*</span>
+</label>
 
   <!-- Add button shown ONLY for the Description textarea -->
   <button *ngIf="field.type === 'textarea' && (field.id === 'description' || field.label === 'Description Field')"
@@ -123,6 +152,10 @@
             <!-- Date -->
             <input *ngSwitchCase="'date'" id="field-{{i}}" name="field-{{i}}" type="date"
                    [(ngModel)]="field.value" class="form-input" [style.width.px]="field.width" />
+                   <div *ngIf="isRequiredField(field) && !isFieldFilled(field)"
+     style="color:#d32f2f; font-size:12px; margin-top:4px;">
+  * Required: please select {{ field.label || 'Date' }}.
+</div>
 
             <!-- Branch select -->
             <select *ngSwitchCase="'branch'" id="field-{{i}}" name="field-{{i}}" [(ngModel)]="field.value"
@@ -199,9 +232,11 @@
             </div>
 
             <!-- Submit button -->
-            <button *ngSwitchCase="'submit'" mat-raised-button color="primary" (click)="onSubmit()">
-              {{ field.label || 'Submit' }}
-            </button>
+           <button *ngSwitchCase="'submit'" mat-raised-button color="primary"
+        (click)="onSubmit()"
+        [disabled]="hasRequiredMissing()">
+  {{ field.label || 'Submit' }}
+</button>
 
             <!-- Signature pad -->
             <div *ngSwitchCase="'signature'" class="signature-pad-container form-input" [style.width.px]="field.width" style="position:relative;">
@@ -214,6 +249,10 @@
                 <mat-icon>clear</mat-icon>
               </button>
             </div>
+            <div *ngIf="isRequiredField(field) && !isFieldFilled(field)"
+     style="color:#d32f2f; font-size:12px; margin-top:4px;">
+  * Required: please sign in the box.
+</div>
 
             <!-- Table placeholder -->
             <div *ngSwitchCase="'table'" class="table-container" [style.width.px]="field.width || 400"
@@ -275,6 +314,9 @@
                   <mat-option [value]="400">Large</mat-option>
                 </mat-select>
               </mat-form-field>
+   <mat-checkbox [(ngModel)]="newField.required" name="required">
+  Required
+</mat-checkbox>
 
               <div class="action-buttons">
                 <button mat-raised-button color="primary" type="submit">Create</button>
@@ -285,16 +327,17 @@
         </div>
 
       </div>
+    </div>
 
       <!-- Page Navigation (Right) -->
-      <div class="page-navigation"
-           style="display:flex; flex-direction:column; gap:8px; min-width:160px; padding:16px; border-left:1px solid #ddd; box-sizing:border-box;">
-        <button mat-button color="primary" (click)="prevPage()" [disabled]="currentPage === 0">Previous</button>
-        <span>Page {{ currentPage + 1 }} of {{ formPages.length }}</span>
-        <button mat-button color="primary" (click)="nextPage()" [disabled]="currentPage >= formPages.length - 1">Next</button>
-        <button mat-button color="accent" (click)="addNewPage()">Add New Page</button>
-      </div>
-
+       <!-- Bottom pager (sticky) -->
+    <div class="pager-bar" style="display:flex; align-items:center; gap:12px; padding:10px 16px; border-top:1px solid #e5e7eb; background:#fff; position:sticky; bottom:0; z-index:10;">
+      <button mat-button color="primary" (click)="prevPage()" [disabled]="currentPage === 0">Previous</button>
+      <span class="pager-info" style="font-weight:600; color:#374151;">Page {{ currentPage + 1 }} of {{ formPages.length }}</span>
+      <span class="spacer" style="flex:1 1 auto;"></span>
+      <button mat-stroked-button color="accent" (click)="addNewPage()">Add New Page</button>
+      <button mat-button color="primary" (click)="nextPage()" [disabled]="currentPage >= formPages.length - 1">Next</button>
     </div>
+
   </div>
 </div>

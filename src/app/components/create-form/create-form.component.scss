@@ -1,16 +1,12 @@
 /* ===== Editor (one clean set) ===== */
-:root{
-  --toolbar-h: 48px;   /* match your compact toolbar height */
-}
+:root{ --toolbar-h: 48px; }
 
-/* Page layout */
+/* Layout */
 .editor-content{
   display: grid;
-  grid-template-rows: auto auto 1fr;   /* toolbar, name bar, content */
+  grid-template-rows: auto auto 1fr; /* toolbar, name bar, content */
   height: 100vh;
 }
-
-/* Sticky bars with correct stacking order */
 .editor-toolbar{
   position: sticky; top: 0; z-index: 2000;
   box-shadow: 0 2px 8px rgba(0,0,0,.08);
@@ -19,19 +15,15 @@
   position: sticky; top: var(--toolbar-h); z-index: 1500;
   background: #fff; border-bottom: 1px solid #eee; padding: 8px 12px;
 }
-
-/* Make sure grid child can scroll */
 .editor-scroll{
-  min-height: 0;              /* critical inside CSS grid */
+  min-height: 0;
   overflow: auto;
   padding: 16px;
   background: #f5f6f8;
 }
-
-/* Card shouldn’t constrain width */
 .editor-card{ width: 100%; }
 
-/* Single visible frame lives here */
+/* Single visible frame */
 .form-export-surface{
   position: relative;
   width: 100%;
@@ -47,97 +39,153 @@
   z-index: 1;
 }
 
-/* Positioning context ONLY – no frame here (prevents double layout) */
+/* List rows (Dashboard view) */
+.forms-list{
+  margin: 0; padding: 0; list-style: none;
+  border: 1px solid #eee; border-radius: 12px; overflow: hidden;
+}
+.form-row{
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 12px 16px;
+  border-bottom: 1px solid #f4f4f6; background: #fff;
+}
+.form-row:last-child{ border-bottom: 0; }
+.form-row:hover{ background: #fafbfd; }
+.left{ display: flex; align-items: center; gap: 12px; min-width: 0; }
+.doc{ font-size: 22px; opacity: .9; }
+.doc.template{ color: #3f51b5; }
+.doc.filled{ color: #e91e63; }
+.meta{ min-width: 0; }
+.name{
+  font-weight: 600; color: #222;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 60vw;
+}
+.sub{ font-size: 12px; color: #6b7280; margin-top: 2px; }
+.actions{ display: flex; align-items: center; gap: 4px; }
+.actions button{ width: 36px; height: 36px; }
+
+/* ===== Editor page/canvas ===== */
+.page-container{ margin-bottom: 16px; }
+.page-header{ margin: 0 0 8px; }
+.page-title{ font-weight: 600; color: #111; }
+
+/* Positioning context ONLY – no extra frame */
 .page-surface{
   position: relative;
   width: 100%;
   min-height: calc(100vh - var(--toolbar-h) - 120px);
   background: #fff;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  padding: 0;
-  box-sizing: border-box;
-  overflow: visible;
+  border: 0; border-radius: 0; box-shadow: none;
+  padding: 0; box-sizing: border-box; overflow: visible;
   z-index: 0;
+}
+
+/* A4 sizing when exporting */
+.for-pdf #form-to-export{
+  position: relative;
+  width: 794px;        /* 210mm @ 96dpi */
+  min-height: 1123px;  /* 297mm */
+  background: #fff;
+  overflow: visible;
+}
+
+/* Hide non-print chrome in export mode */
+#form-to-export .page-container [data-nonprint]{ display: none !important; }
+.for-pdf [data-nonprint],
+.for-pdf .editor-toolbar,
+.for-pdf .export-pdf-icons{ display: none !important; }
+
+/* IMPORTANT for html2canvas stability */
+.for-pdf *{ transform: none !important; filter: none !important; }
+#form-to-export{ overflow: visible !important; background:#fff; }
+#form-to-export *, .page-surface, .field-wrapper, .mat-card, textarea{
+  break-inside: avoid; page-break-inside: avoid;
 }
 
 /* Absolute fields = exactly where you placed them in Template */
 .form-page-container{
-  position: relative;
-  width: 100%;
-  height: 100%;
+  position: relative; width: 100%; height: 100%;
 }
 .field-wrapper{
   position: absolute !important;
-  padding: 0; border: 0; background: transparent; box-sizing: border-box;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  overflow: auto; /* lets inner controls scroll if smaller than content */
 }
-.field-label{ display:block; margin:0 0 4px; font-weight:600; }
+.field-label {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #222;
+}
+.req{ color:#ef4444; }
 
 /* Controls fill their rect */
 .field-wrapper input,
 .field-wrapper textarea,
 .field-wrapper select,
 .field-wrapper .mat-mdc-form-field{
+  width: 100%; box-sizing: border-box;
+}
+.field-wrapper .mat-mdc-form-field{ display:block; }
+
+/* Textareas – default no resize */
+.field-wrapper textarea, .textarea-default{ resize: none !important; }
+
+/* Enable both-way resize ONLY for Description */
+.field-wrapper.desc-resize .desc-textarea{
+  resize: both !important; overflow: auto;
+}
+.field-wrapper.desc-resize .desc-textarea::-webkit-resizer{ width:12px; height:12px; }
+
+/* Numbered “problem” inputs inside Description */
+.editor-content .desc-input{
+  resize: both !important; overflow: auto !important;
+  min-width: 140px; min-height: 60px; max-width:none; max-height:none;
+  box-sizing: border-box; display:block; flex:0 0 auto;
+}
+
+/* Subtle corner hint for resizing (visual only) */
+.field-wrapper::after{
+  content:""; position:absolute; right:6px; bottom:6px;
+  width:12px; height:12px; border-right:2px solid #ccc; border-bottom:2px solid #ccc;
+  pointer-events:none;
+}
+
+/* Signature + Photo — fill the wrapper neatly */
+.field-wrapper.signature .signature-canvas{
+  display:block; width:100%; height:100%;
+  border:1px dashed #c4cdd5; border-radius:6px; touch-action:none;
+}
+.uploaded-img{
+  display:block; max-width:100%; height:auto;
+  border-radius:6px; border:1px solid #e5e7eb; margin-top:6px;
+}
+
+/* Ensure page stretches for PDF */
+.for-pdf .form-page-container{ position:relative; width:100%; min-height:100%; }
+.signature-canvas{display:block;width:100%;height:100%;border:1px dashed #cfd8dc;border-radius:6px;}
+.pdf-grid{
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* two columns */
+  gap: 8mm 10mm;                  /* row, column gaps */
   width: 100%;
-  box-sizing: border-box;
 }
-.field-wrapper .mat-mdc-form-field{ display: block; }
-
-/* Optional: allow textarea resize in editor */
-.editor-content textarea{
-  min-width: 100px; min-height: 80px;
-  width: auto; height: auto; resize: both; overflow: auto;
-  box-sizing: border-box; white-space: pre-wrap; word-wrap: break-word;
-  max-width: none !important; max-height: none !important;
+.pdf-grid .field-wrapper{
+  width: 100% !important;
+  max-width: none !important;
 }
-
-/* Toolbar button visibility (ensure label shows on primary bar) */
-.editor-toolbar .btn{ color:#fff; }
-.editor-toolbar .btn.mat-mdc-stroked-button:not(:disabled){ border-color: rgba(255,255,255,.5); }
-.editor-toolbar .btn .mdc-button__label{ display:inline-flex; align-items:center; gap:6px; }
-/* default: disable resizing everywhere */
-.field-wrapper textarea,
-.textarea-default {
-  resize: none !important;
+.pdf-grid .field-wrapper[data-id="description"],
+.pdf-grid .field-wrapper.desc-resize{
+  grid-column: 1 / -1; /* make description full width */
+  min-height: 35mm;
 }
-
-/* enable both-way resize ONLY for the Description field */
-.field-wrapper.desc-resize .desc-textarea {
-  resize: both !important;   /* horizontal + vertical */
-  overflow: auto;            /* show scrollbars when smaller than content */
-}
-
-/* optional: slightly bigger native handle area on WebKit browsers */
-.field-wrapper.desc-resize .desc-textarea::-webkit-resizer {
-  width: 12px;
-  height: 12px;
-}
-.editor-content .desc-input {
-  resize: both !important;
-  overflow: auto !important;
-  min-width: 140px;
-  min-height: 60px;
-  max-width: none;
-  max-height: none;
-  box-sizing: border-box;
-  display: block;
-  flex: 0 0 auto; /* critical for Chrome inside flex rows */
-}
-.field-wrapper {
-  position: absolute;
-  overflow: auto; /* safe; lets inner controls scroll if smaller than content */
-}
-
-/* faint corner “L” so users know where to grab; doesn't intercept clicks */
-.field-wrapper::after {
-  content: "";
-  position: absolute;
-  right: 6px;
-  bottom: 6px;
-  width: 12px;
-  height: 12px;
-  border-right: 2px solid #666;
-  border-bottom: 2px solid #666;
-  pointer-events: none;
-}
+.page-surface { padding: 12mm !important; }
+.mat-form-field, .mat-form-field * { box-shadow:none!important; outline:0!important; }
+.mat-form-field-underline, .mat-form-field-ripple,
+.mat-form-field-suffix, .mat-form-field-prefix { display:none!important; }

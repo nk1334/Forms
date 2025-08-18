@@ -19,6 +19,7 @@ import {
 } from '@angular/cdk/drag-drop';
 import { Router, ActivatedRoute } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { FormService } from 'src/app/services/form.service';
 
 export interface FormField {
   id: string;
@@ -35,6 +36,8 @@ export interface FormField {
   col?: number;
   problemItems?: { no: number; text: string }[];
 nextNo?:number;
+required:boolean;
+
 }
 
 interface FormPage {
@@ -43,9 +46,13 @@ interface FormPage {
 
 interface SavedForm {
   formId: string;
-  formName: string;
+   
+  formName?: string;
   formPages: FormPage[];
+   firebaseId?: string; 
 }
+
+
 
 @Component({
   selector: 'app-create-template',
@@ -64,7 +71,7 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
   lastCanvasCount = 0;
   shouldClearSignatureCanvas = false;
 
-  dashboardVisible = true;
+  dashboardVisible = false;
   formBuilderVisible = true;
   fieldConfigVisible = false;
   formListVisible = false;
@@ -72,26 +79,27 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
   popupLeft = 0;
 
   paletteFields: FormField[] = [
-    { id: 'project-title', label: 'Project Name', type: 'project-title' },
-    { id: 'id', label: 'ID Field', type: 'id' },
-    { id: 'description', label: 'Description Field', type: 'textarea' },
-    { id: 'date', label: 'Date Field', type: 'date' },
-    { id: 'text', label: 'Text Field', type: 'text' },
-    { id: 'number', label: 'Number Field', type: 'number' },
-    { id: 'email', label: 'Email Field', type: 'email' },
-    { id: 'branch', label: 'Branch Field', type: 'branch' },
-    { id: 'tel', label: 'Phone Field', type: 'tel' },
-    {
-      id: 'radio', label: 'Radio Field', type: 'radio', options: [
-        { label: 'Yes', value: 'yes' },
-        { label: 'No', value: 'no' }
-      ]
-    },
-    { id: 'file', label: 'Photo', type: 'file' },
-    { id: 'empty', label: 'Empty Box', type: 'empty' },
-    { id: 'signature', label: 'Signature', type: 'signature' },
-    { id: 'submit', label: 'Submit Button', type: 'submit' }
-  ];
+  { id: 'project-title', label: 'Project Name', type: 'project-title', required: false },
+  { id: 'id', label: 'ID Field', type: 'id', required: false },
+  { id: 'description', label: 'Description Field', type: 'textarea', required: false },
+  { id: 'date', label: 'Date Field', type: 'date', required: false },
+  { id: 'text', label: 'Text Field', type: 'text', required: false },
+  { id: 'number', label: 'Number Field', type: 'number', required: false },
+  { id: 'email', label: 'Email Field', type: 'email', required: false },
+  { id: 'branch', label: 'Branch Field', type: 'branch', required: false },
+  { id: 'tel', label: 'Phone Field', type: 'tel', required: false },
+  {
+    id: 'radio',
+    label: 'Radio Field',
+    type: 'radio',
+    options: [{ label: 'Yes', value: 'yes' }, { label: 'No', value: 'no' }],
+    required: false
+  },
+  { id: 'file', label: 'Photo', type: 'file', required: false },
+  { id: 'empty', label: 'Empty Box', type: 'empty', required: false },
+  { id: 'signature', label: 'Signature', type: 'signature', required: false },
+  { id: 'submit', label: 'Submit Button', type: 'submit', required: false }
+];
 
   newField: FormField = this.getEmptyField();
   pendingFieldToAdd: FormField | null = null;
@@ -101,6 +109,7 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
   savedForms: SavedForm[] = [];
   currentFormId: string | null = null;
 
+
   freeDragPositions: { [fieldId: string]: { x: number; y: number } } = {};
 
   private idCounter = 0;
@@ -108,35 +117,187 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
   pointerPosition = { x: 0, y: 0 };
   allowedWidths = [150, 300, 400];
 selectedForm: SavedForm | null = null;
+isEditingMaster = false; 
+isClearing = false;
   constructor(
     
     private router: Router,
     private route: ActivatedRoute,
     private cdr: ChangeDetectorRef,
     private snackBar: MatSnackBar,
+     private formService: FormService 
     
 
   ) { }
 
-  ngOnInit(): void {
-    this.route.queryParams.subscribe(params => {
-      const templateId = params['templateId'];
-      if (templateId) {
-        try {
-          const saved = localStorage.getItem('savedFormPages');
-          if (saved) {
-            this.savedForms = JSON.parse(saved);
-            this.loadFormById(templateId);
+ngOnInit(): void {
+  // 1) Clean locals first (no UI changes here, just storage hygiene)
+  this.cleanupLocalDuplicates();
 
-            this.fixDuplicateIds();
-            this.checkDuplicateIds();
-          }
-        } catch (e) {
-          console.error('Failed to parse saved forms from localStorage', e);
+  // 2) Then handle route + preload list
+  this.route.queryParams.subscribe(async params => {
+    try {
+      const templateId = params['templateId'] as string | undefined;
+
+      // Preload Firebase list so open-by-id works reliably
+      this.savedForms = await this.formService.getFormTemplates(); // must include firebaseId=d.id
+
+      // If navigated with ?templateId=..., open it if found by formId OR firebaseId
+      if (templateId) {
+        const found = this.savedForms.find(
+          f => f.formId === templateId || (f as any).firebaseId === templateId
+        );
+        if (found) {
+          this.openForm(found);
+        } else {
+          console.warn('Template not found in Firebase list:', templateId);
         }
       }
-    });
+    } catch (e) {
+      console.error('Init load failed', e);
+      this.snackBar.open('Failed to load templates.', 'Close', { duration: 3000 });
+    }
+  });
+}
+  trackBySavedForm(index: number, f: SavedForm): string {
+  return (f.firebaseId && f.firebaseId.trim()) ? `fb:${f.firebaseId}` : `id:${f.formId}`;
+}
+
+  private cleanupLocalDuplicates(): void {
+  const local: SavedForm[] = JSON.parse(localStorage.getItem('savedFormPages') || '[]');
+  const seen = new Map<string, SavedForm>();
+  for (const r of local) {
+    const key = r.firebaseId || r.formId;   // prefer firebaseId when present
+    if (!seen.has(key)) seen.set(key, r);
   }
+  const cleaned = Array.from(seen.values());
+  localStorage.setItem('savedFormPages', JSON.stringify(cleaned));
+  this.savedForms = cleaned;
+}
+// Prefer firebaseId when present; otherwise use formId.
+private identityKey(s: SavedForm): string {
+  return (s.firebaseId && s.firebaseId.trim()) ? `fb:${s.firebaseId}` : `id:${s.formId}`;
+}
+
+// Find index in an array by matching identity with current record (by firebaseId, else formId)
+private findRecordIndex(list: SavedForm[], rec: { formId?: string | null; firebaseId?: string | null }): number {
+  const fb = (rec.firebaseId && rec.firebaseId.trim()) ? `fb:${rec.firebaseId}` : null;
+  const id = (rec.formId && rec.formId.trim()) ? `id:${rec.formId}` : null;
+  return list.findIndex(x => {
+    const key = this.identityKey(x);
+    return (fb && key === fb) || (!fb && id && key === id);
+  });
+}
+
+// Deduplicate by identity key (firebaseId wins when present)
+private dedupeByIdentity(list: SavedForm[]): SavedForm[] {
+  const m = new Map<string, SavedForm>();
+  for (const r of list) m.set(this.identityKey(r), r);
+  return Array.from(m.values());
+}
+
+// Safe parse for localStorage
+private readLocalTemplates(): SavedForm[] {
+  try {
+    const raw = localStorage.getItem('savedFormPages');
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+// Safe write to localStorage and keep in-memory copy in sync
+private writeLocalTemplates(list: SavedForm[]): void {
+  const clean = this.dedupeByIdentity(list);
+  localStorage.setItem('savedFormPages', JSON.stringify(clean));
+  this.savedForms = clean;
+}
+private async ensureTemplateInFirebase(
+  name: string,
+  pages: FormPage[],
+  existingFirebaseId?: string | null
+): Promise<string> {
+  try {
+    if (existingFirebaseId && existingFirebaseId.trim()) {
+      await this.formService.updateFormTemplate(existingFirebaseId, {
+        formName: name,
+        formPages: pages as any[]
+      });
+      return existingFirebaseId;
+    } else {
+      const ref = await this.formService.saveFormTemplate(name, pages as any[]);
+      return ref.id;
+    }
+  } catch (e) {
+    console.error('Firebase save failed', e);
+    this.snackBar.open('Saved locally. Firebase save failed.', 'Close', { duration: 3000 });
+    // Return existing id if we had one; otherwise return '' and let caller keep local-only
+    return existingFirebaseId?.trim() ? existingFirebaseId : '';
+  }
+}
+async clearAllSavedForms(): Promise<void> {
+  if (!this.savedForms?.length) {
+    this.snackBar.open('No saved forms to clear.', 'Close', { duration: 2000 });
+    return;
+  }
+
+  // First confirmation
+  const confirmAll = confirm('Delete ALL saved forms? This cannot be undone.');
+  if (!confirmAll) return;
+
+  // Ask whether to also delete from Firebase (if any have firebaseId)
+  const hasRemote = this.savedForms.some(f => !!f.firebaseId);
+  let alsoRemote = false;
+
+  if (hasRemote) {
+    alsoRemote = confirm('Also delete templates from Firebase? (OK = yes, Cancel = local only)');
+  }
+
+  this.isClearing = true;
+
+  try {
+    // 1) If requested, delete all Firebase templates we know about
+    if (alsoRemote) {
+      const ids = this.savedForms
+        .map(f => f.firebaseId)
+        .filter((id): id is string => !!id && id.trim().length > 0);
+
+      if (ids.length) {
+        // Run in parallel but don’t blow up on one failure
+        const results = await Promise.allSettled(
+          ids.map(id => this.formService.deleteFormTemplate(id))
+        );
+
+        // Log any failures (optional toast)
+        const failed = results.filter(r => r.status === 'rejected').length;
+        if (failed) {
+          console.warn(`Failed to delete ${failed} Firebase templates.`);
+          this.snackBar.open(`Some Firebase deletes failed (${failed}).`, 'Close', { duration: 3000 });
+        }
+      }
+    }
+
+    // 2) Clear local storage list & UI
+    localStorage.removeItem('savedFormPages');
+    this.savedForms = [];
+
+    // Optionally reset selection/edit state
+    this.selectedForm = null;
+    this.currentFormId = null;
+
+    this.snackBar.open(
+      alsoRemote ? 'All templates deleted (local + Firebase).' : 'All local templates deleted.',
+      'Close',
+      { duration: 2500 }
+    );
+  } catch (e) {
+    console.error('Clear all failed', e);
+    this.snackBar.open('Failed to clear some items. Check console for details.', 'Close', { duration: 3000 });
+  } finally {
+    this.isClearing = false;
+  }
+}
+
   addProblemItem(field: FormField): void {
   if(!field.problemItems)field.problemItems=[];
   if(!field.nextNo)field.nextNo=1;
@@ -168,8 +329,40 @@ removeProblemItem(field: FormField, idx: number): void {
     container.style.height = textarea.offsetHeight + 'px';
   }
 }
-  openForm(form: SavedForm): void {
-  this.loadFormById(form.formId);
+openNewTemplate(): void {
+  this.formBuilderVisible = true;   // show builder
+  this.formListVisible = false;     // hide list
+  this.dashboardVisible = false;    // hide dashboard if shown
+  this.selectedForm = null;         // reset selection
+  this.currentFormId = null;
+  this.formPages = [{ fields: [] }]; // fresh empty page
+  this.cdr.detectChanges();
+
+  setTimeout(() => {
+    this.initCanvases();
+    this.initializeFreeDragPositions();
+  }, 0);
+}
+openForm(form: SavedForm): void {
+  this.selectedForm = form;
+  this.currentFormId = form.formId;
+
+  // (Make sure firebaseId is preserved on selectedForm)
+  // form.firebaseId may be undefined for pure-local templates – that’s fine.
+  this.formPages = JSON.parse(JSON.stringify(form.formPages));
+  this.fixDuplicateIds();
+  this.checkDuplicateIds();
+
+  this.currentPage = 0;
+  this.dashboardVisible = false;
+  this.formBuilderVisible = true;
+  this.formListVisible = false;
+
+  this.cdr.detectChanges();
+  setTimeout(() => {
+    this.initCanvases();
+    this.initializeFreeDragPositions();
+  }, 0);
 }
 openFieldConfig() {
   const canvas = document.getElementById('formCanvas');
@@ -232,7 +425,8 @@ openFieldConfig() {
       placeholder: '',
       width: 150,
       value: '',
-      position: { x: 0, y: 0 }
+      position: { x: 0, y: 0 },
+      required:false
     };
   }
 
@@ -271,7 +465,58 @@ openFieldConfig() {
   onMouseMove(event: MouseEvent) {
     this.pointerPosition = { x: event.clientX, y: event.clientY };
   }
+isRequiredField(field: FormField): boolean {
+  const label = (field.label || '').trim().toLowerCase();
+  const legacyRequired = label === 'crew name' || label === 'date' || label === 'signature';
+  return !!field.required || legacyRequired;
+}
 
+// Is the required field filled?
+ isFieldFilled(field: FormField): boolean {
+  if (!this.isRequiredField(field)) return true;
+
+  switch (field.type) {
+    case 'text':
+    case 'email':
+    case 'tel':
+    case 'number':
+    case 'textarea':
+    case 'project-title': // if any remain
+      return typeof field.value === 'string' ? field.value.trim().length > 0 : !!field.value;
+
+    case 'date':
+      return !!field.value && String(field.value).trim().length > 0;
+
+    case 'signature':
+      return !!field.value && typeof field.value === 'string' && field.value.startsWith('data:image');
+
+    default:
+      return true;
+  }
+}
+
+// Any required fields missing across pages?
+hasRequiredMissing(): boolean {
+  for (const page of this.formPages) {
+    for (const f of page.fields) {
+      if (this.isRequiredField(f) && !this.isFieldFilled(f)) return true;
+    }
+  }
+  return false;
+}
+
+// Build a list of missing required field labels
+ missingRequiredList(): string[] {
+  const out: string[] = [];
+  for (const page of this.formPages) {
+    for (const f of page.fields) {
+      if (this.isRequiredField(f) && !this.isFieldFilled(f)) {
+        out.push(f.label || f.type);
+      }
+    }
+  }
+  return out;
+}
   initializeFreeDragPositions() {
     this.freeDragPositions = this.freeDragPositions || {};
     this.formPages[this.currentPage].fields.forEach(field => {
@@ -555,8 +800,11 @@ stopResize = (event: MouseEvent) => {
 
   loadFormById(formId: string): void {
     const form = this.savedForms.find(f => f.formId === formId);
-    if (form) {
-      
+     if (!form) { return; }
+
+  this.selectedForm = form; 
+    this.isEditingMaster = true;                         
+       
       this.formPages = JSON.parse(JSON.stringify(form.formPages));
 
       this.fixDuplicateIds();
@@ -567,6 +815,7 @@ stopResize = (event: MouseEvent) => {
       this.dashboardVisible = false;
       this.formBuilderVisible = true;
       this.formListVisible = false;
+     
 
       this.cdr.detectChanges();
 
@@ -575,71 +824,221 @@ stopResize = (event: MouseEvent) => {
         this.initializeFreeDragPositions();
       }, 0);
     }
-  }
+  
 
   backToDashboard(): void {
     this.router.navigate(['/dashboard']);
   }
+  async loadSavedFormsList(kind: 'local' | 'firebase' | 'both' = 'both'): Promise<void> {
+  try {
+    // 1) Local templates (savedFormPages)
+    const localRaw = localStorage.getItem('savedFormPages');
+    const local: SavedForm[] = localRaw ? JSON.parse(localRaw) : [];
 
-  loadSavedFormsList(): void {
-    const saved = localStorage.getItem('savedFormPages');
-    if (saved) {
-      this.savedForms = JSON.parse(saved);
+    const localNorm: SavedForm[] = local.map(it => ({
+      formId: it.formId || this.generateId(),
+      formName: it.formName || 'Untitled',
+      formPages: it.formPages || [],
+      firebaseId: it.firebaseId ?? undefined
+    }));
+
+    // If only local requested
+    if (kind === 'local') {
+      this.savedForms = localNorm;
       this.formListVisible = true;
       this.formBuilderVisible = false;
-    } else {
-      alert('No saved forms found.');
-    }
-  }
-
-  saveForm(): void {
-    console.log('Saving form with data:', JSON.stringify(this.formPages, null, 2));
-    if (!this.formPages[0].fields.length) {
-      alert('Cannot save an empty form');
       return;
     }
 
-    this.formPages.forEach(page => {
-      page.fields.forEach(field => {
-        if (field.type === 'signature') {
-          const canvasRef = this.canvasRefs.find(ref => ref.nativeElement.getAttribute('data-id') === field.id);
-          if (canvasRef) {
-            field.value = canvasRef.nativeElement.toDataURL();
+    // 2) Firebase templates
+    const remote = (kind === 'firebase' || kind === 'both')
+      ? await this.formService.getFormTemplates()
+      : [];
+
+   const remoteNorm: SavedForm[] = (remote || []).map((it: any) => ({
+  formId: it.formId,                  // ✅ use the service's formId
+  formName: it.formName || 'Untitled',
+  formPages: it.formPages || [],
+  firebaseId: it.firebaseId           // ✅ use the service's firebaseId
+}));
+
+    if (kind === 'firebase') {
+      this.savedForms = remoteNorm;
+      this.formListVisible = true;
+      this.formBuilderVisible = false;
+      return;
+    }
+
+    // 3) Merge (both): prefer Firebase copy when the same firebaseId exists locally
+    const byFb = new Map<string, SavedForm>();
+    remoteNorm.forEach(r => { if (r.firebaseId) byFb.set(r.firebaseId, r); });
+
+    const merged: SavedForm[] = [];
+    const seenLocal = new Set<string>();
+
+    // take local, but replace with remote if same firebaseId exists
+    for (const l of localNorm) {
+      if (l.firebaseId && byFb.has(l.firebaseId)) {
+        merged.push(byFb.get(l.firebaseId)!);
+        seenLocal.add(l.firebaseId);
+      } else {
+        merged.push(l);
+      }
+    }
+
+    // add any remote that didn’t have a local counterpart
+ for (const r of remoteNorm) {
+  if (r.firebaseId && seenLocal.has(r.firebaseId)) continue;
+  if (merged.some(m => m.formId === r.formId)) continue;
+  merged.push(r);
+}
+
+// --- build an index of remote by normalized name ---
+const remoteByName = new Map<string, SavedForm>();
+for (const r of remoteNorm) {
+  const key = (r.formName || '').trim().toLowerCase();
+  if (key) remoteByName.set(key, r);
+}
+
+// --- swap local-only items to their remote twin when names match ---
+const reconciled: SavedForm[] = merged.map(item => {
+  const hasFb = !!item.firebaseId && item.firebaseId.trim().length > 0;
+  if (hasFb) return item;
+  const key = (item.formName || '').trim().toLowerCase();
+  const remoteMatch = key ? remoteByName.get(key) : undefined;
+  return remoteMatch ?? item;
+});
+
+   // --- finally collapse duplicates by identity & by name (prefer remote) ---
+let cleaned = this.dedupeByIdentity(reconciled);
+
+cleaned = this.dedupeByNamePreferRemote(cleaned);
+
+this.savedForms = cleaned;
+this.formListVisible = true;
+this.formBuilderVisible = false;
+  } catch (e) {
+    console.error('Failed to load templates', e);
+    this.snackBar.open('Failed to load templates.', 'Close', { duration: 3000 });
+  }
+}
+private dedupeByNamePreferRemote(list: SavedForm[]): SavedForm[] {
+  const byName = new Map<string, SavedForm>();
+
+  for (const r of list) {
+    const key = (r.formName || '').trim().toLowerCase();
+    if (!key) {
+      // unnamed forms: keep as-is (give them a random key so they don't collapse together)
+      byName.set(Math.random().toString(), r);
+      continue;
+    }
+
+    const existing = byName.get(key);
+    if (!existing) {
+      byName.set(key, r);
+      continue;
+    }
+
+    // prefer the one that has firebaseId
+    if (!existing.firebaseId && r.firebaseId) {
+      byName.set(key, r);
+    }
+  }
+
+  return Array.from(byName.values());
+}
+private nextUntitledName(): string {
+  const n = new Date();
+  const pad = (x: number) => x.toString().padStart(2, '0');
+  return `Untitled ${n.getFullYear()}-${pad(n.getMonth() + 1)}-${pad(n.getDate())} ${pad(n.getHours())}${pad(n.getMinutes())}`;
+}
+async saveForm(): Promise<void> {
+  if (!this.formPages?.[0]?.fields?.length) {
+    this.snackBar.open('Cannot save an empty form', 'Close', { duration: 2500 });
+    return;
+  }
+
+  // 1) Capture signatures (skip safely if canvas is not present)
+  try {
+    this.formPages.forEach(p =>
+      p.fields.forEach(f => {
+        if (f.type === 'signature') {
+          const ref = this.canvasRefs?.find(r => r.nativeElement.getAttribute('data-id') === f.id);
+          if (ref?.nativeElement) {
+            f.value = ref.nativeElement.toDataURL();
           }
         }
-      });
-    });
+      })
+    );
+  } catch { /* ignore capture errors to avoid blocking save */ }
 
-    const filenameRaw = prompt(this.currentFormId ? 'Update filename:' : 'Enter filename:', 'form');
-    const filename = filenameRaw?.trim();
-    if (!filename) {
-      alert('Please enter a valid form name.');
+  // 2) Load current local list
+  const local = this.readLocalTemplates();
+
+  // 3) Figure out name + firebaseId without prompting if editing
+  const localIdxById = this.currentFormId
+    ? local.findIndex(x => x.formId === this.currentFormId)
+    : -1;
+
+  let name = (this.selectedForm?.formName || local[localIdxById]?.formName || '').trim();
+  let existingFirebaseId = (this.selectedForm?.firebaseId || local[localIdxById]?.firebaseId || null) || null;
+
+  // If it's truly brand new (no selectedForm and no currentFormId), prompt once
+  if (!this.currentFormId && !this.selectedForm) {
+    const raw = prompt('Enter template name:', 'form') || '';
+    name = raw.trim();
+    if (!name) {
+      this.snackBar.open('Please enter a valid name.', 'Close', { duration: 2500 });
       return;
     }
+  }
+  if (!name) name = 'Untitled';
 
-    let data: SavedForm[] = JSON.parse(localStorage.getItem('savedFormPages') || '[]');
-    if (this.currentFormId) {
-      data = data.map(f =>
-        f.formId === this.currentFormId
-          ? { formId: f.formId, formName: filename, formPages: this.formPages }
-          : f
-      );
-    } else {
-      data.push({
-        formId: this.generateId(),
-        formName: filename,
-        formPages: this.formPages
-      });
-      this.currentFormId = data[data.length - 1].formId;
-    }
-
-    localStorage.setItem('savedFormPages', JSON.stringify(data));
-    alert('Form saved');
-    this.savedForms = data;
-    this.router.navigate(['/dashboard'], { state: { formSaved: true, formId: this.currentFormId } });
+  // 4) Save to Firebase (update when firebaseId exists; else create)
+  let firebaseId = '';
+  try {
+    firebaseId = await this.ensureTemplateInFirebase(name, this.formPages, existingFirebaseId);
+  } catch {
+    // ensureTemplateInFirebase already toasts; just proceed locally
   }
 
+  // If ensureTemplateInFirebase failed and returned '', DO NOT overwrite a good existingFirebaseId with ''.
+  if (!firebaseId && existingFirebaseId) {
+    firebaseId = existingFirebaseId;
+  }
+
+  // 5) Build final record
+  const idToUse = this.currentFormId || this.selectedForm?.formId || this.generateId();
+  const record: SavedForm = {
+    formId: idToUse,
+    formName: name,
+    formPages: this.formPages,
+    firebaseId: firebaseId && firebaseId.trim() ? firebaseId : undefined
+  };
+
+  // 6) Merge into local list by identity (prefers firebaseId)
+  const idx = this.findRecordIndex(local, { formId: idToUse, firebaseId: record.firebaseId || null });
+  if (idx >= 0) {
+    local[idx] = record;
+  } else {
+    local.push(record);
+  }
+
+  // 7) Persist and sync in-memory list (dedupe by identity)
+  this.writeLocalTemplates(local);
+
+  // 8) Update component state consistently
+  this.currentFormId = idToUse;
+  this.selectedForm = record;
+
+  this.snackBar.open('Template saved.', 'Close', { duration: 2000 });
+}
   saveFilledForm(): void {
+      if (this.hasRequiredMissing()) {
+    const missing = this.missingRequiredList().join(', ');
+    this.snackBar.open(`Please fill required fields: ${missing}`, 'Close', { duration: 3000 });
+    return;
+  }
     const filledForms = JSON.parse(localStorage.getItem('filledForms') || '[]');
 
       const projectNameField = this.formPages[0].fields.find(f => f.id === 'project-title' || f.label === 'Project Name');
@@ -981,6 +1380,11 @@ addNewPage(): void {
 
   // Sample onSubmit handler for submit button (adjust to your needs)
   onSubmit() {
+     if (this.hasRequiredMissing()) {
+    const missing = this.missingRequiredList().join(', ');
+    this.snackBar.open(`Please fill required fields: ${missing}`, 'Close', { duration: 3000 });
+    return;
+  }
     alert('Form submitted! You can extend this logic.');
   }
 onDragStart(event: DragEvent, index: number): void {
