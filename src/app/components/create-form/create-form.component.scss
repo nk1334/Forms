@@ -189,3 +189,164 @@
 .mat-form-field, .mat-form-field * { box-shadow:none!important; outline:0!important; }
 .mat-form-field-underline, .mat-form-field-ripple,
 .mat-form-field-suffix, .mat-form-field-prefix { display:none!important; }
+
+.topbar { display: flex; align-items: center; gap: 8px; }
+.spacer { flex: 1 1 auto; }
+.tab-ic { margin-right: 6px; }
+button.active { box-shadow: 0 0 0 2px var(--mat-primary-200) inset; }
+.forms-list { list-style: none; margin: 0; padding: 0; }
+
+
+
+
+
+/* tighten card paddings so list isn’t “tall” */
+.section-card .mat-mdc-card-content{ padding: 0; }
+.section-card .mat-mdc-card-header{ padding: 8px 12px; }
+.forms-card .forms-list { margin: 0; padding: 0; list-style: none; }
+.forms-card .form-row{
+  height: 36px;
+  padding: 0 8px;         /* no vertical padding */
+  line-height: 1.2;
+  border-bottom: 1px solid #eef0f3;
+}
+.forms-card .form-row:last-child {
+  border-bottom: 0;
+}
+.forms-card .left,
+.forms-card .actions {
+  height: 36px;                /* force children to row height */
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.forms-card .actions .mat-mdc-icon-button.mat-mdc-button-base {
+  width: 24px !important;
+  height: 24px !important;
+  padding: 0 !important;
+  --mdc-icon-button-state-layer-size: 24px;
+  --mdc-icon-button-icon-size: 16px;
+}
+
+.forms-card .actions .mat-mdc-icon-button .mat-mdc-button-touch-target {
+  width: 24px !important;
+  height: 24px !important;
+}
+
+.forms-card .actions .mat-icon {
+  font-size: 16px !important;
+  width: 16px !important;
+  height: 16px !important;
+  line-height: 16px !important;
+}
+.forms-card table,
+.forms-card .mat-mdc-table {
+  font-size: 13px; /* match templates font */
+}
+
+.forms-card .mat-mdc-row,
+.forms-card .mat-mdc-header-row {
+  height: 40px !important;       /* same height as template rows */
+  padding: 0 8px !important;
+}
+
+.forms-card .mat-mdc-cell,
+.forms-card .mat-mdc-header-cell {
+  padding: 0 8px !important;
+  line-height: 1.4;
+  vertical-align: middle;
+  font-size: 13px;
+}
+
+/* Shrink action buttons */
+.forms-card .mat-mdc-icon-button {
+  width: 28px !important;
+  height: 28px !important;
+}
+
+.forms-card .mat-mdc-icon-button .mat-icon {
+  font-size: 16px !important;
+}
+.actions-row {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  
+}
+
+/* Base style */
+.form-tabs {
+  display: flex;
+  gap: .5rem;
+}
+
+.tab-btn {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .45rem .9rem;
+  border-radius: 999px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all .15s ease;
+}
+
+/* Unique styling for "Forms to Fill" */
+.tab-btn.tofill {
+  background: #e0f7f5;
+  color: #00695c;
+
+  &.active {
+    background: #009688;
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(0, 150, 136, .3);
+  }
+}
+
+/* Unique styling for "Filled Forms" */
+.tab-btn.filled {
+  background: #f3e8ff;
+  color: #6b21a8;
+
+  &.active {
+    background: #7c3aed;
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(124, 58, 237, .3);
+  }
+}
+.form-tabs, .pill-tabs { display:flex; gap:.5rem; }
+
+/* Buttons */
+.tab-btn {
+  display:flex; align-items:center; gap:.4rem;
+  padding:.45rem .9rem; border-radius:999px; font-weight:600;
+  cursor:pointer; border:1px solid transparent; transition:all .15s ease;
+}
+
+/* “Forms to Fill” */
+.tab-btn.tofill { background:#e0f7f5; color:#00695c; }
+.tab-btn.tofill.active {
+  background:#009688; color:#fff; box-shadow:0 4px 12px rgba(0,150,136,.3);
+}
+
+/* “Filled Forms” */
+.tab-btn.filled { background:#f3e8ff; color:#6b21a8; }
+.tab-btn.filled.active {
+  background:#7c3aed; color:#fff; box-shadow:0 4px 12px rgba(124,58,237,.3);
+}
+/* --- make action buttons always clickable --- */
+.form-row { position: relative; }                 /* row becomes a stacking context */
+.form-row::before,
+.form-row::after { pointer-events: none; }        /* if you add hover/border pseudo elements */
+
+.form-row .actions {
+  position: relative;
+  z-index: 2;                                     /* above row backgrounds/pseudo elements */
+}
+.form-row .actions button { pointer-events: auto; }
+
+/* optional: spinner for [class.spin] used on the PDF icon */
+.mat-icon.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }

@@ -107,6 +107,7 @@
                 <button mat-icon-button matTooltip="Edit" (click)="openFormEditor(row)">
                   <mat-icon>edit</mat-icon>
                 </button>
+
                 <button mat-icon-button color="warn" matTooltip="Delete" (click)="deleteTemplate(row)">
                   <mat-icon>delete</mat-icon>
                 </button>
@@ -124,7 +125,7 @@
       </mat-card>
 
       <!-- Forms / Filled Forms panel -->
-      <mat-card class="templates-card" style="margin-top:16px;">
+    <mat-card class="forms-card" style="margin-top:16px;">
         <div class="section-header">
           <span class="title">Forms</span>
           <span class="spacer"></span>
@@ -158,9 +159,15 @@
                 <button mat-icon-button matTooltip="Open" (click)="openFilledForm(f)">
                   <mat-icon>open_in_new</mat-icon>
                 </button>
-                <button mat-icon-button matTooltip="Download PDF" (click)="downloadFilledFormPDF(f)">
-                  <mat-icon>picture_as_pdf</mat-icon>
-                </button>
+              <button
+      mat-icon-button
+      [disabled]="isDownloading(f.formId)"
+      [matTooltip]="pdfTooltip(f)"
+      (click)="$event.stopPropagation(); downloadFilledFormPDF(f)">
+      <mat-icon [class.spin]="isDownloading(f.formId)">
+        {{ hasPdf(f) ? 'picture_as_pdf' : 'download' }}
+      </mat-icon>
+    </button>
                 <button mat-icon-button color="warn" matTooltip="Delete" (click)="deleteFilledForm(f)">
                   <mat-icon>delete</mat-icon>
                 </button>

@@ -24,6 +24,7 @@ import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf';
 import pdfWorker from 'pdfjs-dist/legacy/build/pdf.worker.entry';
 import { FormService } from 'src/app/services/form.service';
 import { Subscription, firstValueFrom } from 'rxjs';
+import { ActivatedRoute, Router } from '@angular/router';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
@@ -75,6 +76,9 @@ interface SavedForm {
   formPages: FormPage[];
   source?: 'template' | 'filled';
   pdfUrl?: string | null;
+   name?: string;
+    sourceFormId?: string | null; 
+  title?: string;
 }
 
 interface FilledFormData {
@@ -107,12 +111,37 @@ export class CreateFormComponent implements OnInit, AfterViewInit, OnDestroy {
   examplePdfUrl: string | null = null;
 
   forms: SavedForm[] = [];
+  templates: SavedForm[] = [];
+filledForms: SavedForm[] = [];
   showFormEditor = false;
   showNameInput = false;
   nameError = false;
   containerHeight: number = 600;
   formPdfImagePreview: string | null = null;
   isLoadedFromDashboard = true;
+  viewMode: 'default' | 'filled' | 'tofill' = 'default';
+   hasPdf(f: SavedForm): boolean        { return !!f.pdfUrl; }
+  canEdit(_f: SavedForm): boolean      { return true; }
+  canDelete(f: SavedForm): boolean     { return f.source === 'filled'; }
+  isFirebaseForm(f: SavedForm): boolean{ return !String(f.formId).startsWith('filled-'); }
+
+  // (optional) pre-filtered lists to keep templates clean
+  get firebaseTemplates(): SavedForm[] { return this.templates.filter(x => this.isFirebaseForm(x)); }
+  get firebaseFilled(): SavedForm[]    { return this.filledForms.filter(x => this.isFirebaseForm(x)); }
+
+  //
+  
+showFormsToFill() {
+  if (!this.templates.length) this.loadFromFirebase('templates');
+  this.viewMode = 'tofill';
+}
+
+
+
+  private splitLists() {
+  this.templates   = this.forms.filter(f => f.source === 'template');
+  this.filledForms = this.forms.filter(f => f.source === 'filled');
+}
 
   @Input() selectedForm: SavedForm | null = null;
   @Input() filledDataName: string = '';
@@ -138,24 +167,45 @@ export class CreateFormComponent implements OnInit, AfterViewInit, OnDestroy {
     private cdr: ChangeDetectorRef,
     private snackBar: MatSnackBar,
     private dialog: MatDialog,
-    private formService: FormService
+    private formService: FormService,
+     private route: ActivatedRoute,   // <-- add
+  private router: Router  
+
   ) {}
 
   /* ---------------- Lifecycle ---------------- */
+ngOnInit(): void {
+  // 1) Listen for /forms?download=...&back=...
+  this.route.queryParamMap.subscribe(async (params) => {
+    const downloadId = params.get('download');
+    const back = params.get('back');
+    if (!downloadId) return;
 
-  ngOnInit(): void {
-    this.formService
-      .getFormTemplates()
-      .then((fetchedForms) => {
-        if (fetchedForms.length) {
-          this.forms = fetchedForms.map((f) => ({ ...f, source: 'template' as const }));
-        } else {
-          this.loadForms();
-        }
-      })
-      .catch(() => this.loadForms());
-  }
+    try {
+      await this.handleDashboardDownload(downloadId);
+    } catch (err) {
+      console.error('[CreateForm] handleDashboardDownload failed:', err);
+      this.snackBar.open('Could not generate the PDF.', 'Close', { duration: 3000 });
+    } finally {
+      if (back) this.router.navigateByUrl(back);
+    }
+  });
 
+  // 2) Your existing template load
+  this.formService.getFormTemplates()
+    .then((list: any[]) => {
+      this.forms = (list || []).map((x: any) => ({
+        formId: this.makeId(x, 'template'),
+        formName: x?.formName ?? x?.name ?? x?.title ?? 'Untitled (template)',
+        formPages: x?.formPages ?? [],
+        source: 'template' as const,
+        pdfUrl: x?.pdfUrl ?? null,
+      }));
+      this.splitLists();
+    })
+    .catch(() => this.loadForms());
+}
+  trackByFormId = (_: number, f: SavedForm) => f.formId;
   ngAfterViewInit(): void {
     this.initCanvases();
     if (this.examplePdfUrl) {
@@ -174,8 +224,43 @@ export class CreateFormComponent implements OnInit, AfterViewInit, OnDestroy {
     this.textareasSub?.unsubscribe();
     document.removeEventListener('mousemove', this.onResizeMove);
     document.removeEventListener('mouseup', this.stopResize);
+    this.textareas?.forEach(ref => {
+    const ta = ref.nativeElement;
+    const clone = ta.cloneNode(true);
+    ta.replaceWith(clone); // removes all listeners
+  });
   }
+// Signature image sources (base64 or URL) keyed by fieldId
+private sigSrcMap: Record<string, string> = {};
+// Keep observers to clean up later
+private sigResizeObs: Record<string, ResizeObserver> = {};
 
+private resizeAndRedrawSignature(
+  fieldId: string,
+  canvas: HTMLCanvasElement,
+  ctx: CanvasRenderingContext2D,
+  cssW: number,
+  cssH: number
+) {
+  const dpr = window.devicePixelRatio || 1;
+  // Only touch backing store if CSS changed, to avoid blurs
+  canvas.width  = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  const src = this.sigSrcMap[fieldId];
+  if (!src) return;
+
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    // Fill the canvas area; change to contain/cover logic if preferred
+    ctx.drawImage(img, 0, 0, cssW, cssH);
+  };
+  img.src = src;
+}
   private attachAutoGrowListeners() {
     this.textareas.forEach((textareaEl) => {
       const ta = textareaEl.nativeElement;
@@ -187,6 +272,68 @@ export class CreateFormComponent implements OnInit, AfterViewInit, OnDestroy {
       }
     });
   }
+showFilledForms() {
+  if (!this.filledForms.length) this.loadFromFirebase('filled');
+  this.viewMode = 'filled';
+}
+private async handleDashboardDownload(id: string) {
+  // Try in-memory first
+  let form = this.forms.find(f => String(f.formId) === String(id));
+
+  // Fallback: fetch from Firebase if not found
+  if (!form) {
+    try {
+      const [templates, filled] = await Promise.all([
+        this.formService.getFormTemplates().catch(() => []),
+        this.formService.getFilledForms().catch(() => []),
+      ]);
+
+      const toSaved = (item: any, source: 'template' | 'filled') => ({
+        formId: String(
+          item?.formId ?? item?.id ?? item?.docId ?? item?._id ?? item?.uid ?? item?.ref?.id ?? ''
+        ),
+        formName: item?.formName || item?.name || item?.title || `Untitled (${source})`,
+        formPages: source === 'filled'
+          ? (item?.formPagesSnapshot || item?.formPages || [])
+          : (item?.formPages || []),
+        source,
+        pdfUrl: item?.pdfUrl ?? item?.formPdfPreview ?? null,
+        sourceFormId: item?.sourceFormId ?? item?.templateId ?? null,
+      });
+
+      const all = [
+        ...(templates || []).map((x: any) => toSaved(x, 'template')),
+        ...(filled || []).map((x: any) => toSaved(x, 'filled')),
+      ];
+
+      form = all.find(f => String(f.formId) === String(id)) as any;
+    } catch {}
+  }
+
+  // Last fallback: localStorage legacy
+  if (!form) {
+    try {
+      const arr: any[] = JSON.parse(localStorage.getItem('filledForms') || '[]');
+      const local = arr.find(x => String(x.id ?? x.formId) === String(id));
+      if (local) {
+        form = {
+          formId: local.id ?? local.formId,
+          formName: local.formName ?? local.name ?? 'Untitled',
+          formPages: local.formPagesSnapshot ?? local.formPages ?? [],
+          source: 'filled',
+          pdfUrl: (typeof local.pdfUrl === 'string' && /\.pdf(\?|$)/i.test(local.pdfUrl)) ? local.pdfUrl : null,
+          sourceFormId: local.sourceFormId ?? local.templateId ?? null,
+        };
+      }
+    } catch {}
+  }
+
+  if (!form) throw new Error('Form not found');
+
+  // Use your existing method: downloads if pdfUrl exists; otherwise generates, uploads, then downloads
+  await this.onClickDownloadIcon(form);
+}
+
 
   asKey(id?: string) {
     return String(id ?? '');
@@ -262,20 +409,54 @@ export class CreateFormComponent implements OnInit, AfterViewInit, OnDestroy {
 
     await page.render({ canvasContext: context, viewport }).promise;
   }
+  pdfTooltip(f: SavedForm): string {
+  if (this.downloading.has(this.asKey(f.formId))) return 'Generating…';
+  return f.pdfUrl ? 'Open PDF' : 'Generate PDF';
+}
 
   /* ---------------- Local template fallback ---------------- */
+loadForms(): void {
+  const raw = localStorage.getItem('filledForms');
+  if (!raw) { this.forms = []; this.splitLists(); return; }
 
-  loadForms(): void {
-    const raw = localStorage.getItem('filledForms');
-    const arr: FilledFormData[] = raw ? JSON.parse(raw) : [];
-    this.forms = arr.map((it) => ({
-      formId: it.formId,
-      formName: it.name,
-      formPages: it.formPagesSnapshot || [],
-      source: 'filled' as const,
-      pdfUrl: it.formPdfPreview ?? null,
-    }));
+  try {
+    const arr = JSON.parse(raw) ?? [];
+
+    const looksLikeRealPdf = (url: any) =>
+      typeof url === 'string' &&
+      (
+        /\.pdf(\?|$)/i.test(url) ||           // ends with .pdf (optionally with query)
+        (url.startsWith('http') && !url.startsWith('data:')) // remote URL, not a data: uri
+      );
+
+    // New shape: { id, sourceFormId, formName, formPagesSnapshot, pdfUrl }
+    if (arr.length && arr[0]?.id && arr[0]?.sourceFormId) {
+      this.forms = arr.map((it: any) => ({
+        formId: it.id,
+        formName: it.formName,
+        formPages: it.formPagesSnapshot || [],
+        source: 'filled' as const,
+        pdfUrl: looksLikeRealPdf(it.pdfUrl) ? it.pdfUrl : null,
+      }));
+    } else {
+      // Old shape fallback: { formId, name, formPagesSnapshot, formPdfPreview }
+      this.forms = arr.map((it: any) => {
+        const maybe = it.pdfUrl ?? it.formPdfPreview ?? null; // may be a PNG dataURL
+        return {
+          formId: it.formId,
+          formName: it.name,
+          formPages: it.formPagesSnapshot || [],
+          source: 'filled' as const,
+          pdfUrl: looksLikeRealPdf(maybe) ? maybe : null, // don’t treat PNG preview as PDF
+        } as SavedForm;
+      });
+    }
+  } catch {
+    this.forms = [];
+  } finally {
+    this.splitLists();
   }
+}
 
   /* ---------------- Firebase loading ---------------- */
 
@@ -295,12 +476,16 @@ export class CreateFormComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   loadFromFirebase(kind: 'filled' | 'templates' | 'both' = 'templates'): void {
-    const toSaved = (item: any, source: 'template' | 'filled'): SavedForm => ({
-      formId: this.makeId(item, source),
-      formName: item?.formName || item?.name || item?.title || `Untitled (${source})`,
-      formPages: source === 'filled' ? item?.formPagesSnapshot || item?.formPages || [] : item?.formPages || [],
-      source,
-    });
+   const toSaved = (item: any, source: 'template' | 'filled'): SavedForm => ({
+  formId: this.makeId(item, source),
+  formName: item?.formName || item?.name || item?.title || `Untitled (${source})`,
+  formPages: source === 'filled'
+    ? (item?.formPagesSnapshot || item?.formPages || [])
+    : (item?.formPages || []),
+  source,
+  pdfUrl: item?.pdfUrl ?? item?.formPdfPreview ?? null,   // <— keep URL
+  sourceFormId: item?.sourceFormId ?? item?.templateId ?? null, // <— keep source template
+});
 
     if (kind === 'both') {
       this.snackBar.open('Loading templates and filled forms…', undefined, { duration: 1500 });
@@ -312,6 +497,7 @@ export class CreateFormComponent implements OnInit, AfterViewInit, OnDestroy {
           this.forms = [...t, ...f].sort((a, b) =>
             nameOf(a).localeCompare(nameOf(b), undefined, { sensitivity: 'base' })
           );
+          this.splitLists();
           this.snackBar.open(`Loaded ${this.forms.length} forms from Firebase.`, 'Close', { duration: 2500 });
         })
         .catch((err: any) => {
@@ -330,17 +516,28 @@ export class CreateFormComponent implements OnInit, AfterViewInit, OnDestroy {
       this.forms = normalized.sort((a, b) =>
         nameOf(a).localeCompare(nameOf(b), undefined, { sensitivity: 'base' })
       );
+        this.splitLists();
       this.snackBar.open(`Loaded ${normalized.length} ${kind}.`, 'Close', { duration: 2500 });
     }).catch((err: any) => {
       console.error('Error loading from Firestore:', err);
+
       this.snackBar.open(`Failed to load ${kind} from Firebase.`, 'Close', { duration: 3000 });
     });
   }
+loadFormsFromFirebase(): void {
+  const kind: 'filled' | 'templates' | 'both' =
+    this.viewMode === 'filled' ? 'filled' :
+    this.viewMode === 'tofill' ? 'templates' : 'both';
+      if (kind === 'templates') this.viewMode = 'tofill';
+  if (kind === 'filled')    this.viewMode = 'filled';
 
-  loadFormsFromFirebase(): void {
-    this.loadFromFirebase('filled');
-  }
+  this.loadFromFirebase(kind);
 
+}
+getTemplateName(f: SavedForm): string {
+  if (!f?.sourceFormId) return 'Unknown Form';
+  return this.templates.find(t => t.formId === f.sourceFormId)?.formName || 'Unknown Form';
+}
   getPageHeight(page: { fields: any[] }): number {
     const MIN = 800;
     const PAD = 120;
@@ -520,6 +717,32 @@ private freezePage(livePage: HTMLElement, clonePage: HTMLElement) {
     const cs = cloneSurface as HTMLElement;
     if (!cs.style.position) cs.style.position = 'relative';
   }
+  private canvasToBlob(cnv: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) =>
+    cnv.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob failed'))), 'image/png')
+  );
+}
+
+/** Upload all signature canvases to Storage; annotate fields with signatureUrl. */
+private async uploadAllSignatures(kind: 'filled' | 'template', docId: string) {
+  if (!this.selectedForm) return;
+
+  for (const page of this.selectedForm.formPages) {
+    for (const field of page.fields) {
+      if (field.type !== 'signature') continue;
+      const cnv = this.getCanvasById(field.id);
+      if (!cnv) continue;
+
+      const blob = await this.canvasToBlob(cnv);
+      const url = await this.formService.uploadImageBlob(kind, docId, field.id, blob);
+
+      // keep dataURL for local preview if you like, but also store a durable URL:
+      (field as any).signatureUrl = url;
+      // optional: shrink payload by clearing base64
+      // field.value = undefined;
+    }
+  }
+}
 
 private replaceControlsWithValues(root: HTMLElement) {
   const toSpan = (el: HTMLElement, text: string) => {
@@ -772,156 +995,169 @@ private swapSignaturesInto(root: HTMLElement) {
     this.nameError = false;
     this.closeFormEvent.emit();
   }
+async confirmSaveFilledForm(): Promise<void> {
+  // 0) guards + UX
+  if (!this.selectedForm || !this.currentInstance) {
+    this.snackBar.open('Form not ready to save.', 'Close', { duration: 2000 });
+    return;
+  }
+  const nameTrimmed = (this.filledDataName || '').trim();
+  if (!nameTrimmed) {
+    this.nameError = true;
+    this.snackBar.open('Please enter a form name.', 'Close', { duration: 2000 });
+    return;
+  }
+  this.nameError = false;
 
-  /* ---------------- Save (Local / Firebase / Both) ---------------- */
-
-  async confirmSaveFilledForm(): Promise<void> {
-    const nameTrimmed = (this.filledDataName || '').trim();
-    if (!this.selectedForm || !this.currentInstance) return;
-    if (!nameTrimmed) {
-      this.nameError = true;
-      return;
-    }
-    this.nameError = false;
-
-    // capture signatures
+  // 1) capture signatures (best-effort)
+  try {
     this.selectedForm.formPages.forEach((page) => {
       page.fields.forEach((field) => {
         if (field.type === 'signature') {
-          const canvas = this.getCanvasById(field.id);
-          if (canvas) field.value = canvas.toDataURL();
+          const c = this.getCanvasById(field.id);
+          if (c) field.value = c.toDataURL('image/png');
         }
       });
     });
+  } catch {}
 
-    // collect values
-    const values: Record<string, any> = {};
+  // 2) collect values
+  const values: Record<string, any> = {};
+  try {
     this.selectedForm.formPages.forEach((p) => p.fields.forEach((f) => (values[f.id] = f.value ?? null)));
+  } catch {}
 
-    // preview image (optional)
-    const formElement = document.querySelector('.form-page-container') as HTMLElement;
+  // 3) tiny preview (non-blocking)
+  try {
+    const formElement = document.querySelector('.form-page-container') as HTMLElement | null;
     if (formElement) {
-      const canvas = await html2canvas(formElement, { scale: SNAPSHOT_SCALE });
+      const canvas = await html2canvas(formElement, { scale: Math.min(2, Math.max(1, window.devicePixelRatio || 1)) });
       this.formPdfImagePreview = canvas.toDataURL('image/png');
     }
+  } catch {}
 
-    // update instance
-    this.currentInstance.formName = nameTrimmed;
-    this.currentInstance.formPagesSnapshot = JSON.parse(JSON.stringify(this.selectedForm.formPages));
-    this.currentInstance.data = values;
-    this.currentInstance.preview = this.formPdfImagePreview || null;
-    this.currentInstance.updatedAt = Date.now();
+  // 4) update working instance
+  this.currentInstance.formName = nameTrimmed;
+  this.currentInstance.formPagesSnapshot = JSON.parse(JSON.stringify(this.selectedForm.formPages));
+  this.currentInstance.data = values;
+  this.currentInstance.preview = this.formPdfImagePreview || null;
+  this.currentInstance.updatedAt = Date.now();
 
-    const choice = await this.openChoice('save');
-    if (!choice) return;
-
-    const saveLocal = () => {
-      const stored = localStorage.getItem('filledForms');
-      const arr: FilledFormData[] = stored ? JSON.parse(stored) : [];
-      const idForLocal = this.selectedForm!.formId;
-      const idx = arr.findIndex((f) => f.formId === idForLocal && f.name === nameTrimmed);
-      const filledForm: FilledFormData = {
-        formId: idForLocal,
-        name: nameTrimmed,
-        data: values,
-        formPagesSnapshot: this.currentInstance!.formPagesSnapshot,
-        formPdfPreview: this.currentInstance!.preview ?? null,
-      };
-      if (idx >= 0) arr[idx] = filledForm;
-      else arr.push(filledForm);
-      localStorage.setItem('filledForms', JSON.stringify(arr));
-      if (this.formPdfImagePreview) {
-        localStorage.setItem('lastPdf-preview-image', this.formPdfImagePreview);
-      }
-    };
-
-    const saveFirebaseCreate = async () => {
-      const ref = await this.formService.createFilledForm({
-        sourceFormId: this.currentInstance!.templateId ?? this.selectedForm!.formId,
-        formName: this.currentInstance!.formName,
-        name: this.currentInstance!.formName,
-        data: this.currentInstance!.data,
-        formPagesSnapshot: this.currentInstance!.formPagesSnapshot,
-        preview: this.currentInstance!.preview ?? null,
-        updatedAt: this.currentInstance!.updatedAt,
-      });
-      this.forms.unshift({
-        formId: ref.id,
-        formName: this.currentInstance!.formName,
-        formPages: this.currentInstance!.formPagesSnapshot,
-        source: 'filled',
-      });
-    };
-
-    const saveFirebaseUpdate = async () => {
-      await this.formService.updateFilledForm(this.selectedForm!.formId, {
-        formName: this.currentInstance!.formName,
-        name: this.currentInstance!.formName,
-        data: this.currentInstance!.data,
-        formPagesSnapshot: this.currentInstance!.formPagesSnapshot,
-        preview: this.currentInstance!.preview ?? null,
-        updatedAt: this.currentInstance!.updatedAt,
-      });
-      const idx = this.forms.findIndex((f) => f.formId === this.selectedForm!.formId);
-      if (idx >= 0) this.forms[idx].formName = this.currentInstance!.formName;
-    };
-
-    try {
-      const isFilled = this.selectedForm.source === 'filled';
-
-      if (choice === 'local') {
-        saveLocal();
-        this.snackBar.open(`Form saved locally as "${nameTrimmed}"`, 'Close', { duration: 3000 });
-      } else if (choice === 'firebase') {
-        if (isFilled) {
-          await saveFirebaseUpdate();
-        } else {
-          await saveFirebaseCreate();
-        }
-        this.snackBar.open(`Form saved to Firebase as "${nameTrimmed}"`, 'Close', { duration: 3000 });
-      } else if (choice === 'both') {
-        saveLocal();
-        if (isFilled) {
-          await saveFirebaseUpdate();
-        } else {
-          await saveFirebaseCreate();
-        }
-        this.snackBar.open(`Form saved locally & to Firebase as "${nameTrimmed}"`, 'Close', { duration: 3000 });
-      }
-
-      this.filledFormsUpdated.emit();
-      this.closeForm();
-    } catch (err: any) {
-      console.error('❌ Error submitting form:', err);
-      this.snackBar.open('Failed to save. Please try again.', 'Close', { duration: 3000 });
-    }
+  // 5) ask where to save — if dialog fails, default to firebase
+  let choice: 'local' | 'firebase' | 'both' | null = null;
+  try {
+    choice = await this.openChoice('save');
+  } catch (e) {
+    console.warn('[confirmSaveFilledForm] dialog failed; defaulting to firebase', e);
+    choice = 'firebase';
   }
+  if (!choice) {
+    this.snackBar.open('Save cancelled.', 'Close', { duration: 1500 });
+    return;
+  }
+
+  // 6) local helper
+  const saveLocal = () => {
+    const existingId = this.currentInstance!.instanceId || null;
+    const submissionId = existingId || ('filled-' + Math.random().toString(36).slice(2));
+    const sourceFormId = this.currentInstance!.templateId || this.selectedForm!.formId;
+    const snapshot = JSON.parse(JSON.stringify(this.currentInstance!.formPagesSnapshot));
+
+    const list: any[] = JSON.parse(localStorage.getItem('filledForms') || '[]');
+    const rec = {
+      id: submissionId,
+      sourceFormId,
+      formName: nameTrimmed,
+      formPagesSnapshot: snapshot,
+      data: this.currentInstance!.data,
+      updatedAt: new Date().toISOString(),
+      pdfUrl: this.currentInstance!.preview ?? null,
+    };
+    const i = list.findIndex((x) => (x.id ?? x.formId) === submissionId);
+    if (i >= 0) list[i] = rec; else list.unshift(rec);
+    localStorage.setItem('filledForms', JSON.stringify(list));
+    this.currentInstance!.instanceId = submissionId;
+
+    // reflect in UI
+    const mem: SavedForm = {
+      formId: submissionId,
+      formName: nameTrimmed,
+      formPages: snapshot,
+      source: 'filled',
+      pdfUrl: this.currentInstance!.preview ?? null,
+    };
+    const idx = this.forms.findIndex((x) => x.formId === submissionId);
+    if (idx >= 0) this.forms[idx] = mem; else this.forms.unshift(mem);
+    this.splitLists();
+  };
+
+  // 7) firebase helpers
+  const saveFirebaseCreate = async () => {
+    const ref = await this.formService.createFilledForm({
+      sourceFormId: this.currentInstance!.templateId ?? this.selectedForm!.formId,
+      formName: this.currentInstance!.formName,
+      name: this.currentInstance!.formName,
+      data: this.currentInstance!.data,
+      formPagesSnapshot: this.currentInstance!.formPagesSnapshot,
+      preview: this.currentInstance!.preview ?? null,
+      updatedAt: this.currentInstance!.updatedAt,
+    });
+    // optional: upload signature images and patch the doc
+    try {
+      await this.uploadAllSignatures('filled', ref.id);
+      await this.formService.updateFilledForm(ref.id, { formPagesSnapshot: this.selectedForm!.formPages });
+    } catch {}
+    this.forms.unshift({
+      formId: ref.id,
+      formName: this.currentInstance!.formName,
+      formPages: this.currentInstance!.formPagesSnapshot,
+      source: 'filled',
+      pdfUrl: this.currentInstance!.preview ?? null,
+    });
+    this.splitLists();
+  };
+
+  const saveFirebaseUpdate = async () => {
+    await this.formService.updateFilledForm(this.selectedForm!.formId, {
+      formName: this.currentInstance!.formName,
+      name: this.currentInstance!.formName,
+      data: this.currentInstance!.data,
+      formPagesSnapshot: this.currentInstance!.formPagesSnapshot,
+      preview: this.currentInstance!.preview ?? null,
+      updatedAt: this.currentInstance!.updatedAt,
+    });
+    const idx = this.forms.findIndex((f) => f.formId === this.selectedForm!.formId);
+    if (idx >= 0) this.forms[idx].formName = this.currentInstance!.formName;
+    this.splitLists();
+  };
+
+  // 8) perform save
+  try {
+    const isFilled = this.selectedForm.source === 'filled';
+    if (choice === 'local') {
+      saveLocal();
+      this.snackBar.open(`Form saved locally as “${nameTrimmed}”`, 'Close', { duration: 2500 });
+    } else if (choice === 'firebase') {
+      if (isFilled) await saveFirebaseUpdate(); else await saveFirebaseCreate();
+      this.snackBar.open(`Form saved to Firebase as “${nameTrimmed}”`, 'Close', { duration: 2500 });
+    } else {
+      // both
+      saveLocal();
+      if (isFilled) await saveFirebaseUpdate(); else await saveFirebaseCreate();
+      this.snackBar.open(`Form saved locally & to Firebase as “${nameTrimmed}”`, 'Close', { duration: 2500 });
+    }
+    this.filledFormsUpdated.emit();
+    this.closeForm();
+  } catch (err) {
+    console.error('Save failed:', err);
+    this.snackBar.open('Failed to save. Check console for details.', 'Close', { duration: 3500 });
+  }
+}
+  /* ---------------- Save (Local / Firebase / Both) ---------------- */
+
+
 
   /* ---------------- Delete ---------------- */
-
-  deleteForm(form: SavedForm): void {
-    if (!confirm(`Delete "${form.formName || 'Untitled'}"? This cannot be undone.`)) return;
-
-    const isFilled = form.source === 'filled';
-    const op = isFilled
-      ? this.formService.deleteFilledForm(form.formId)
-      : this.formService.deleteTemplate(form.formId);
-
-    op.then(() => {
-      const stored = localStorage.getItem('filledForms');
-      if (stored) {
-        const arr: FilledFormData[] = JSON.parse(stored);
-        const next = arr.filter((x) => x.formId !== form.formId);
-        localStorage.setItem('filledForms', JSON.stringify(next));
-      }
-      this.forms = this.forms.filter((f) => f.formId !== form.formId);
-      if (this.selectedForm?.formId === form.formId) this.closeForm();
-      this.snackBar.open('Deleted.', 'Close', { duration: 2000 });
-    }).catch((err: any) => {
-      console.error(err);
-      this.snackBar.open('Failed to delete.', 'Close', { duration: 3000 });
-    });
-  }
 
   /* ---------------- File handling ---------------- */
 
@@ -937,42 +1173,106 @@ private swapSignaturesInto(root: HTMLElement) {
       reader.readAsDataURL(file);
     }
   }
+deleteForm(form: SavedForm): void {
+  if (!confirm(`Delete "${form.formName || 'Untitled'}"? This cannot be undone.`)) return;
 
+  const isLocalOnlyFilled = form.source === 'filled' && form.formId.startsWith('filled-');
+
+  const doLocalCleanup = () => {
+    const stored = localStorage.getItem('filledForms');
+    if (stored) {
+      const arr: any[] = JSON.parse(stored);
+      const next = arr.filter((x) => (x.id ?? x.formId) !== form.formId);
+      localStorage.setItem('filledForms', JSON.stringify(next));
+    }
+    this.forms = this.forms.filter((f) => f.formId !== form.formId);
+    this.splitLists();
+    if (this.selectedForm?.formId === form.formId) this.closeForm();
+    this.snackBar.open('Deleted.', 'Close', { duration: 2000 });
+  };
+
+  if (isLocalOnlyFilled) {
+    doLocalCleanup();
+    return;
+  }
+
+  const isFilled = form.source === 'filled';
+  const op = isFilled
+    ? this.formService.deleteFilledForm(form.formId)
+    : this.formService.deleteTemplate(form.formId);
+
+  op.then(doLocalCleanup).catch((err: any) => {
+    console.error(err);
+    this.snackBar.open('Failed to delete.', 'Close', { duration: 3000 });
+  });
+}
   /* ---------------- Signature / Pointer helpers ---------------- */
 
-  initCanvases(): void {
-    this.ctxMap = {};
-    this.drawingMap = {};
-    this.lastPos = {};
-    if (!this.canvasRefs) return;
+initCanvases(): void {
+  this.ctxMap = {};
+  this.drawingMap = {};
+  this.lastPos = {};
+  // tear down old observers if any
+  Object.values(this.sigResizeObs).forEach(o => o.disconnect());
+  this.sigResizeObs = {};
+  this.sigSrcMap = {};
 
-    this.canvasRefs.forEach((ref) => {
-      const canvas = ref.nativeElement;
+  if (!this.canvasRefs) return;
 
-      const fieldId = canvas.getAttribute('data-id') || '';
-      const field = this.selectedForm?.formPages.flatMap((p) => p.fields).find((f) => f.id === fieldId);
+  this.canvasRefs.forEach((ref) => {
+    const canvas = ref.nativeElement;
+    const fieldId = canvas.getAttribute('data-id') || '';
+    const field = this.selectedForm?.formPages
+      .flatMap((p) => p.fields)
+      .find((f) => f.id === fieldId);
 
-      const cssW = Math.max(1, (field?.width ?? canvas.clientWidth) || 300);
-      const cssH = Math.max(1, (this.getSignatureCanvasHeight(field?.height) ?? canvas.clientHeight) || 150);
-      canvas.style.width = cssW + 'px';
-      canvas.style.height = cssH + 'px';
+    // capture signature source for redraws (value first, fallback to URL)
+    if (field?.type === 'signature') {
+      const src = (field as any)?.value || (field as any)?.signatureUrl || '';
+      if (src) this.sigSrcMap[fieldId] = src;
+    }
 
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+    // set CSS size
+    const cssW = Math.max(1, (field?.width ?? canvas.clientWidth) || 300);
+    const cssH = Math.max(1, (this.getSignatureCanvasHeight(field?.height) ?? canvas.clientHeight) || 150);
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
 
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.round(cssW * dpr);
-      canvas.height = Math.round(cssH * dpr);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
-      ctx.lineCap = 'round';
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth = 2;
+    // initial HiDPI setup + initial draw
+    this.resizeAndRedrawSignature(fieldId, canvas, ctx, cssW, cssH);
 
-      this.ctxMap[fieldId] = ctx;
-      this.drawingMap[fieldId] = false;
+    // pen style for live drawing
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
+
+    this.ctxMap[fieldId] = ctx;
+    this.drawingMap[fieldId] = false;
+
+    // 🔽 install a ResizeObserver with rAF throttle
+    let raf = 0;
+    const ro = new ResizeObserver((entries) => {
+      // throttle bursts of size changes into one draw per frame
+      if (raf) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const entry = entries[0];
+        if (!entry) return;
+        const box = entry.contentRect;
+        const newCssW = Math.max(1, Math.round(box.width));
+        const newCssH = Math.max(1, Math.round(box.height));
+        // keep CSS size authoritative
+        canvas.style.width = newCssW + 'px';
+        canvas.style.height = newCssH + 'px';
+        this.resizeAndRedrawSignature(fieldId, canvas, ctx, newCssW, newCssH);
+      });
     });
-  }
+    ro.observe(canvas);
+    this.sigResizeObs[fieldId] = ro;
+  });
+}
   private swapPhotosIntoClone(root: HTMLElement) {
   (this.selectedForm?.formPages || []).forEach(p =>
     p.fields.forEach(f => {
@@ -1019,29 +1319,32 @@ private swapSignaturesInto(root: HTMLElement) {
     this.lastPos[fieldId] = pos;
   }
 
-  stopDrawing(event: PointerEvent, fieldId: string): void {
-    event.preventDefault();
-    if (!this.drawingMap[fieldId]) return;
-    const ctx = this.ctxMap[fieldId];
-    if (!ctx) return;
-    ctx.closePath();
-    this.drawingMap[fieldId] = false;
-      const cnv = this.getCanvasById(fieldId);
-  const field = this.selectedForm?.formPages.flatMap(p => p.fields).find(f => f.id === fieldId);
-  if (cnv && field) field.value = cnv.toDataURL('image/png');
-  }
+stopDrawing(event: PointerEvent, fieldId: string): void {
+  event.preventDefault();
+  if (!this.drawingMap[fieldId]) return;
+  const ctx = this.ctxMap[fieldId];
+  if (!ctx) return;
+  ctx.closePath();
+  this.drawingMap[fieldId] = false;
 
-  clearSignatureCanvas(fieldId: string): void {
-    const canvas = this.getCanvasById(fieldId);
-    const ctx = this.ctxMap[fieldId];
-    if (canvas && ctx) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const field = this.selectedForm?.formPages.flatMap((p) => p.fields).find((f) => f.id === fieldId);
-      if (field) field.value = '';
-    }
+  const cnv = this.getCanvasById(fieldId);
+  const field = this.selectedForm?.formPages.flatMap(p => p.fields).find(f => f.id === fieldId);
+  if (cnv && field) {
+    const data = cnv.toDataURL('image/png');
+    field.value = data;
+    this.sigSrcMap[fieldId] = data; // keep the redraw source fresh
   }
-  private findFieldById(id: string) {
-  return this.selectedForm?.formPages.flatMap(p => p.fields).find(f => f.id === id);
+}
+
+clearSignatureCanvas(fieldId: string): void {
+  const canvas = this.getCanvasById(fieldId);
+  const ctx = this.ctxMap[fieldId];
+  if (canvas && ctx) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const field = this.selectedForm?.formPages.flatMap((p) => p.fields).find((f) => f.id === fieldId);
+    if (field) field.value = '';
+    delete this.sigSrcMap[fieldId];
+  }
 }
 
   getPointerPos(event: PointerEvent, fieldId: string): { x: number; y: number } {
@@ -1152,6 +1455,20 @@ private swapSignaturesInto(root: HTMLElement) {
       });
     });
   }
+  startFormFromTemplate(tpl: SavedForm) {
+  const inst: FilledInstance = {
+    instanceId: null,                       // new instance
+    templateId: tpl.formId,                 // link to the template
+    formName: tpl.formName || 'Untitled Form',
+    formPagesSnapshot: JSON.parse(JSON.stringify(tpl.formPages)),
+    data: {},
+    preview: null,
+    updatedAt: Date.now(),
+  };
+
+  this.beginEditing(inst);                  // opens the editor with a fresh instance
+                // optional: switch to “Filled” tab/section
+}
 
   applyPositionsToLiveForm(): void {
     if (!this.selectedForm) return;
@@ -1216,20 +1533,27 @@ private swapSignaturesInto(root: HTMLElement) {
     a.remove();
   }
 
-  async onClickDownloadIcon(form: SavedForm) {
-    try {
-      if (form?.pdfUrl) {
-        this.startDirectDownload(form.pdfUrl, `${form.formName || 'form'}.pdf`);
-        this.snackBar.open('PDF download started.', 'Close', { duration: 2000 });
-        return;
-      }
-      // No stored URL yet → generate & upload using the live-safe path
-      await this.exportFormToPDF_LIVE(form);
-    } catch (e) {
-      console.error('Download failed:', e);
-      this.snackBar.open('Download failed.', 'Close', { duration: 2500 });
+ async onClickDownloadIcon(form: SavedForm) {
+  const key = this.asKey(form.formId);
+  if (this.downloading.has(key)) return;
+
+  this.downloading.add(key);
+  this.cdr.detectChanges();
+  try {
+    if (form?.pdfUrl) {
+      this.startDirectDownload(form.pdfUrl, `${form.formName || 'form'}.pdf`);
+      this.snackBar.open('PDF download started.', 'Close', { duration: 2000 });
+    } else {
+      await this.exportFormToPDF_LIVE(form); // your working path (generate → upload → download)
     }
+  } catch (e) {
+    console.error('Download failed:', e);
+    this.snackBar.open('Download failed.', 'Close', { duration: 2500 });
+  } finally {
+    this.downloading.delete(key);
+    this.cdr.detectChanges();
   }
+}
 
   /** From editor list: if URL exists, use it; else generate & upload quickly. */
   private async downloadPdf(form: SavedForm) {
@@ -1741,7 +2065,7 @@ this.injectPdfCleanupCss(clone); // ensures .print-value fills the control width
     const fullH = Math.max(shell.scrollHeight, A4H);
 
     const canvas = await html2canvas(shell, {
-      scale: 2,
+      scale:  SNAPSHOT_SCALE,
       useCORS: true,
       backgroundColor: '#ffffff',
       logging: false,
@@ -1765,7 +2089,32 @@ this.injectPdfCleanupCss(clone); // ensures .print-value fills the control width
   }
 }
 
+openFilledForm(filled: any) {
+  this.selectedForm = {
+    formId: filled.sourceFormId,
+    formName: filled.formName,
+    formPages: JSON.parse(JSON.stringify(filled.formPagesSnapshot)),
+     source: 'filled', 
+  };
 
+  // ✅ restore signature images
+ this.selectedForm.formPages.forEach((page: any) => {
+    page.fields.forEach((field: any) => {
+      if (field.type !== 'signature') return;
+      const cnv = this.getCanvasById(field.id);
+      const ctx = cnv?.getContext('2d');
+      if (!cnv || !ctx) return;
+
+      const src = field.value || field.signatureUrl;
+      if (!src) return;
+
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => ctx.drawImage(img, 0, 0, cnv.width, cnv.height);
+      img.src = src;
+    });
+  });
+}
 
 
   savePDFPreview() {

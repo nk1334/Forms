@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { Router, NavigationEnd } from '@angular/router';
+import {Router, NavigationEnd } from '@angular/router';
 import { MatTableDataSource } from '@angular/material/table';
 import { MatDialog } from '@angular/material/dialog';
 import { AddNewTemplateModalComponent } from '../add-new-template-modal/add-new-template-modal.component';
@@ -10,6 +10,8 @@ import { AuthService } from '../../services/auth.service'; // correct path to yo
 import { PlantService } from '../../services/plant.service';  // update path if needed
 import { AddPlantDialogComponent } from '../../components/add-plant-dialog/add-plant-dialog.component';
 import { Observable } from 'rxjs';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { ChangeDetectorRef } from '@angular/core';
 
 interface FilledFormData {
   formId: string;
@@ -77,7 +79,39 @@ selectedPlants: string[] = []; // store selected plant regoNames or IDs
 
   isAdmin: boolean = false;
 
-  constructor(private router: Router, private dialog: MatDialog,private authService: AuthService,private plantService: PlantService ) {}
+  constructor(
+  private router: Router,
+  private dialog: MatDialog,
+  private authService: AuthService,
+  private plantService: PlantService,
+  private snackBar: MatSnackBar,     // <-- add
+  private cdr: ChangeDetectorRef,
+
+) {}
+
+downloading = new Set<string>();
+
+hasPdf(f: any): boolean {
+  return !!f?.pdfUrl;
+}
+
+isDownloading(id?: string): boolean {
+  return id ? this.downloading.has(String(id)) : false;
+}
+pdfTooltip(f: any): string {
+  return this.isDownloading(f?.formId)
+    ? 'Generating…'
+    : (this.hasPdf(f) ? 'Open PDF' : 'Generate PDF');
+}
+private startDirectDownload(url: string, filename = 'form.pdf') {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
 
   ngOnInit(): void {
     this.userBranch = localStorage.getItem('userBranch') || '';
@@ -87,6 +121,7 @@ selectedPlants: string[] = []; // store selected plant regoNames or IDs
             this.isAdmin = this.authService.isAdmin();
       }
     });
+    
 
     this.loadPlants();
     this.loadSavedForms();
@@ -109,10 +144,12 @@ selectedPlants: string[] = []; // store selected plant regoNames or IDs
     this.user = userData ? JSON.parse(userData) : null;
   }
   
+  
 clearSearch(): void {
   this.searchValue = '';
   this.dataSource.filter = '';
 }
+
 
 // keep your existing applyFilter but make sure it updates searchValue too:
 
@@ -174,11 +211,18 @@ onUserCreated(user: any) {
     this.dataSource.data = this.formListData;
   }
 
-  loadFilledForms(): void {
-    const stored = localStorage.getItem('filledForms');
-    this.filledForms = stored ? JSON.parse(stored) : [];
-    console.log('Loaded filled forms:', this.filledForms);
-  }
+loadFilledForms(): void {
+  const raw = localStorage.getItem('filledForms');
+  const arr: any[] = raw ? JSON.parse(raw) : [];
+
+  // Normalize to: { id, formId (source template), name, pdfUrl }
+  this.filledForms = arr.map(x => ({
+    id: x.id ?? x.formId ?? '',                  // FILLED instance id
+    formId: x.sourceFormId ?? x.formId ?? '',    // source template id
+    name: x.formName ?? x.name ?? 'Untitled',
+    pdfUrl: x.pdfUrl ?? x.formPdfPreview ?? null,
+  })) as any[];
+}
 
   applyFilter(event: Event): void {
     const value = (event.target as HTMLInputElement).value;
@@ -261,115 +305,48 @@ onUserCreated(user: any) {
     }
   }
 
-  downloadFilledFormPDF(filled: FilledFormData): void {
-    const formTemplate = this.formListData.find(
-      (f) => f.formId === filled.formId
-    );
-    if (!formTemplate) {
-      alert('Form template not found.');
-      return;
-    }
-    // console.log('filledForms:', formTemplate);
-    const localFilledForms = localStorage.getItem('filledForms');
-    if (!localFilledForms) {
-      alert('No filled forms found.');
-      return;
-    }
-    // console.log('localFilledForms:', localFilledForms);
-    if (localFilledForms) {
-      const imgDataRes = localStorage.getItem('lastPdf-preview-image');
-      let parsedImgData: string | null = null;
-      if (imgDataRes) {
-        try {
-          // Try to parse as JSON (in case it's an object with imageData property)
-          const imgDataObj = JSON.parse(imgDataRes);
-          parsedImgData = imgDataObj?.imageData || null;
-        } catch (e) {
-          // If parsing fails, treat as plain string (data URL)
-          parsedImgData = imgDataRes;
-        }
+async downloadFilledFormPDF(f: any) {
+  const id = String(f?.formId ?? '');
+  if (!id || this.isDownloading(id)) return;
+
+  const filename = `${f?.name || f?.formName || 'form'}.pdf`;
+
+  // If we think we have a real PDF, verify & download
+  if (this.hasPdf(f)) {
+    try {
+      const res = await fetch(f.pdfUrl, { mode: 'cors' });
+      if (!res.ok) throw new Error(String(res.status));
+
+      const ct = (res.headers.get('content-type') || '').toLowerCase();
+      if (!ct.includes('pdf') && !ct.includes('octet-stream')) {
+        throw new Error(`Unexpected content-type: ${ct}`);
       }
 
-      if (parsedImgData) {
-        const doc = new jsPDF();
-        // Add a title centered at the top of the page
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const title = formTemplate.formName || 'Filled Form';
-        doc.setFontSize(20);
-        const titleWidth = doc.getTextWidth(title);
-        doc.text(title, (pageWidth - titleWidth) / 2, 20);
-
-        // Filled data name
-        doc.setFontSize(12);
-        doc.text(`Filled Data Name: ${filled.name}`, 14, 30);
-
-        // Add the image to the PDF (assuming PNG/JPEG data URL)
-        try {
-          // Default: add image at (10, 40) with width 180, height auto
-          doc.addImage(parsedImgData, 'PNG', 10, 40, 180, 0);
-        } catch (e) {
-          console.log('Failed to add image to PDF:', e);
-        }
-        doc.save(`${filled.name || 'filled_form'}.pdf`);
-      } else {
-        alert('No image data found for PDF.');
-      }
+      const blob = await res.blob();
+      const objUrl = URL.createObjectURL(blob);
+      this.startDirectDownload(objUrl, filename);
+      setTimeout(() => URL.revokeObjectURL(objUrl), 15000);
+      this.snackBar.open('PDF download started.', 'Close', { duration: 2000 });
+      return;
+    } catch (e) {
+      console.warn('[Dashboard] Stored pdfUrl unusable, will regenerate:', e, f?.pdfUrl);
+      // fall through to regenerate
     }
-
-    // const doc = new jsPDF();
-
-    // // Title
-    // doc.setFontSize(18);
-    // doc.text(formTemplate.formName || 'Filled Form', 14, 20);
-
-    // // Filled data name
-    // doc.setFontSize(12);
-    // doc.text(`Filled Data Name: ${filled.name}`, 14, 30);
-
-    // let startY = 40;
-
-    // formTemplate.formPages.forEach(
-    //   (
-    //     page: { fields: Array<{ id: string; label?: string; type: string }> },
-    //     pageIndex: number
-    //   ) => {
-    //     doc.setFontSize(14);
-    //     doc.text(`Page ${pageIndex + 1}`, 14, startY);
-    //     startY += 8;
-
-    //     const rows: any[] = [];
-
-    //     page.fields.forEach((field) => {
-    //       let value = filled.data[field.id];
-
-    //       if (field.type === 'signature' && value) {
-    //         try {
-    //           doc.addImage(value, 'PNG', 14, startY, 50, 30);
-    //           startY += 35;
-    //         } catch {
-    //           // ignore image errors
-    //         }
-    //       } else {
-    //         rows.push([field.label || field.id, value || '']);
-    //       }
-    //     });
-
-    //     if (rows.length > 0) {
-    //       autoTable(doc, {
-    //         startY,
-    //         head: [['Field', 'Value']],
-    //         body: rows,
-    //         theme: 'striped',
-    //         styles: { fontSize: 10 },
-    //         margin: { left: 14, right: 14 },
-    //       });
-    //       startY = (doc as any).lastAutoTable.finalY + 10;
-    //     }
-    //   }
-    // );
-
-    // doc.save(`${filled.name || 'filled_form'}.pdf`);
   }
+
+  // No usable PDF -> hand off to /forms to generate+upload, then bounce back
+  this.downloading.add(id);
+  this.cdr.markForCheck();
+
+  this.router.navigate(['/forms'], {
+    queryParams: { download: id, back: this.router.url }
+  }).finally(() => {
+    this.downloading.delete(id);
+    this.cdr.markForCheck();
+  });
+}
+
+  
 
   deleteFilledForm(filled: FilledFormData): void {
     if (confirm(`Delete filled form "${filled.name}"?`)) {

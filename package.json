@@ -1,12 +1,16 @@
 {
   "name": "avante-app",
   "version": "0.0.0",
+  
   "scripts": {
     "ng": "ng",
     "start": "ng serve --port 4200",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+     "deploy:live": "ng build --configuration production && firebase deploy --only hosting",
+  "deploy:qa":   "ng build --configuration production && firebase hosting:channel:deploy qa --expires 7d"
+
   },
   "private": true,
   "dependencies": {

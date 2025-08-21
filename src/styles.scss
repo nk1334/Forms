@@ -2,3 +2,318 @@
 
 html, body { height: 100%; }
 body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
+
+/* ===== Compact Angular Material table inside the Forms card ===== */
+.forms-card .mat-mdc-table{
+  /* Angular Material v15+ row height vars */
+  --mat-table-row-item-size: 32px;
+  --mat-table-header-row-height: 32px;
+  table-layout: fixed;
+  font-size: 13px;
+}
+
+/* Angular Material class names */
+.forms-card table.mat-mdc-table .mat-mdc-header-row,
+.forms-card table.mat-mdc-table .mat-mdc-row{
+  height: 32px !important;
+  padding: 0 8px !important;
+}
+.forms-card table.mat-mdc-table .mat-mdc-header-cell,
+.forms-card table.mat-mdc-table .mat-mdc-cell{
+  padding: 4px 8px !important;
+  line-height: 1.2;
+  vertical-align: middle;
+  white-space: nowrap;
+  font-size: 12px;
+}
+:root { --toolbar-h: 48px; }
+
+/* A4 / export-only rules (these target <body class="for-pdf">) */
+.for-pdf #form-to-export{
+  position: relative;
+  width: 794px;        /* 210mm @ 96dpi */
+  min-height: 1123px;  /* 297mm */
+  background: #fff;
+  overflow: visible;
+}
+.for-pdf [data-nonprint],
+.for-pdf .editor-toolbar,
+.for-pdf .export-pdf-icons{ display: none !important; }
+.for-pdf *{ transform: none !important; filter: none !important; }
+
+/* prevent awkward page-breaks when rendering */
+#form-to-export{ overflow: visible !important; background:#fff; }
+#form-to-export *, .page-surface, .field-wrapper, .mat-card, textarea{
+  break-inside: avoid; page-break-inside: avoid;
+}
+
+/* Scope Material cleanups to PRINT ONLY so you don't break normal UI */
+.for-pdf .mat-form-field,
+.for-pdf .mat-form-field * { box-shadow:none!important; outline:0!important; }
+.for-pdf .mat-form-field-underline,
+.for-pdf .mat-form-field-ripple,
+.for-pdf .mat-form-field-suffix,
+.for-pdf .mat-form-field-prefix { display:none!important; }
+
+/* MDC class names (some builds render these) */
+.forms-card .mdc-data-table__row{
+  height: 32px !important;
+}
+.forms-card .mdc-data-table__cell,
+.forms-card .mdc-data-table__header-cell{
+  padding: 4px 8px !important;
+  line-height: 1.2 !important;
+  vertical-align: middle;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+/* Action buttons in the Actions column */
+.forms-card .actions .mat-mdc-icon-button.mat-mdc-button-base{
+  width: 24px !important;
+  height: 24px !important;
+  padding: 0 !important;
+  --mdc-icon-button-state-layer-size: 24px;
+  --mdc-icon-button-icon-size: 16px;
+}
+.forms-card .actions .mat-mdc-icon-button .mat-mdc-button-touch-target{
+  width: 24px !important;
+  height: 24px !important;
+}
+.forms-card .actions .mat-icon{
+  font-size: 16px !important;
+  width: 16px !important;
+  height: 16px !important;
+  line-height: 16px !important;
+}
+/* ==== DEBUG: prove we’re styling the correct rows (temporary) ==== */
+.forms-card tr.mat-mdc-row,
+.forms-card tr.mat-mdc-header-row {
+  outline: 1px dashed #ff548a !important;  /* ← remove after confirming */
+}
+
+/* ==== Hard overrides: make Forms table dense ==== */
+.forms-card table.mat-mdc-table {
+  /* shrink via Material CSS vars */
+  --mat-table-row-item-size: 32px;
+  --mat-table-header-row-height: 32px;
+  table-layout: fixed;
+}
+
+/* rows */
+.forms-card table.mat-mdc-table tr.mat-mdc-row,
+.forms-card table.mat-mdc-table tr.mat-mdc-header-row,
+.forms-card .mdc-data-table__row {
+  height: 32px !important;
+}
+
+/* cells */
+.forms-card table.mat-mdc-table td.mat-mdc-cell,
+.forms-card table.mat-mdc-table th.mat-mdc-header-cell,
+.forms-card .mdc-data-table__cell,
+.forms-card .mdc-data-table__header-cell {
+  height: 32px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+  line-height: 1.2 !important;
+  vertical-align: middle !important;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+/* shrink action buttons so they don't stretch the row */
+.forms-card td.actions .mat-mdc-icon-button.mat-mdc-button-base {
+  width: 24px !important;
+  height: 24px !important;
+  padding: 0 !important;
+  --mdc-icon-button-state-layer-size: 24px;
+  --mdc-icon-button-icon-size: 16px;
+}
+.forms-card td.actions .mat-mdc-icon-button .mat-mdc-button-touch-target {
+  width: 24px !important;
+  height: 24px !important;
+}
+.forms-card td.actions .mat-icon {
+  font-size: 16px !important;
+  width: 16px !important;
+  height: 16px !important;
+  line-height: 16px !important;
+}
+.forms-card {
+  /* Put the Material row-height CSS vars on a high ancestor so they inherit */
+  --mat-table-row-item-size: 32px;
+  --mat-table-header-row-height: 32px;
+}
+
+/* Apply to Angular Material table rows */
+.forms-card table.mat-mdc-table .mat-mdc-header-row,
+.forms-card table.mat-mdc-table .mat-mdc-row {
+  height: var(--mat-table-row-item-size) !important;
+  padding: 0 8px !important;
+}
+
+/* Cells: kill vertical padding so height actually shrinks */
+.forms-card table.mat-mdc-table .mat-mdc-header-cell,
+.forms-card table.mat-mdc-table .mat-mdc-cell {
+  height: var(--mat-table-row-item-size) !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+  line-height: 1.2 !important;
+  font-size: 12px;
+  vertical-align: middle !important;
+  white-space: nowrap;
+}
+
+.forms-card table.mat-mdc-table .mat-mdc-header-row,
+.forms-card table.mat-mdc-table .mat-mdc-row {
+  height: 32px !important;
+  padding: 0 8px !important;
+}
+
+
+.forms-card table.mat-mdc-table .mat-mdc-header-cell,
+.forms-card table.mat-mdc-table .mat-mdc-cell {
+  padding: 4px 8px !important;
+  line-height: 1.2 !important;
+  vertical-align: middle;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+/* Compact action buttons so they don’t stretch the row */
+.forms-card .actions .mat-mdc-icon-button.mat-mdc-button-base {
+  width: 24px !important;
+  height: 24px !important;
+  padding: 0 !important;
+  --mdc-icon-button-state-layer-size: 24px;
+  --mdc-icon-button-icon-size: 16px;
+}
+.forms-card .actions .mat-mdc-icon-button .mat-mdc-button-touch-target {
+  width: 24px !important;
+  height: 24px !important;
+}
+.forms-card .actions .mat-icon {
+  font-size: 16px !important;
+  width: 16px !important;
+  height: 16px !important;
+  line-height: 16px !important;
+}
+.mat-mdc-icon-button {            /* give the button a positioning context */
+  position: relative;
+}
+
+.mat-mdc-icon-button .mat-mdc-button-touch-target {
+  position: absolute;
+  inset: 0;                       /* fill the whole button */
+  width: auto !important;
+  height: auto !important;
+}
+
+/* keep your compact size on the BUTTON, not the touch target */
+.forms-list .actions .mat-mdc-icon-button.mat-mdc-button-base,
+.forms-card  .actions .mat-mdc-icon-button.mat-mdc-button-base {
+  width: 24px !important;
+  height: 24px !important;
+  padding: 0 !important;
+  --mdc-icon-button-icon-size: 16px;
+}
+
+.forms-list .actions .mat-icon,
+.forms-card  .actions .mat-icon {
+  font-size: 16px !important;
+  width: 16px !important;
+  height: 16px !important;
+  line-height: 16px !important;
+}
+.templates-card .mat-mdc-table {
+  --mat-table-row-item-size: 34px;
+  --mat-table-header-row-height: 34px;
+  table-layout: fixed;
+  font-size: 13px;
+}
+.templates-card .mat-mdc-header-row,
+.templates-card .mat-mdc-row,
+.templates-card .mdc-data-table__row {
+  height: 34px !important;
+}
+.templates-card .mat-mdc-cell,
+.templates-card .mat-mdc-header-cell,
+.templates-card .mdc-data-table__cell,
+.templates-card .mdc-data-table__header-cell {
+  padding: 4px 8px !important;
+  line-height: 1.2 !important;
+  vertical-align: middle;
+  white-space: nowrap;
+  font-size: 12.5px;
+}
+.templates-card .mat-icon-button {
+  width: 28px !important;
+  height: 28px !important;
+  padding: 0 !important;
+}
+.templates-card .mat-icon-button mat-icon {
+  font-size: 18px !important;
+  width: 18px !important;
+  height: 18px !important;
+  line-height: 18px !important;
+}
+.templates-card{
+  --row: 24px;          /* try 24, 22 if you dare */
+  --padV: 0px;          /* vertical padding */
+  --padH: 6px;          /* horizontal padding */
+  --font: 12px;         /* cell font size */
+}
+
+.templates-card .mat-mdc-table{
+  --mat-table-row-item-size: var(--row);
+  --mat-table-header-row-height: var(--row);
+  table-layout: fixed;
+  font-size: var(--font);
+}
+
+/* row heights */
+.templates-card .mat-mdc-header-row,
+.templates-card .mat-mdc-row,
+.templates-card .mdc-data-table__row{
+  height: var(--row) !important;
+}
+
+/* cells */
+.templates-card .mat-mdc-header-cell,
+.templates-card .mat-mdc-cell,
+.templates-card .mdc-data-table__cell,
+.templates-card .mdc-data-table__header-cell{
+  padding: var(--padV) var(--padH) !important;
+  line-height: 1.05 !important;
+  vertical-align: middle !important;
+  white-space: nowrap;
+  font-size: var(--font);
+}
+
+/* if your headers are sortable, the container can keep height tall — squash it */
+.templates-card .mat-sort-header-container{
+  height: var(--row) !important;
+  align-items: center !important;
+}
+
+/* icons: must shrink or they force the row taller */
+.templates-card .mat-mdc-icon-button.mat-mdc-button-base{
+  width: 18px !important;
+  height: 18px !important;
+  padding: 0 !important;
+  --mdc-icon-button-state-layer-size: 18px;
+  --mdc-icon-button-icon-size: 12px;
+}
+.templates-card .mat-mdc-icon-button .mat-mdc-button-touch-target{
+  position: absolute; inset: 0; width: auto !important; height: auto !important;
+}
+.templates-card .mat-icon{
+  font-size: 12px !important;
+  width: 12px !important;
+  height: 12px !important;
+  line-height: 12px !important;
+}

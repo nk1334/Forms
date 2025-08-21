@@ -64,7 +64,21 @@ async uploadPdfBlob(
   });
   return await getDownloadURL(storageRef);
 }
-
+async uploadImageBlob(
+  kind: 'filled' | 'template',
+  docId: string,
+  fieldId: string,
+  blob: Blob
+): Promise<string> {
+  const safe = (fieldId || 'signature').toLowerCase().replace(/[^a-z0-9-_]+/g, '-');
+  const path = `${kind}/${docId}/signatures/${safe}.png`;
+  const storageRef = ref(this.storage, path);
+  await uploadBytes(storageRef, blob, {
+    contentType: 'image/png',
+    cacheControl: 'public,max-age=31536000'
+  });
+  return await getDownloadURL(storageRef);
+}
 
 async attachPdfUrl(
   kind: 'filled' | 'template',
@@ -123,7 +137,10 @@ async attachPdfUrl(
     const formPages = data.formPages ?? (data.fields ? [{ fields: data.fields }] : []);
     return { formId: snap.id, formName, formPages };
   }
-  
+  async getTemplates(): Promise<any[]> {
+  const snapshot = await getDocs(collection(this.afs, TEMPLATES)); // uses 'formTemplates'
+  return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+}
 
   /** List templates (normalized) */
 async getFormTemplates(): Promise<SavedForm[]> {
@@ -140,7 +157,8 @@ async getFormTemplates(): Promise<SavedForm[]> {
       firebaseId: d.id,           // 👈 important for de-dupe
       formName,
       formPages,
-      pdfUrl: data.pdfUrl ?? null
+      pdfUrl: data.pdfUrl ?? null,
+            source: 'template',   
     };
   });
 }

@@ -1,7 +1,7 @@
 <div class="login-container">
   <!-- Left Image -->
   <div class="login-image">
-    <img src="assets/login.jpg" alt="Random" />
+    <img src="assets/login.jpg" alt="Login banner" />
   </div>
 
   <!-- Right Form -->
@@ -9,37 +9,68 @@
     <mat-card>
       <h2>Login</h2>
       <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Username</mat-label>
-          <input matInput formControlName="username">
+
+        <!-- Username -->
+        <mat-form-field appearance="outline">
+          <mat-label for="username">Username</mat-label>
+          <input
+            matInput
+            id="username"
+            formControlName="username"
+            autocomplete="username"
+            required
+          />
         </mat-form-field>
 
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Password</mat-label>
-          <input matInput type="password" formControlName="password">
+        <!-- Password -->
+        <mat-form-field appearance="outline">
+          <mat-label for="password">Password</mat-label>
+          <input
+            matInput
+            id="password"
+            formControlName="password"
+            type="password"
+            autocomplete="current-password"
+            required
+          />
         </mat-form-field>
 
-        <mat-form-field appearance="outline" class="full width">
-          <mat-label>Branch</mat-label>
-          <mat-select formControlName="branch">
-            <mat-option *ngFor="let b of branches" [value]="b.value">{{b.label}}</mat-option>
-            </mat-select>
-            </mat-form-field>
-     
-<mat-form-field appearance="outline" class="full-width">
-    <mat-label>AccessLevel</mat-label>
-    <mat-select formControlName="role">
-      <mat-option *ngFor="let r of roles" [value]="r">{{ r }}</mat-option>
-    </mat-select>
-  </mat-form-field>
-     <button mat-raised-button color="primary" type="submit" class="full-width">Login</button>
+        <!-- Branch -->
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label for="branch">Branch</mat-label>
+          <mat-select id="branch" formControlName="branch" required>
+            <mat-option *ngFor="let b of branches" [value]="b.value">
+              {{ b.label }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <!-- Access Level -->
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label for="role">Access Level</mat-label>
+          <mat-select id="role" formControlName="role" required>
+            <mat-option *ngFor="let r of roles" [value]="r">
+              {{ r }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <!-- Submit -->
+        <button
+          mat-raised-button
+          color="primary"
+          type="submit"
+          class="full-width">
+          Login
+        </button>
+
+        <!-- Error -->
         <div class="error" *ngIf="error">{{ error }}</div>
       </form>
 
-
       <!-- Sign Up Link -->
       <div class="signup-link">
-        Don't have an account?
+        Don’t have an account?
         <a routerLink="/signup">Sign Up</a>
       </div>
     </mat-card>
