@@ -244,6 +244,27 @@
                         This field is required.
                       </mat-error>
                     </ng-container>
+     <ng-container *ngIf="field.type === 'checkbox'">
+  <div class="checkbox-group"
+       role="group"
+       [attr.aria-labelledby]="field.id + '__label'">
+
+    <mat-checkbox
+      *ngFor="let opt of (field.options || []); let i = index"
+      [(ngModel)]="opt.checked"
+      [ngModelOptions]="{ standalone: true }"
+      [attr.id]="field.id + '_chk_' + i"
+      (ngModelChange)="onCheckboxToggle(field)">
+      {{ opt.label }}
+    </mat-checkbox>
+  </div>
+
+  <!-- no arrow functions in templates -->
+  <div *ngIf="field.required && !hasAnyChecked(field)"
+       style="color:#d32f2f; font-size:12px;">
+    * Required: select at least one option.
+  </div>
+</ng-container>
 
                     <!-- Project Title -->
                     <ng-container *ngIf="field.type === 'project-title'">

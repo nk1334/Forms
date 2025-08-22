@@ -29,7 +29,7 @@ export interface FormField {
   // Allow any number for width and height, not just fixed literal types
   width?: number;
   height?: number;
-  options?: { value: string; label: string }[];
+   options?: { label: string; value?: string; checked?: boolean }[];
   value?: any;
   position?: { x: number; y: number };
   row?: number;
@@ -37,6 +37,8 @@ export interface FormField {
   problemItems?: { no: number; text: string }[];
 nextNo?:number;
 required:boolean;
+  layout?: 'row' | 'column';
+
 
 }
 
@@ -93,12 +95,20 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
     label: 'Radio Field',
     type: 'radio',
     options: [{ label: 'Yes', value: 'yes' }, { label: 'No', value: 'no' }],
+    layout: 'row',
     required: false
   },
   { id: 'file', label: 'Photo', type: 'file', required: false },
   { id: 'empty', label: 'Empty Box', type: 'empty', required: false },
   { id: 'signature', label: 'Signature', type: 'signature', required: false },
-  { id: 'submit', label: 'Submit Button', type: 'submit', required: false }
+  { id: 'submit', label: 'Submit Button', type: 'submit', required: false },
+{ id: 'checkbox', label: 'Checkbox', type: 'checkbox', required: false,
+  options: [
+    { label: 'Option 1', value: 'opt1', checked: false },
+    { label: 'Option 2', value: 'opt2', checked: false }
+  ],
+  width: 200, height: 44
+},
 ];
 
   newField: FormField = this.getEmptyField();
@@ -161,6 +171,9 @@ ngOnInit(): void {
 }
   trackBySavedForm(index: number, f: SavedForm): string {
   return (f.firebaseId && f.firebaseId.trim()) ? `fb:${f.firebaseId}` : `id:${f.formId}`;
+}
+hasAnyChecked(field: { options?: { checked?: boolean }[] }): boolean {
+  return Array.isArray(field.options) && field.options.some(o => !!o?.checked);
 }
 
   private cleanupLocalDuplicates(): void {
@@ -429,6 +442,14 @@ openFieldConfig() {
       required:false
     };
   }
+  field = {
+  type: 'checkbox',
+  options: [
+    { label: 'Option 1', checked: false },
+    { label: 'Option 2', checked: false },
+    { label: 'Option 3', checked: false },
+  ]
+};
 
   generateId(): string {
     this.idCounter++;
@@ -470,9 +491,50 @@ isRequiredField(field: FormField): boolean {
   const legacyRequired = label === 'crew name' || label === 'date' || label === 'signature';
   return !!field.required || legacyRequired;
 }
+labelEditing: string | null = null;
+
+startLabelEdit(field: FormField, ev?: Event) {
+  ev?.stopPropagation();
+  this.labelEditing = field.id;
+  setTimeout(() => {
+    const el = document.querySelector(
+      `.editable-label[data-id="${field.id}"]`
+    ) as HTMLElement | null;   // ⬅️ note selector order
+    el?.focus();
+    if (el) {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      range.collapse(false);
+      const sel = window.getSelection();
+      sel?.removeAllRanges();
+      sel?.addRange(range);
+    }
+  });
+}
+updateOptionLabel(field: FormField, index: number, ev: FocusEvent) {
+  const el = ev.target as HTMLElement;
+  const txt = (el.innerText || '').trim();
+  if (!field.options) field.options = [];
+  const curr = field.options[index] || { label: '' };
+  field.options[index] = { ...curr, label: txt || `Option ${index + 1}` };
+}
+
+finishLabelEdit(field: FormField, ev: FocusEvent | KeyboardEvent) {
+  const el = ev.target as HTMLElement;
+  const text = (el.innerText || '').trim();
+  field.label = text || 'Checkbox';
+  this.labelEditing = null;
+}
+
+onLabelKeydown(field: FormField, ev: KeyboardEvent) {
+  if (ev.key === 'Enter' || ev.key === 'Escape') {
+    ev.preventDefault();
+    (ev.target as HTMLElement).blur(); // triggers finishLabelEdit via (blur)
+  }
+}
 
 // Is the required field filled?
- isFieldFilled(field: FormField): boolean {
+isFieldFilled(field: FormField): boolean {
   if (!this.isRequiredField(field)) return true;
 
   switch (field.type) {
@@ -481,7 +543,7 @@ isRequiredField(field: FormField): boolean {
     case 'tel':
     case 'number':
     case 'textarea':
-    case 'project-title': // if any remain
+    case 'project-title':
       return typeof field.value === 'string' ? field.value.trim().length > 0 : !!field.value;
 
     case 'date':
@@ -490,11 +552,16 @@ isRequiredField(field: FormField): boolean {
     case 'signature':
       return !!field.value && typeof field.value === 'string' && field.value.startsWith('data:image');
 
+    case 'checkbox': // ⬅️ add this
+      if (Array.isArray(field.options) && field.options.length) {
+        return field.options.some(o => !!o?.checked);
+      }
+      return !!field.value; // fallback if ever used as single checkbox
+
     default:
       return true;
   }
 }
-
 // Any required fields missing across pages?
 hasRequiredMissing(): boolean {
   for (const page of this.formPages) {
@@ -503,6 +570,29 @@ hasRequiredMissing(): boolean {
     }
   }
   return false;
+}
+addCheckboxOption(field: FormField) {
+  field.options = field.options || [];
+  const n = field.options.length + 1;
+  field.options.push({ label: `Option ${n}`, value: `opt${n}`, checked: false });
+}
+
+
+removeCheckboxOption(field: FormField, idx: number) {
+  field.options?.splice(idx, 1);
+}
+
+onOptionLabelBlur(e: Event, oi: number, opt: { label: string; value?: string; checked?: boolean }): void {
+  const el = e.target as HTMLElement | null;
+  const text = (el?.innerText || '').trim();
+  opt.label = text || `Option ${oi + 1}`;
+  this.cdr.markForCheck();
+}
+onOptionKeydown(ev: KeyboardEvent) {
+  if (ev.key === 'Enter' || ev.key === 'Escape') {
+    ev.preventDefault();
+    (ev.target as HTMLElement).blur();
+  }
 }
 
 // Build a list of missing required field labels
@@ -644,12 +734,24 @@ hasRequiredMissing(): boolean {
     if (!this.pendingFieldToAdd) return;
     const f = { ...this.pendingFieldToAdd };
 
+  if (f.type === 'radio') {
+    f.layout = f.layout || 'row';
+  }
     // No need to restrict width to literals here, just ensure it's a number
     if (typeof f.width === 'string') {
       f.width = parseInt(f.width, 10);
     }
+if (f.type === 'checkbox') {
+    if (!Array.isArray(f.options) || f.options.length === 0) {
+      f.options = [
+        { label: 'Option 1', value: 'opt1', checked: false },
+        { label: 'Option 2', value: 'opt2', checked: false }
+      ];
+    }
+    delete f.value; // we won't use single boolean for multi
+  }
 
-    f.id = this.generateId();
+  f.id = this.generateId();
 
     if (f.type === 'project-title') f.value = f.value || '';
     if (f.type === 'branch') {

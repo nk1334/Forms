@@ -3,25 +3,40 @@
   <mat-toolbar color="primary" class="toolbar">
     <span class="title">Dashboard</span>
     <span class="spacer"></span>
+   <div class="action-bar">
+    <button class="avatar-btn" mat-icon-button [matMenuTriggerFor]="userMenu">
+      <mat-icon>account_circle</mat-icon>
+    </button>
 
-    <div class="top-actions">
-      <mat-form-field appearance="fill" class="plants-select">
-        <mat-label>Select Plants</mat-label>
-        <mat-select [(value)]="selectedPlants" multiple>
-          <mat-option *ngFor="let p of (plants$ | async)" [value]="p.regoName">
-            {{ p.plantName || p.regoName }}
-          </mat-option>
-        </mat-select>
-      </mat-form-field>
+ <mat-menu #userMenu="matMenu">
+    <button mat-menu-item disabled>
+      <mat-icon>person</mat-icon>
+      <span>{{ user?.displayName || user?.email || 'Signed in' }}</span>
+    </button>
+    <mat-divider></mat-divider>
+    <button mat-menu-item (click)="logout()">
+      <mat-icon>logout</mat-icon>
+      <span>Logout</span>
+    </button>
+  </mat-menu>
 
-      <button mat-raised-button color="accent" (click)="openAddPlantDialog($event)">
-        <mat-icon>add</mat-icon>&nbsp;Add New Plant
-      </button>
+     <mat-form-field appearance="outline" class="plants pill">
+    <mat-label>Select Plants</mat-label>
+    <mat-select [(value)]="selectedPlants" multiple>
+      <mat-option *ngFor="let p of (plants$ | async)" [value]="p.regoName">
+        {{ p.plantName || p.regoName }}
+      </mat-option>
+    </mat-select>
+  </mat-form-field>
 
-      <button mat-raised-button color="warn" (click)="openAddUserDialog($event)">
-        <mat-icon>person_add</mat-icon>&nbsp;Add New User
-      </button>
-    </div>
+     <button mat-flat-button class="btn-gradient" (click)="openAddPlantDialog($event)">
+    <mat-icon>add</mat-icon>&nbsp;Add New Plant
+  </button>
+
+  <button mat-flat-button class="btn-ghost-warn" (click)="openAddUserDialog($event)">
+    <mat-icon>person_add</mat-icon>&nbsp;Add New User
+  </button>
+</div>
   </mat-toolbar>
 
   <!-- Body: sidebar + content -->

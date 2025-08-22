@@ -59,10 +59,26 @@
   font-size: 20px;
   cursor: pointer;
 }
+.checkbox-field { user-select: text; }
+.editable-label:focus { outline: 2px solid #90caf9; border-radius: 4px; }
 
 .dashboard,
 .form-builder {
   margin: 20px;
+}
+@media print {
+  input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    border: 1px solid #222;
+    width: 14px; height: 14px;
+    display:inline-block; vertical-align:middle; position:relative;
+  }
+  input[type="checkbox"]:checked::after {
+    content: '✓';
+    position:absolute; left:1px; top:-1px;
+    font-weight:700; font-size:14px; line-height:14px;
+  }
 }
 
 
@@ -885,3 +901,67 @@ textarea.form-input {
 .rh-nw { top: 2px;    left: 2px;   cursor: nwse-resize; }
 .rh-se { bottom: 2px; right: 2px;  cursor: nwse-resize; }
 .rh-sw { bottom: 2px; left: 2px;   cursor: nesw-resize; }
+/* ---- Checkbox field: keep options in one row ---- */
+.form-row .checkbox-field .checkbox-options-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 24px;
+  row-gap: 8px;
+}
+
+/* Each option inline with its box + label text */
+.form-row .checkbox-field .checkbox-options-row label {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  width: auto;
+  white-space: nowrap;
+}
+
+/* Critical: neutralize the global .form-row input rule for checkboxes */
+.form-row .checkbox-field input[type="checkbox"] {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+}
+/* Grow only text-ish controls */
+.form-row input:not([type="radio"]):not([type="checkbox"]),
+.form-row textarea {
+  flex-grow: 1;
+  min-width: 150px;
+  max-width: calc(100% - 130px);
+  height: auto;
+}
+
+/* Reset radios & checkboxes so they stay compact */
+.form-row input[type="radio"],
+.form-row input[type="checkbox"] {
+  flex-grow: 0 !important;
+  min-width: auto !important;
+  max-width: none !important;
+  width: auto !important;
+  margin: 0; /* keep tight */
+}
+
+/* (Nice to have) make radio options wrap inside the box */
+.radio-field .radio-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 24px;
+  max-width: 100%;
+}
+.radio-field .radio-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  white-space: nowrap;
+}
+
+/* Optional: clip any accidental overflow from the field box itself */
+.form-row { overflow: hidden; }

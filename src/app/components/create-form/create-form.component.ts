@@ -57,7 +57,7 @@ interface FormField {
   type?: string;
   value?: any;
   placeholder?: string;
-  options?: { value: string; label: string }[];
+  options?: { value: string; label: string; checked?: boolean }[];
   width?: number;
   position?: { x: number; y: number };
   required?: boolean;
@@ -272,6 +272,16 @@ private resizeAndRedrawSignature(
       }
     });
   }
+  hasAnyChecked(field: { options?: { checked?: boolean }[] } | null | undefined): boolean {
+  if (!field?.options?.length) return false;
+  return field.options.some(o => !!o?.checked);
+}
+onCheckboxToggle(field: FormField) {
+  // Keep field.value = array of selected option values
+  if (field.type === 'checkbox' && Array.isArray(field.options)) {
+    field.value = field.options.filter(o => !!o.checked).map(o => o.value);
+  }
+}
 showFilledForms() {
   if (!this.filledForms.length) this.loadFromFirebase('filled');
   this.viewMode = 'filled';
@@ -287,6 +297,7 @@ private async handleDashboardDownload(id: string) {
         this.formService.getFormTemplates().catch(() => []),
         this.formService.getFilledForms().catch(() => []),
       ]);
+      
 
       const toSaved = (item: any, source: 'template' | 'filled') => ({
         formId: String(
@@ -905,6 +916,16 @@ private replaceControlsWithValues(root: HTMLElement) {
     root.prepend(style);
     
   }
+  private restoreCheckboxesFromValue() {
+  (this.selectedForm?.formPages || []).forEach(p =>
+    p.fields.forEach((f: any) => {
+      if (f.type === 'checkbox' && Array.isArray(f.options)) {
+        const chosen: string[] = Array.isArray(f.value) ? f.value : [];
+        f.options.forEach((o: any) => o.checked = chosen.includes(o.value));
+      }
+    })
+  );
+}
   
 
   private reflowIntoGrid(clone: HTMLElement): void {
@@ -1020,6 +1041,13 @@ async confirmSaveFilledForm(): Promise<void> {
       });
     });
   } catch {}
+
+  
+this.selectedForm.formPages.forEach((p) => p.fields.forEach((f: any) => {
+  if (f.type === 'checkbox' && Array.isArray(f.options)) {
+    f.value = f.options.filter((o: any) => !!o.checked).map((o: any) => o.value);
+  }
+}));
 
   // 2) collect values
   const values: Record<string, any> = {};
@@ -1466,9 +1494,12 @@ clearSignatureCanvas(fieldId: string): void {
     updatedAt: Date.now(),
   };
 
-  this.beginEditing(inst);                  // opens the editor with a fresh instance
+  this.beginEditing(inst);  
+  this.restoreCheckboxesFromValue(); 
+                 // opens the editor with a fresh instance
                 // optional: switch to “Filled” tab/section
 }
+
 
   applyPositionsToLiveForm(): void {
     if (!this.selectedForm) return;
@@ -2096,7 +2127,7 @@ openFilledForm(filled: any) {
     formPages: JSON.parse(JSON.stringify(filled.formPagesSnapshot)),
      source: 'filled', 
   };
-
+this.restoreCheckboxesFromValue()
   // ✅ restore signature images
  this.selectedForm.formPages.forEach((page: any) => {
     page.fields.forEach((field: any) => {

@@ -90,6 +90,7 @@
              (cdkDragStarted)="onFieldDragStarted($event, field)"
              (cdkDragMoved)="onFieldDragMoved($event, field)"
              (cdkDragEnded)="onFieldDragEnded($event, field)"
+             [cdkDragDisabled]="labelEditing === field.id" 
              class="form-row"
              [style.maxWidth]="(field.type==='textarea' && (field.id==='description' || field.label==='Description Field')) ? 'none' : null"
              [style.maxHeight]="(field.type==='textarea' && (field.id==='description' || field.label==='Description Field')) ? 'none' : null"
@@ -103,7 +104,7 @@
           </div>
 
           <!-- Label (if not a title/empty) -->
-        <div *ngIf="field.label && field.type !== 'project-title' && field.type !== 'empty'"
+        <div *ngIf="field.label && field.type !== 'project-title' && field.type !== 'empty' && field.type !== 'checkbox'  && field.type !== 'radio'"
      style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
 <label class="form-label" [attr.for]="'field-' + i" style="margin:0;"
        [attr.aria-required]="isRequiredField(field) ? 'true' : null">
@@ -148,6 +149,48 @@
             <!-- ID (readonly) -->
             <input *ngSwitchCase="'id'" id="field-{{i}}" name="field-{{i}}" type="text" class="form-input"
                    [style.width.px]="field.width" [value]="field.id" disabled placeholder="ID Field (readonly)" />
+
+<div *ngSwitchCase="'checkbox'"
+     class="checkbox-field"
+     [style.width.px]="field.width"
+     style="display:flex; flex-direction:column; gap:8px;">
+
+  <!-- Inline editable group title (no separate heading) -->
+  <div style="display:flex; align-items:center; gap:8px;">
+    <span class="editable-label"
+          [attr.data-id]="field.id"
+          contenteditable="true"
+          (focus)="startLabelEdit(field, $event)"
+          (blur)="finishLabelEdit(field, $event)"
+          (keydown)="onLabelKeydown(field, $event)"
+          style="outline:0; border-bottom:1px dashed transparent;"
+          [style.borderBottomColor]="labelEditing===field.id ? '#999' : 'transparent'">
+      {{ field.label || 'Checkbox' }}
+    </span>
+    <span *ngIf="isRequiredField(field)" aria-hidden="true" style="color:#d32f2f;">*</span>
+  </div>
+
+  <!-- Multiple checkboxes from options -->
+     <div class="checkbox-options-row"
+         style="display:flex; flex-wrap:wrap; align-items:center; column-gap:24px; row-gap:8px;">
+  <label *ngFor="let opt of (field.options || []); let oi = index"
+        style="display:inline-flex; align-items:center; gap:6px; width:auto; margin:0; white-space:nowrap;">
+    <input type="checkbox" [(ngModel)]="opt.checked">
+    <span contenteditable="true"
+        (blur)="onOptionLabelBlur($event, oi, opt)"
+          style="outline:0;">
+      {{ opt.label || ('Option ' + (oi+1)) }}
+    </span>
+  </label>
+  </div>
+
+  <!-- Single required message -->
+<div *ngIf="isRequiredField(field) && !hasAnyChecked(field)"
+     style="color:#d32f2f; font-size:12px;">
+  * Required: select at least one option.
+</div>
+</div>
+
 
             <!-- Date -->
             <input *ngSwitchCase="'date'" id="field-{{i}}" name="field-{{i}}" type="date"
@@ -205,15 +248,50 @@
     </div>
   </ng-template>
 </div>
-      
+      <!--Radio-->
+<div *ngSwitchCase="'radio'" class="radio-field" [style.width.px]="field.width">
+  <!-- Group title (same editable header you use in checkbox) -->
+  <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+    <span class="editable-label"
+          [attr.data-id]="field.id"
+          contenteditable="true"
+          (focus)="startLabelEdit(field, $event)"
+          (blur)="finishLabelEdit(field, $event)"
+          (keydown)="onLabelKeydown(field, $event)"
+          style="outline:0;">
+      {{ field.label || 'Radio Field' }}
+    </span>
+    <span *ngIf="isRequiredField(field)" style="color:#d32f2f;">*</span>
+  </div>
 
-            <!-- Radio group -->
-            <div *ngSwitchCase="'radio'" class="form-input" [style.width.px]="field.width">
-              <label *ngFor="let option of field.options || []" style="margin-right:8px;">
-                <input type="radio" [name]="'radio-' + i" [value]="option.value" [(ngModel)]="field.value" />
-                {{ option.label }}
-              </label>
-            </div>
+  <!-- Inline options row (exactly like checkbox) -->
+  <div class="radio-options-row"
+       style="display:flex; flex-wrap:wrap; align-items:center; column-gap:24px; row-gap:8px;">
+    <label *ngFor="let opt of (field.options || []); let i = index"
+           style="display:inline-flex; align-items:center; gap:6px; width:auto; margin:0; white-space:nowrap;">
+      <input type="radio"
+             [name]="field.id"
+             [value]="opt.value || ('opt' + (i+1))"
+             [(ngModel)]="field.value"
+             [ngModelOptions]="{standalone:true}">
+      <span contenteditable="true"
+            (mousedown)="$event.preventDefault(); $event.stopPropagation()"
+            (click)="$event.preventDefault(); $event.stopPropagation()"
+            (keydown)="onOptionKeydown($event)"
+            (blur)="onOptionLabelBlur($event, i, opt)"
+            style="outline:0;">
+        {{ opt.label || ('Option ' + (i+1)) }}
+      </span>
+    </label>
+  </div>
+
+  <!-- Required message -->
+  <div *ngIf="field.required && !field.value"
+       style="color:#d32f2f; font-size:12px; margin-top:4px;">
+    * Required: select one option.
+  </div>
+</div>
+
 
             <!-- File upload -->
             <div *ngSwitchCase="'file'" style="margin-top:8px; position:relative;">

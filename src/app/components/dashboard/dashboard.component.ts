@@ -119,6 +119,7 @@ private startDirectDownload(url: string, filename = 'form.pdf') {
       if (event instanceof NavigationEnd) {
         this.showDashboardUI = this.router.url === '/dashboard';
             this.isAdmin = this.authService.isAdmin();
+            
       }
     });
     
