@@ -18,7 +18,7 @@ export class LoginComponent {
   branches=[
 {label:'NSW',value:'NSW'},
 {label:'YATALA',value:'YAT'},
-{label:'MACKAY',value:'MKAY'}
+{label:'MACKAY',value:'MACKAY'}
  ];
 
   error = '';
@@ -44,7 +44,7 @@ export class LoginComponent {
 
   constructor(private fb: FormBuilder, private auth: AuthService, private router: Router) {}
   ngOnInit(): void {}
-  onSubmit() {
+  async onSubmit() {
   if (this.loginForm.invalid) {
     this.error = 'Please fill in all required fields';
     return;
@@ -55,15 +55,28 @@ export class LoginComponent {
   const branch = this.loginForm.get('branch')?.value || '';
   const role = this.loginForm.get('role')?.value || '';
 
-  const success = this.auth.login(username, password);
+try {
+    // Works whether login() returns boolean or Promise<boolean>
+    const result = this.auth.login(username, password) as any;
+    const success: boolean = (typeof result?.then === 'function') ? await result : !!result;
 
-  console.log('Login attempt:', { username, password, branch, role, success });
+    console.log('Login attempt:', { username, branch, role, success });
 
-  if (!success) {
-    this.error = 'Invalid username or password';
-  } else {
-    localStorage.setItem('userBranch', branch);
+    if (!success) {
+      this.error = 'Invalid username or password';
+      return;
+    }
+
+    // ✅ Save branch for the app to use when fetching templates
+    localStorage.setItem('branch', branch);
+
+    // (Optional) save role if you need role-based UI
+    localStorage.setItem('role', role);
+
+    // Go to dashboard; it should read localStorage.getItem('branch')
     this.router.navigate(['dashboard']);
+  } catch (e) {
+    console.error(e);
+    this.error = 'Login failed. Please try again.';
   }
-}
-}
+}}

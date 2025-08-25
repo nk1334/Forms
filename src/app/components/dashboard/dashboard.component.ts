@@ -12,6 +12,8 @@ import { AddPlantDialogComponent } from '../../components/add-plant-dialog/add-p
 import { Observable } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ChangeDetectorRef } from '@angular/core';
+import { FormService, SavedForm } from 'src/app/services/form.service';
+type BranchId = 'NSW' | 'YAT' | 'MACKAY';
 
 interface FilledFormData {
   formId: string;
@@ -24,7 +26,11 @@ interface FilledFormData {
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss'],
 })
+
 export class DashboardComponent implements OnInit {
+   branch: BranchId = 'NSW';  
+   
+  templates: SavedForm[] = [];
   searchValue = '';
   tabIndex = 0; 
 isAddUserOpen = false;
@@ -33,7 +39,7 @@ isAddPlantOpen = false;
     showForm: boolean = false; 
   dashboardVisible = true;
   showDashboardUI = false;
-  userBranch: string = '';
+ userBranch: BranchId = 'NSW'; 
   user: any;
   formListData: any[] = [];
   displayedColumns: string[] = [
@@ -86,6 +92,7 @@ selectedPlants: string[] = []; // store selected plant regoNames or IDs
   private plantService: PlantService,
   private snackBar: MatSnackBar,     // <-- add
   private cdr: ChangeDetectorRef,
+    private formService: FormService
 
 ) {}
 
@@ -113,16 +120,18 @@ private startDirectDownload(url: string, filename = 'form.pdf') {
   a.remove();
 }
 
-  ngOnInit(): void {
-    this.userBranch = localStorage.getItem('userBranch') || '';
-    this.router.events.subscribe((event) => {
-      if (event instanceof NavigationEnd) {
-        this.showDashboardUI = this.router.url === '/dashboard';
-            this.isAdmin = this.authService.isAdmin();
-            
-      }
-    });
-    
+async ngOnInit(): Promise<void> {
+  // Use the consistent key 'branch' set at login
+ const raw = localStorage.getItem('branch') as BranchId | null;
+  this.userBranch = (raw === 'NSW' || raw === 'YAT' || raw === 'MACKAY') ? raw : 'NSW';
+  this.branch = this.userBranch; // ✅ both BranchId now
+
+  this.router.events.subscribe((event) => {
+    if (event instanceof NavigationEnd) {
+      this.showDashboardUI = this.router.url === '/dashboard';
+      this.isAdmin = this.authService.isAdmin();
+    }
+  });
 
     this.loadPlants();
     this.loadSavedForms();
@@ -131,6 +140,7 @@ private startDirectDownload(url: string, filename = 'form.pdf') {
     this.plants$.subscribe(plants => {
     this.plants = plants;
   });
+    await this.loadTemplatesFor(this.branch);
     // Initialize data source filter for searching templates
     this.dataSource.filterPredicate = (data: any, filter: string) => {
       const formName = data.formName ? data.formName.toLowerCase() : '';
@@ -189,6 +199,16 @@ createTemplate(): void {
   const top  = r.bottom + window.scrollY + 8; // 8px below
   const left = r.left   + window.scrollX;     // left-aligned
   return { top: `${top}px`, left: `${left}px` };
+}
+private async loadTemplatesFor(b: BranchId): Promise<void> {
+  try {
+    const list = await this.formService.getBranchTemplates(b);
+    this.templates = list;
+    this.dataSource.data = list;   // show in your existing table
+  } catch (e) {
+    console.error(e);
+    this.snackBar.open('Failed to load templates for branch.', 'Close', { duration: 3000 });
+  }
 }
 
 
@@ -403,7 +423,7 @@ togglePlantSelection(plantRego: string) {
 }
   logout(): void {
     localStorage.removeItem('user');
-    localStorage.removeItem('userBranch'); // clear branch on logout
+    localStorage.removeItem('branch'); // clear branch on logout
     this.router.navigate(['/login']);
   }
   

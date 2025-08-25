@@ -118,7 +118,7 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
   currentPage = 0;
   savedForms: SavedForm[] = [];
   currentFormId: string | null = null;
-
+branchesToSave: string[] = ['NSW', 'YAT', 'MACKAY'];
 
   freeDragPositions: { [fieldId: string]: { x: number; y: number } } = {};
 
@@ -1098,17 +1098,34 @@ async saveForm(): Promise<void> {
 
   // 4) Save to Firebase (update when firebaseId exists; else create)
   let firebaseId = '';
-  try {
-    firebaseId = await this.ensureTemplateInFirebase(name, this.formPages, existingFirebaseId);
-  } catch {
-    // ensureTemplateInFirebase already toasts; just proceed locally
-  }
+try {
+  if (existingFirebaseId && existingFirebaseId.trim()) {
+    // UPDATE master
+    await this.formService.updateFormTemplate(existingFirebaseId, {
+      formName: name,
+      formPages: this.formPages as any[]
+    });
 
-  // If ensureTemplateInFirebase failed and returned '', DO NOT overwrite a good existingFirebaseId with ''.
-  if (!firebaseId && existingFirebaseId) {
+    // ✅ ALSO UPDATE branch copies
+    await this.formService.updateTemplateInBranches(
+      existingFirebaseId,
+      { formName: name, formPages: this.formPages as any[] },
+      this.branchesToSave // ['NSW','MACKAY','UAT']
+    );
+
     firebaseId = existingFirebaseId;
+  } else {
+    // CREATE master + DUPLICATE into branches
+    firebaseId = await this.formService.saveFormTemplateToBranches(
+      name,
+      this.formPages as any[],
+      this.branchesToSave
+    );
   }
-
+} catch (e) {
+  console.error('Firebase save failed', e);
+  this.snackBar.open('Saved locally. Firebase save failed.', 'Close', { duration: 3000 });
+}
   // 5) Build final record
   const idToUse = this.currentFormId || this.selectedForm?.formId || this.generateId();
   const record: SavedForm = {

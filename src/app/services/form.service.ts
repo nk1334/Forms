@@ -11,6 +11,8 @@ import {
   query,
   orderBy,
   serverTimestamp,
+  setDoc,
+  writeBatch
 } from '@angular/fire/firestore';
 import { Storage, ref, uploadBytes, getDownloadURL } from '@angular/fire/storage';
 
@@ -40,6 +42,7 @@ export interface FilledFormPayload {
 const TEMPLATES = 'formTemplates';
 const FILLED    = 'formFilled';
 const LEGACY    = 'formSubmissions'; // optional/legacy
+const BRANCHES='branches';
 
 @Injectable({ providedIn: 'root' })
 export class FormService {
@@ -64,6 +67,52 @@ async uploadPdfBlob(
   });
   return await getDownloadURL(storageRef);
 }
+async saveFormTemplateToBranches(
+  formName: string,
+  formPages: any[],
+  branches: string[] = ['NSW', 'YAT', 'MACKAY']
+) {
+  // 1) First create in your existing top-level collection to get one shared id
+  const baseRef = collection(this.afs, TEMPLATES);
+  const created = await addDoc(baseRef, {
+    formName,
+    formPages,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  const templateId = created.id;
+
+  // 2) Fan out to each branch using a single atomic batch
+  const batch = writeBatch(this.afs);
+  for (const branchId of branches) {
+    const branchDocRef = doc(this.afs, `${BRANCHES}/${branchId}/templates/${templateId}`);
+    batch.set(branchDocRef, {
+      formId: templateId,    // keep same id reference
+      formName,
+      formPages,
+      branchId,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  }
+  await batch.commit();
+
+  return templateId;
+}
+
+async updateTemplateInBranches(
+  templateId: string,
+  data: { formName?: string; formPages?: any[] },
+  branches: string[] = ['NSW', 'MACKAY', 'UAT']
+): Promise<void> {
+  const batch = writeBatch(this.afs);
+  for (const b of branches) {
+    const ref = doc(this.afs, `branches/${b}/templates/${templateId}`);
+    batch.update(ref, { ...data, updatedAt: serverTimestamp() });
+  }
+  await batch.commit();
+}
 async uploadImageBlob(
   kind: 'filled' | 'template',
   docId: string,
@@ -78,6 +127,21 @@ async uploadImageBlob(
     cacheControl: 'public,max-age=31536000'
   });
   return await getDownloadURL(storageRef);
+}
+async attachPdfUrlToBranchTemplates(
+  templateId: string,
+  pdfUrl: string,
+  branches: string[] = ['NSW', 'MACKAY', 'UAT']
+): Promise<void> {
+  const writes = branches.map(async (b) => {
+    const ref = doc(this.afs, `branches/${b}/templates/${templateId}`);
+    await updateDoc(ref, {
+      pdfUrl,
+      pdfUpdatedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  });
+  await Promise.all(writes);
 }
 
 async attachPdfUrl(
@@ -199,6 +263,32 @@ async getFormTemplates(): Promise<SavedForm[]> {
     const ref = doc(this.afs, FILLED, formId);
     await updateDoc(ref, { ...data, updatedAt: serverTimestamp() });
   }
+  async attachPdfUrlToBranchTemplate(
+  branchId: string,
+  templateId: string,
+  pdfUrl: string
+): Promise<void> {
+  const docRef = doc(this.afs, `${BRANCHES}/${branchId}/templates/${templateId}`);
+  await updateDoc(docRef, {
+    pdfUrl,
+    pdfUpdatedAt: serverTimestamp(),
+  });
+}
+async getBranchTemplates(branchId: string): Promise<SavedForm[]> {
+  const colRef = collection(this.afs, `${BRANCHES}/${branchId}/templates`);
+  const snap = await getDocs(query(colRef, orderBy('createdAt', 'desc')));
+  return snap.docs.map(d => {
+    const data: any = d.data();
+    return {
+      formId: d.id,
+      firebaseId: d.id,
+      formName: data.formName ?? '(Untitled)',
+      formPages: data.formPages ?? [],
+      pdfUrl: data.pdfUrl ?? null,
+      source: 'template',
+    };
+  });
+}
 
   /** Delete a FILLED instance */
   async deleteFilledForm(formId: string) {
