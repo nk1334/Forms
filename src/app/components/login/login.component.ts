@@ -52,28 +52,28 @@ export class LoginComponent {
 
   const username = this.loginForm.get('username')?.value || '';
   const password = this.loginForm.get('password')?.value || '';
-  const branch = this.loginForm.get('branch')?.value || '';
-  const role = this.loginForm.get('role')?.value || '';
-
+  const rawBranch = (this.loginForm.get('branch')?.value || '').toString();
+  const rawRole   = (this.loginForm.get('role')?.value || '').toString();
 try {
-    // Works whether login() returns boolean or Promise<boolean>
-    const result = this.auth.login(username, password) as any;
-    const success: boolean = (typeof result?.then === 'function') ? await result : !!result;
+    const result  = this.auth.login(username, password) as any;
+    const success = typeof result?.then === 'function' ? await result : !!result;
+    if (!success) { this.error = 'Invalid username or password'; return; }
 
-    console.log('Login attempt:', { username, branch, role, success });
-
-    if (!success) {
-      this.error = 'Invalid username or password';
-      return;
-    }
-
-    // ✅ Save branch for the app to use when fetching templates
+    // ✅ Canonicalize branch to 'NSW' | 'YAT' | 'MACKAY'
+    const branch = ['NSW','YAT','MACKAY'].includes(rawBranch.toUpperCase())
+      ? (rawBranch.toUpperCase() as 'NSW'|'YAT'|'MACKAY')
+      : 'NSW';
     localStorage.setItem('branch', branch);
 
-    // (Optional) save role if you need role-based UI
-    localStorage.setItem('role', role);
+    // ✅ Store a canonical role just for permission checks
+    const isAdmin = rawRole.toLowerCase() === 'admin';
+    localStorage.setItem('role', isAdmin ? 'admin' : 'crew');   // used by isAdmin() checks
+    // (optional) keep the pretty label too
+    localStorage.setItem('roleLabel', rawRole);
 
-    // Go to dashboard; it should read localStorage.getItem('branch')
+    // (optional) for header display
+    localStorage.setItem('user', JSON.stringify({ username }));
+
     this.router.navigate(['dashboard']);
   } catch (e) {
     console.error(e);

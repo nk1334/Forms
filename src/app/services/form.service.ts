@@ -11,21 +11,21 @@ import {
   query,
   orderBy,
   serverTimestamp,
-  setDoc,
-  writeBatch
+  writeBatch,
+  where,
 } from '@angular/fire/firestore';
 import { Storage, ref, uploadBytes, getDownloadURL } from '@angular/fire/storage';
-
+import { Branch, ALL_CONCRETE_BRANCHES } from 'src/app/permissions.model';
 
 /** What your component lists on the dashboard */
 export interface SavedForm {
   formId: string;
   formName?: string;
-  formPages: any[]; 
-   source?: 'template' | 'filled';
+  formPages: any[];
+  source?: 'template' | 'filled';
   pdfUrl?: string | null;
   firebaseId?: string;
- 
+  allowedBranches?: Branch[];
 }
 
 /** Payload for saving a filled form instance with full page snapshot */
@@ -42,151 +42,220 @@ export interface FilledFormPayload {
 const TEMPLATES = 'formTemplates';
 const FILLED    = 'formFilled';
 const LEGACY    = 'formSubmissions'; // optional/legacy
-const BRANCHES='branches';
+const BRANCHES_COLL = 'branches';
 
 @Injectable({ providedIn: 'root' })
 export class FormService {
-constructor(private afs: Firestore, private storage: Storage) {}
-async uploadPdfBlob(
-  kind: 'filled' | 'template',
-  id: string,
-  blob: Blob,
-  filename: string
-): Promise<string> {
-  // a simple slug for the filename
-  const safe = (filename || 'form')
-    .toLowerCase()
-    .replace(/[^a-z0-9-_]+/g, '-')
-    .replace(/^-+|-+$/g, '');
 
-  const path = `${kind}/${id}/${Date.now()}_${safe || 'form'}.pdf`;
-  const storageRef = ref(this.storage, path);
+  
+  constructor(private afs: Firestore, private storage: Storage) {}
 
-  await uploadBytes(storageRef, blob, { contentType: 'application/pdf',
-     contentDisposition: `attachment; filename="${safe || 'form'}.pdf"`, 
-  });
-  return await getDownloadURL(storageRef);
-}
-async saveFormTemplateToBranches(
-  formName: string,
-  formPages: any[],
-  branches: string[] = ['NSW', 'YAT', 'MACKAY']
-) {
-  // 1) First create in your existing top-level collection to get one shared id
-  const baseRef = collection(this.afs, TEMPLATES);
-  const created = await addDoc(baseRef, {
-    formName,
-    formPages,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
+  // ======================== STORAGE HELPERS ==========================
+  private normBranch(b: any): Branch {
+    const v = String(b || '').toUpperCase();
+    return (v === 'NSW' || v === 'YAT' || v === 'MACKAY' || v === 'ALL') ? (v as Branch) : 'NSW';
+  }
+  async uploadPdfBlob(
+    kind: 'filled' | 'template',
+    id: string,
+    blob: Blob,
+    filename: string
+  ): Promise<string> {
+    const safe = (filename || 'form')
+      .toLowerCase()
+      .replace(/[^a-z0-9-_]+/g, '-')
+      .replace(/^-+|-+$/g, '');
 
-  const templateId = created.id;
+    const path = `${kind}/${id}/${Date.now()}_${safe || 'form'}.pdf`;
+    const storageRef = ref(this.storage, path);
 
-  // 2) Fan out to each branch using a single atomic batch
-  const batch = writeBatch(this.afs);
-  for (const branchId of branches) {
-    const branchDocRef = doc(this.afs, `${BRANCHES}/${branchId}/templates/${templateId}`);
-    batch.set(branchDocRef, {
-      formId: templateId,    // keep same id reference
-      formName,
-      formPages,
-      branchId,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
+    await uploadBytes(storageRef, blob, {
+      contentType: 'application/pdf',
+      contentDisposition: `attachment; filename="${safe || 'form'}.pdf"`,
     });
+    return await getDownloadURL(storageRef);
   }
-  await batch.commit();
 
-  return templateId;
-}
-
-async updateTemplateInBranches(
-  templateId: string,
-  data: { formName?: string; formPages?: any[] },
-  branches: string[] = ['NSW', 'MACKAY', 'UAT']
-): Promise<void> {
-  const batch = writeBatch(this.afs);
-  for (const b of branches) {
-    const ref = doc(this.afs, `branches/${b}/templates/${templateId}`);
-    batch.update(ref, { ...data, updatedAt: serverTimestamp() });
+  async uploadImageBlob(
+    kind: 'filled' | 'template',
+    docId: string,
+    fieldId: string,
+    blob: Blob
+  ): Promise<string> {
+    const safe = (fieldId || 'signature').toLowerCase().replace(/[^a-z0-9-_]+/g, '-');
+    const path = `${kind}/${docId}/signatures/${safe}.png`;
+    const storageRef = ref(this.storage, path);
+    await uploadBytes(storageRef, blob, {
+      contentType: 'image/png',
+      cacheControl: 'public,max-age=31536000',
+    });
+    return await getDownloadURL(storageRef);
   }
-  await batch.commit();
-}
-async uploadImageBlob(
-  kind: 'filled' | 'template',
-  docId: string,
-  fieldId: string,
-  blob: Blob
-): Promise<string> {
-  const safe = (fieldId || 'signature').toLowerCase().replace(/[^a-z0-9-_]+/g, '-');
-  const path = `${kind}/${docId}/signatures/${safe}.png`;
-  const storageRef = ref(this.storage, path);
-  await uploadBytes(storageRef, blob, {
-    contentType: 'image/png',
-    cacheControl: 'public,max-age=31536000'
-  });
-  return await getDownloadURL(storageRef);
-}
-async attachPdfUrlToBranchTemplates(
-  templateId: string,
-  pdfUrl: string,
-  branches: string[] = ['NSW', 'MACKAY', 'UAT']
-): Promise<void> {
-  const writes = branches.map(async (b) => {
-    const ref = doc(this.afs, `branches/${b}/templates/${templateId}`);
-    await updateDoc(ref, {
+
+  async fetchPdfBlob(form: { pdfUrl?: string | null }): Promise<Blob | null> {
+    try {
+      if (!form?.pdfUrl) return null;
+      const res = await fetch(form.pdfUrl, { mode: 'cors' });
+      if (!res.ok) return null;
+      return await res.blob();
+    } catch {
+      return null;
+    }
+  }
+
+  async attachPdfUrl(
+    kind: 'filled' | 'template',
+    id: string,
+    pdfUrl: string
+  ): Promise<void> {
+    const coll = kind === 'filled' ? FILLED : TEMPLATES;
+    const docRef = doc(this.afs, coll, id);
+    await updateDoc(docRef, {
       pdfUrl,
       pdfUpdatedAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
     });
+  }
+
+  async attachPdfUrlToBranchTemplate(
+    branchId: Branch,
+    templateId: string,
+    pdfUrl: string
+  ): Promise<void> {
+    const docRef = doc(this.afs, `${BRANCHES_COLL}/${branchId}/templates/${templateId}`);
+    await updateDoc(docRef, {
+      pdfUrl,
+      pdfUpdatedAt: serverTimestamp(),
+    });
+  }
+    async updateTemplateBranches(templateId: string, allowedBranches: Branch[]) {
+  const ref = doc(this.afs, TEMPLATES, templateId);
+  await updateDoc(ref, {
+    allowedBranches: (allowedBranches?.length ? allowedBranches : ['ALL']),
+    updatedAt: serverTimestamp(),
   });
-  await Promise.all(writes);
 }
 
-async attachPdfUrl(
-  kind: 'filled' | 'template',
-  id: string,
-  pdfUrl: string
-): Promise<void> {
-  const coll = kind === 'filled' ? 'formFilled' : 'formTemplates';
-  const docRef = doc(this.afs, coll, id);
-  await updateDoc(docRef, {
-    pdfUrl,
-    pdfUpdatedAt: serverTimestamp(),// optional
-  });
-}
+  async attachPdfUrlToBranchTemplates(
+    templateId: string,
+    pdfUrl: string,
+    branches: Branch[] = ALL_CONCRETE_BRANCHES
+  ): Promise<void> {
+    const writes = branches.map(async (b) => {
+      const ref = doc(this.afs, `${BRANCHES_COLL}/${b}/templates/${templateId}`);
+      await updateDoc(ref, {
+        pdfUrl,
+        pdfUpdatedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    });
+    await Promise.all(writes);
+  }
+
   // ========================= TEMPLATES ===============================
 
-  /** Create a template (layout only) */
-  async saveFormTemplate(formName: string, formPages: any[]) {
+  /** Create a template (layout only) in the master collection */
+  async saveFormTemplate(
+    formName: string,
+    formPages: any[],
+    allowedBranches: Branch[] = ['ALL']
+  ) {
     const colRef = collection(this.afs, TEMPLATES);
     return addDoc(colRef, {
       formName,
       formPages,
+      allowedBranches: allowedBranches?.length ? allowedBranches : ['ALL'],
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
-  }
-  async fetchPdfBlob(form: { pdfUrl?: string | null }): Promise<Blob | null> {
-  try {
-    if (!form?.pdfUrl) return null;
-    const res = await fetch(form.pdfUrl, { mode: 'cors' });
-    if (!res.ok) return null;
-    return await res.blob();
-  } catch {
-    return null;
-  }
-}
 
-  /** Update a template’s name/layout */
-  async updateFormTemplate(templateId: string, data: { formName?: string; formPages?: any[] }) {
+  }
+
+  /** Create master + fan-out copies into branches in a single operation */
+  async saveFormTemplateToBranches(
+    formName: string,
+    formPages: any[],
+    branches: Branch[] = ALL_CONCRETE_BRANCHES,
+    allowedBranches: Branch[] = ['ALL']
+  ) {
+    // 1) create in master to get id
+    const baseRef = collection(this.afs, TEMPLATES);
+    const created = await addDoc(baseRef, {
+      formName,
+      formPages,
+      allowedBranches,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    const templateId = created.id;
+
+    // 2) fan out in one batch
+    const batch = writeBatch(this.afs);
+    for (const branchId of branches) {
+      const branchDocRef = doc(this.afs, `${BRANCHES_COLL}/${branchId}/templates/${templateId}`);
+      batch.set(branchDocRef, {
+        formId: templateId,
+        formName,
+        formPages,
+        branchId,
+        allowedBranches,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    }
+    await batch.commit();
+
+    return templateId;
+  }
+
+  /** Update master template fields (and updatedAt) */
+  async updateFormTemplate(
+    templateId: string,
+    data: { formName?: string; formPages?: any[]; allowedBranches?: Branch[] }
+  ) {
     const ref = doc(this.afs, TEMPLATES, templateId);
     await updateDoc(ref, { ...data, updatedAt: serverTimestamp() });
   }
 
-  /** Delete a template */
-  async deleteTemplate(templateId: string) {
+  /** Update branch copies to stay in sync with master */
+  async updateTemplateInBranches(
+    templateId: string,
+    data: { formName?: string; formPages?: any[]; allowedBranches?: Branch[] },
+    branches: Branch[] = ALL_CONCRETE_BRANCHES
+  ): Promise<void> {
+    const batch = writeBatch(this.afs);
+    for (const b of branches) {
+      const ref = doc(this.afs, `${BRANCHES_COLL}/${b}/templates/${templateId}`);
+      batch.set(ref, { ...data, branchId: b, updatedAt: serverTimestamp() }, { merge: true });
+    }
+    await batch.commit();
+  }
+
+  /** Delete master template only (keep if some callers still rely on it) */
+  async deleteFormTemplate(id: string): Promise<void> {
+    const refDoc = doc(this.afs, TEMPLATES, id);
+    await deleteDoc(refDoc);
+  }
+
+  /** Delete master + all branch copies */
+  async deleteTemplateEverywhere(
+    templateId: string,
+    branches: Branch[] = ALL_CONCRETE_BRANCHES
+  ): Promise<void> {
+    // 1) delete master
+    await this.deleteTemplate(templateId);
+
+    // 2) delete branch copies
+    const batch = writeBatch(this.afs);
+    for (const b of branches) {
+      const ref = doc(this.afs, `${BRANCHES_COLL}/${b}/templates/${templateId}`);
+      batch.delete(ref);
+    }
+    await batch.commit();
+  }
+
+  /** Internal helper to delete from master */
+  private async deleteTemplate(templateId: string) {
     const ref = doc(this.afs, TEMPLATES, templateId);
     await deleteDoc(ref);
   }
@@ -197,40 +266,98 @@ async attachPdfUrl(
     const snap = await getDoc(ref);
     if (!snap.exists()) return null;
     const data: any = snap.data();
-    const formName = data.formName ?? data.templateName ?? '(Untitled)';
-    const formPages = data.formPages ?? (data.fields ? [{ fields: data.fields }] : []);
-    return { formId: snap.id, formName, formPages };
-  }
-  async getTemplates(): Promise<any[]> {
-  const snapshot = await getDocs(collection(this.afs, TEMPLATES)); // uses 'formTemplates'
-  return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-}
-
-  /** List templates (normalized) */
-async getFormTemplates(): Promise<SavedForm[]> {
-  const colRef = collection(this.afs, TEMPLATES);
-  const snap = await getDocs(query(colRef, orderBy('createdAt', 'desc')));
-  return snap.docs.map((d) => {
-    const data: any = d.data();
-    const formName = data.formName ?? data.templateName ?? '(Untitled)';
-    const formPages =
-      data.formPages ??
-      (data.fields ? [{ fields: data.fields }] : []);
     return {
-      formId: d.id,
-      firebaseId: d.id,           // 👈 important for de-dupe
-      formName,
-      formPages,
+      formId: snap.id,
+      formName: data.formName ?? data.templateName ?? '(Untitled)',
+      formPages: data.formPages ?? (data.fields ? [{ fields: data.fields }] : []),
       pdfUrl: data.pdfUrl ?? null,
-            source: 'template',   
+      source: 'template',
+      allowedBranches:
+        Array.isArray(data.allowedBranches) && data.allowedBranches.length
+          ? data.allowedBranches
+          : ['ALL'],
     };
-  });
-}
+  }
 
-  // ====== FILLED FORMS (FULL SNAPSHOT: LAYOUT + VALUES) ==============
+  /** List templates (normalized) from master */
+  async getFormTemplates(): Promise<SavedForm[]> {
+    const colRef = collection(this.afs, TEMPLATES);
+    const snap = await getDocs(query(colRef, orderBy('createdAt', 'desc')));
+    return snap.docs.map((d) => {
+      const data: any = d.data();
+      const formName = data.formName ?? data.templateName ?? '(Untitled)';
+      const formPages =
+        data.formPages ??
+        (data.fields ? [{ fields: data.fields }] : []);
+      return {
+        formId: d.id,
+        firebaseId: d.id,
+        formName,
+        formPages,
+        pdfUrl: data.pdfUrl ?? null,
+        source: 'template',
+        allowedBranches:
+          Array.isArray(data.allowedBranches) && data.allowedBranches.length
+            ? data.allowedBranches
+            : ['ALL'],
+      };
+    });
+  }
+
+  /** List templates under one branch subcollection */
+  async getBranchTemplates(branchId: Branch): Promise<SavedForm[]> {
+    const colRef = collection(this.afs, `${BRANCHES_COLL}/${branchId}/templates`);
+    const snap = await getDocs(query(colRef, orderBy('createdAt', 'desc')));
+    return snap.docs.map((d) => {
+      const data: any = d.data();
+      return {
+        formId: d.id,
+        firebaseId: d.id,
+        formName: data.formName ?? '(Untitled)',
+        formPages: data.formPages ?? [],
+        pdfUrl: data.pdfUrl ?? null,
+        source: 'template',
+        allowedBranches:
+          Array.isArray(data.allowedBranches) && data.allowedBranches.length
+            ? data.allowedBranches
+            : ['ALL'],
+      };
+    });
+  }
+
+  /** List master templates visible to a branch (ALL or that branch) */
+  async getVisibleTemplatesForBranch(branch: Branch): Promise<SavedForm[]> {
+    if (branch === 'ALL') {
+      return this.getFormTemplates();
+    }
+
+    const colRef = collection(this.afs, TEMPLATES);
+    const qv = query(
+      colRef,
+      where('allowedBranches', 'array-contains-any', ['ALL', branch])
+    );
+
+    const snap = await getDocs(qv);
+    return snap.docs.map((d) => {
+      const data: any = d.data();
+      return {
+        formId: d.id,
+        firebaseId: d.id,
+        formName: data.formName ?? '(Untitled)',
+        formPages: data.formPages ?? [],
+        pdfUrl: data.pdfUrl ?? null,
+        source: 'template',
+        allowedBranches:
+          Array.isArray(data.allowedBranches) && data.allowedBranches.length
+            ? data.allowedBranches
+            : ['ALL'],
+      } as SavedForm;
+    });
+  }
+
+  // ======================= FILLED FORMS ==============================
 
   /** Create a FILLED instance (layout + values) */
-
   async createFilledForm(payload: {
     sourceFormId?: string;
     formName: string;
@@ -249,7 +376,7 @@ async getFormTemplates(): Promise<SavedForm[]> {
   }
 
   /** Update a FILLED instance’s name/pages/data/preview */
- async updateFilledForm(
+  async updateFilledForm(
     formId: string,
     data: Partial<{
       formName: string;
@@ -263,42 +390,12 @@ async getFormTemplates(): Promise<SavedForm[]> {
     const ref = doc(this.afs, FILLED, formId);
     await updateDoc(ref, { ...data, updatedAt: serverTimestamp() });
   }
-  async attachPdfUrlToBranchTemplate(
-  branchId: string,
-  templateId: string,
-  pdfUrl: string
-): Promise<void> {
-  const docRef = doc(this.afs, `${BRANCHES}/${branchId}/templates/${templateId}`);
-  await updateDoc(docRef, {
-    pdfUrl,
-    pdfUpdatedAt: serverTimestamp(),
-  });
-}
-async getBranchTemplates(branchId: string): Promise<SavedForm[]> {
-  const colRef = collection(this.afs, `${BRANCHES}/${branchId}/templates`);
-  const snap = await getDocs(query(colRef, orderBy('createdAt', 'desc')));
-  return snap.docs.map(d => {
-    const data: any = d.data();
-    return {
-      formId: d.id,
-      firebaseId: d.id,
-      formName: data.formName ?? '(Untitled)',
-      formPages: data.formPages ?? [],
-      pdfUrl: data.pdfUrl ?? null,
-      source: 'template',
-    };
-  });
-}
 
   /** Delete a FILLED instance */
   async deleteFilledForm(formId: string) {
     const ref = doc(this.afs, FILLED, formId);
     await deleteDoc(ref);
   }
-async deleteFormTemplate(id: string): Promise<void> {
-  const refDoc = doc(this.afs, TEMPLATES, id);
-  await deleteDoc(refDoc);
-}
 
   /** Get a single FILLED instance by id (normalized) */
   async getFilledFormById(formId: string): Promise<SavedForm | null> {
@@ -311,6 +408,7 @@ async deleteFormTemplate(id: string): Promise<void> {
       formName: data.formName ?? data.name ?? '(Untitled)',
       formPages: data.formPagesSnapshot ?? [],
       pdfUrl: data.pdfUrl ?? null,
+      source: 'filled',
     };
   }
 
@@ -324,8 +422,8 @@ async deleteFormTemplate(id: string): Promise<void> {
         formId: d.id, // instance id
         formName: data.formName ?? data.name ?? '(Untitled)',
         formPages: data.formPagesSnapshot ?? [],
-           pdfUrl: data.pdfUrl ?? null,       
-      source: 'filled',
+        pdfUrl: data.pdfUrl ?? null,
+        source: 'filled',
       };
     });
   }
@@ -344,12 +442,14 @@ async deleteFormTemplate(id: string): Promise<void> {
 
   // ========================= UTILITIES ===============================
 
-  /** Convenience: merge templates + filled (if you want both in one call) */
+  /** Convenience: merge templates + filled */
   async getAllFormsMerged(): Promise<SavedForm[]> {
-    const [templates, filled] = await Promise.all([this.getFormTemplates(), this.getFilledForms()]);
+    const [templates, filled] = await Promise.all([
+      this.getFormTemplates(),
+      this.getFilledForms(),
+    ]);
     const merged = [...templates, ...filled];
 
-    // Stable, case-insensitive sort by name; empty names first
     merged.sort((a, b) =>
       (a.formName ?? '').localeCompare(b.formName ?? '', undefined, { sensitivity: 'base' })
     );

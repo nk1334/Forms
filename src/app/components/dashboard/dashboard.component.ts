@@ -13,7 +13,11 @@ import { Observable } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ChangeDetectorRef } from '@angular/core';
 import { FormService, SavedForm } from 'src/app/services/form.service';
+import { Branch } from 'src/app/permissions.model';       
+import { Permission } from 'src/app/permissions.model';
+import { MatMenuTrigger } from '@angular/material/menu';
 type BranchId = 'NSW' | 'YAT' | 'MACKAY';
+
 
 interface FilledFormData {
   formId: string;
@@ -28,7 +32,9 @@ interface FilledFormData {
 })
 
 export class DashboardComponent implements OnInit {
-   branch: BranchId = 'NSW';  
+    public Permission = Permission;
+    branch: Branch = 'NSW';
+  userBranch: Branch = 'NSW'; 
    
   templates: SavedForm[] = [];
   searchValue = '';
@@ -39,7 +45,7 @@ isAddPlantOpen = false;
     showForm: boolean = false; 
   dashboardVisible = true;
   showDashboardUI = false;
- userBranch: BranchId = 'NSW'; 
+
   user: any;
   formListData: any[] = [];
   displayedColumns: string[] = [
@@ -54,7 +60,8 @@ isAddPlantOpen = false;
   dataSource = new MatTableDataSource<any>([]);
   plants: any[] = [];
 selectedPlants: string[] = []; // store selected plant regoNames or IDs
- 
+   filteredTemplates: SavedForm[] = [];   // 👈 new
+  currentBranch: Branch = 'NSW'; 
   
 
   paletteFields = [
@@ -77,6 +84,7 @@ selectedPlants: string[] = []; // store selected plant regoNames or IDs
   filledForms: FilledFormData[] = [];
   filledDataName: string = '';
   isFillingForm = false; // ✅ This fixes the error
+
   welcomeMessages: { [key: string]: string } = {
     NSW: 'Welcome to NSW! Let’s make today productive and inspiring.',
     YAT: 'Welcome to YATALA! We’re here to support your success.',
@@ -86,13 +94,15 @@ selectedPlants: string[] = []; // store selected plant regoNames or IDs
   isAdmin: boolean = false;
 
   constructor(
+
   private router: Router,
   private dialog: MatDialog,
-  private authService: AuthService,
+public  authService: AuthService,
   private plantService: PlantService,
   private snackBar: MatSnackBar,     // <-- add
   private cdr: ChangeDetectorRef,
-    private formService: FormService
+    private formService: FormService,
+     
 
 ) {}
 
@@ -154,6 +164,13 @@ async ngOnInit(): Promise<void> {
     const userData = localStorage.getItem('user');
     this.user = userData ? JSON.parse(userData) : null;
   }
+  applyBranchFilter(): void {
+  this.filteredTemplates = this.templates.filter(t =>
+    t.allowedBranches?.includes('ALL') ||
+    t.allowedBranches?.includes(this.currentBranch)
+  );
+  this.dataSource.data = this.filteredTemplates;  // update your table
+}
   
   
 clearSearch(): void {
@@ -192,25 +209,32 @@ createTemplate(): void {
     this.tabIndex = 0;      // bounce back
   }
   }
-  private _dialogPositionNear(trigger?: HTMLElement):
-  { top: string; left: string } | undefined {
-  if (!trigger) return undefined;
-  const r = trigger.getBoundingClientRect();
-  const top  = r.bottom + window.scrollY + 8; // 8px below
-  const left = r.left   + window.scrollX;     // left-aligned
-  return { top: `${top}px`, left: `${left}px` };
-}
-private async loadTemplatesFor(b: BranchId): Promise<void> {
-  try {
-    const list = await this.formService.getBranchTemplates(b);
-    this.templates = list;
-    this.dataSource.data = list;   // show in your existing table
-  } catch (e) {
-    console.error(e);
-    this.snackBar.open('Failed to load templates for branch.', 'Close', { duration: 3000 });
+   private _dialogPositionNear(trigger?: HTMLElement): { top: string; left: string } | undefined {
+    if (!trigger) return undefined;
+    const r = trigger.getBoundingClientRect();
+    const top  = r.bottom + window.scrollY + 8;
+    const left = r.left   + window.scrollX;
+    return { top: `${top}px`, left: `${left}px` };
   }
-}
+  private async loadTemplatesFor(b: Branch): Promise<void> {
+    try {
+      const admin = this.authService?.isAdmin?.() ?? false;
+      const list = (admin && b === 'ALL')
+        ? await this.formService.getFormTemplates()
+        : await this.formService.getVisibleTemplatesForBranch(b);
 
+      this.templates = list;
+      this.dataSource.data = list;
+    } catch (e) {
+      console.error(e);
+      this.snackBar.open('Failed to load templates for branch.', 'Close', { duration: 3000 });
+    }
+  }
+  onViewingBranchChange(b: Branch) {
+    this.branch = b;
+    localStorage.setItem('branch', b);
+    this.loadTemplatesFor(b);
+  }
 
 onUserCreated(user: any) {
   console.log('User created:', user);
@@ -295,16 +319,13 @@ loadFilledForms(): void {
     this.selectedForm = null;
   }
 
-  deleteTemplate(template: any): void {
+   deleteTemplate(template: any): void {
     if (confirm(`Are you sure you want to delete "${template.formName}"?`)) {
-      this.formListData = this.formListData.filter(
-        (f) => f.formId !== template.formId
-      );
+      this.formListData = this.formListData.filter((f) => f.formId !== template.formId);
       localStorage.setItem('savedFormPages', JSON.stringify(this.formListData));
       this.dataSource.data = this.formListData;
     }
   }
-
   getFormNameById(formId: string): string {
     const form = this.formListData.find((f) => f.formId === formId);
     return form ? form.formName || 'Unnamed Form' : 'Unknown Form';
@@ -356,7 +377,7 @@ async downloadFilledFormPDF(f: any) {
   }
 
   // No usable PDF -> hand off to /forms to generate+upload, then bounce back
-  this.downloading.add(id);
+    this.downloading.add(id);
   this.cdr.markForCheck();
 
   this.router.navigate(['/forms'], {
@@ -366,6 +387,13 @@ async downloadFilledFormPDF(f: any) {
     this.cdr.markForCheck();
   });
 }
+onAvatarClick(ev: MouseEvent, trigger: MatMenuTrigger) {
+  ev.preventDefault();
+  ev.stopPropagation();
+  // Defer to next microtask to dodge focus/overlay timing issues
+  setTimeout(() => trigger.openMenu());
+}
+
 
   
 
@@ -421,11 +449,19 @@ togglePlantSelection(plantRego: string) {
     this.selectedPlants.push(plantRego);
   }
 }
-  logout(): void {
-    localStorage.removeItem('user');
-    localStorage.removeItem('branch'); // clear branch on logout
+async logout(): Promise<void> {
+  try {
+    await this.authService.logout(); // unified logout in AuthService
+  } finally {
     this.router.navigate(['/login']);
   }
+}
+  async onLogout(): Promise<void> {
+  await this.authService.logout();
+  this.router.navigate(['/login']);
+}
+
+
   
   saveSelectedPlants(): void {
   console.log('✅ Saving Selected Plants:', this.selectedPlants);

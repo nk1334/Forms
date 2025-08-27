@@ -16,7 +16,7 @@
   background: linear-gradient(90deg,#3949ab,#5c6bc0);
   min-height:56px;
   padding:4px 8px;
-  overflow:hidden;                       /* keeps pill shadow inside */
+  overflow:visible;                       /* keeps pill shadow inside */
   box-shadow:0 4px 14px rgba(0,0,0,.18);
   display:flex; align-items:center;
 }

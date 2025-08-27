@@ -1,3 +1,12 @@
+
+import { MatTableModule } from '@angular/material/table';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSelectModule } from '@angular/material/select';
+import { MatInputModule } from '@angular/material/input';
+import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatCardModule } from '@angular/material/card';
 import { NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import { AppRoutingModule } from './app-routing.module';
@@ -36,6 +45,7 @@ import { MatSidenavModule } from '@angular/material/sidenav';
 
 
 
+
 const clientId = 'YOUR_CLIENT_ID_HERE';
 const tenantId = 'YOUR_TENANT_ID_HERE';
 
@@ -60,10 +70,7 @@ export function MSALInstanceFactory() {
     CreateFormComponent,
     ProblemTrackerComponent,
     AddUserComponent,
-    AddPlantDialogComponent,
-  
-   
-     
+    AddPlantDialogComponent,     
    ],
   imports: [
     BrowserModule,
@@ -80,9 +87,19 @@ export function MSALInstanceFactory() {
          MatCheckboxModule,
              MatButtonToggleModule,
      RouterModule,
+     ReactiveFormsModule ,
+     
        MatProgressSpinnerModule,
           MatTabsModule,
   MatSidenavModule,
+    MatTableModule,
+  MatFormFieldModule,
+  MatSelectModule,
+  MatInputModule,
+  MatIconModule,
+  MatButtonModule,
+  MatTooltipModule,
+  MatCardModule,
 
   RouterModule,
 

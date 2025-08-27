@@ -965,3 +965,266 @@ textarea.form-input {
 
 /* Optional: clip any accidental overflow from the field box itself */
 .form-row { overflow: hidden; }
+.list-legend {
+  display: grid;
+  grid-template-columns: 1fr 240px 1fr 90px;
+  gap: 12px;
+  align-items: center;
+  margin: 8px 0 6px;
+  padding: 6px 8px;
+  color: #607d8b;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+/* rows */
+.saved-list { list-style: none; margin: 0; padding: 0; }
+.saved-row {
+  display: grid;
+  grid-template-columns: 1fr 240px 1fr 90px;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 8px;
+  border-bottom: 1px solid #eef2f7;
+}
+.saved-row:hover { background: #fafcff; }
+
+.cell.name { font-weight: 500; min-width: 220px; }
+.cell.badges { display: flex; gap: 6px; flex-wrap: wrap; }
+.cell.actions { display: flex; justify-content: flex-end; }
+
+/* compact pill select */
+.branch-compact.mat-mdc-form-field {
+  --mdc-outlined-text-field-container-shape: 999px;
+  min-width: 220px;
+}
+.branch-compact .mat-mdc-text-field-wrapper { height: 32px; }
+.branch-compact .mat-mdc-form-field-infix { min-height: 32px !important; padding: 0 10px !important; }
+
+/* badges */
+.badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3949ab;
+  font-size: 12px;
+  border: 1px solid #e3e7ff;
+  white-space: nowrap;
+}
+
+/* responsive */
+@media (max-width: 900px) {
+  .list-legend, .saved-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .cell.actions { justify-content: flex-start; }
+}
+.saved-forms-list ul li {
+  grid-template-columns: 1fr 180px 140px auto; /* ⬅ narrower columns */
+  gap: 8px;                /* less horizontal space */
+  padding: 4px 6px;        /* reduce vertical padding */
+  min-height: 32px;        /* enforce shorter row */
+  font-size: 12.5px;       /* slightly smaller text */
+}
+.saved-forms-list ul li mat-form-field {
+  --mdc-outlined-text-field-container-height: 32px; /* ⬅ shrink Material field */
+  --mdc-outlined-text-field-container-shape: 8px;
+  --mat-select-trigger-text-size: 12px;
+}
+
+.saved-forms-list ul li button {
+  min-height: 26px !important;
+  line-height: 22px !important;
+  font-size: 11.5px !important;
+  padding: 0 8px !important; /* ⬅ tighter buttons */
+}
+
+.branch-badges .badge {
+  padding: 1px 5px;
+  font-size: 11px;
+}
+.saved-forms-card {
+  margin: 16px;              /* ⬅ add space around card */
+  border-radius: 8px;        /* ⬅ rounded corners */
+  overflow: hidden;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  background: #fff;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #eef2f7;
+  background: #fff;
+}
+.card-header h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.card-header .spacer { flex: 1 1 auto; }
+
+.table-wrap {
+  background: #fff;
+}
+
+/* Make Material table compact */
+.saved-forms-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;          /* smaller text */
+}
+
+.saved-forms-table .sticky {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8fafc;
+  box-shadow: inset 0 -1px 0 #e6ebf1;
+}
+.saved-forms-table th.mat-mdc-header-cell {
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  font-size: 12.5px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.saved-forms-table td.mat-mdc-cell {
+  border-bottom: 1px solid #f1f5f9;
+}
+.saved-forms-table .mat-mdc-form-field {
+  margin: 0;
+  font-size: 12.5px;
+}
+.saved-forms-table .mat-mdc-text-field-wrapper {
+  height: 32px;   /* reduce select height */
+}
+
+
+/* Template cell truncation */
+.template-cell {
+  max-width: 420px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Compact select (32px tall) */
+.compact-select.mat-mdc-form-field {
+  --mdc-outlined-text-field-container-height: 32px;
+  --mdc-outlined-text-field-outline-color: #d7dbe3;
+  --mdc-outlined-text-field-hover-outline-color: #bfc6d4;
+  --mdc-outlined-text-field-focus-outline-color: #3f51b5;
+  min-width: 190px;
+}
+.compact-select .mat-mdc-form-field-infix { padding: 0 10px !important; }
+.compact-select .mat-mdc-text-field-wrapper { height: 32px; }
+.compact-select .mat-mdc-select-trigger { height: 32px; font-size: 12.5px; }
+
+/* Chips for 'Current' column */
+.chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip {
+  background: #eef4ff;
+  border: 1px solid #d9e4ff;
+  color: #2b3a67;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11.5px;
+  line-height: 18px;
+}
+
+/* Small buttons */
+.saved-forms-table button.mat-mdc-button-base {
+  min-height: 28px;
+  line-height: 24px;
+  padding: 0 8px;
+  font-size: 12.5px;
+}
+.saved-forms-table .chip {
+  font-size: 11px;
+  padding: 1px 6px;
+  line-height: 16px;
+  border-radius: 8px;
+}
+/* Empty state row */
+.saved-forms-table tr.empty td {
+  text-align: center;
+  padding: 18px 12px !important;
+  color: #64748b;
+}
+.saved-forms-table th.mat-mdc-header-cell,
+.saved-forms-table td.mat-mdc-cell {
+  padding: 4px 8px !important;   /* tighter padding */
+  height: 32px;                  /* smaller row height */
+  line-height: 1.3;
+}
+.saved-forms-table .actions-cell {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.saved-forms-table button {
+  min-height: 28px;
+  line-height: 24px;
+  font-size: 12px;
+}
+.saved-forms-table {
+  --mat-table-row-item-size: 40px;          /* row height */
+  --mat-table-header-row-height: 40px;      /* header height */
+  font-size: 13px;
+}
+
+/* Right-aligned icons on the same row */
+.saved-forms-table .actions-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* Make the “All Branches” select compact and the same height as the row */
+.compact-select {
+  width: 220px;                /* tweak as you like */
+  margin: 0;
+}
+
+.compact-select .mat-mdc-form-field-subscript-wrapper {
+  display: none;               /* hide hint/error space */
+}
+
+/* shrink the outlined field */
+.compact-select .mat-mdc-text-field-wrapper {
+  height: 32px;                /* control overall height */
+  padding: 0 8px;              /* inner horizontal padding */
+  display: flex;
+  align-items: center;
+}
+
+/* remove default big inner padding */
+.compact-select .mat-mdc-form-field-infix {
+  padding: 0 !important;
+  min-height: 32px !important;
+  display: flex;
+  align-items: center;
+}
+
+/* keep the value vertically centered */
+.compact-select .mat-mdc-select-trigger,
+.compact-select .mat-mdc-select-value {
+  height: 32px;
+  line-height: 32px;
+}
+
+/* slightly round the box */
+.compact-select.mat-mdc-form-field {
+  --mdc-outlined-text-field-container-shape: 8px;
+}
+
+/* optional: smaller icon buttons */
+.saved-forms-table .mat-mdc-icon-button {
+  width: 32px;
+  height: 32px;
+}
+.saved-forms-table tr.mat-mdc-row .actions-cell .mat-mdc-icon-button { opacity: 0.35; }
+.saved-forms-table tr.mat-mdc-row:hover .actions-cell .mat-mdc-icon-button { opacity: 1; }

@@ -9,6 +9,8 @@ import { CreateTemplateComponent } from './components/create-template/create-tem
 import { CreateFormComponent } from './components/create-form/create-form.component';
 import { ProblemTrackerComponent } from './components/problem-tracker/problem-tracker.component';
 import { AddUserComponent } from './components/add-user/add-user.component';
+import { PermissionGuard } from './permission.guard';
+import { Permission } from './permissions.model';
 
 
 const routes: Routes = [
@@ -19,11 +21,12 @@ const routes: Routes = [
     component: DashboardComponent,
     //canActivate: [authGuard],
   },
-  {
-    path: 'template',
-    component: CreateTemplateComponent,
-    canActivate: [authGuard],
-  },
+{
+  path: 'template',                       // (your route is singular)
+  component: CreateTemplateComponent,
+  canActivate: [authGuard, PermissionGuard],
+  data: { required: [Permission.TEMPLATES_VIEW] }  // 🚫 OPS won't have this
+},
   {
     path: 'forms',
     component: CreateFormComponent,

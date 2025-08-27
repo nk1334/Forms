@@ -20,6 +20,9 @@ import {
 import { Router, ActivatedRoute } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { FormService } from 'src/app/services/form.service';
+import { BRANCHES, Branch } from 'src/app/permissions.model';
+import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { AuthService } from 'src/app/services/auth.service';
 
 export interface FormField {
   id: string;
@@ -48,10 +51,11 @@ interface FormPage {
 
 interface SavedForm {
   formId: string;
-   
+     allowedBranches?: Branch[];
   formName?: string;
   formPages: FormPage[];
    firebaseId?: string; 
+    _uiSelection?: Branch[];   
 }
 
 
@@ -61,7 +65,10 @@ interface SavedForm {
   templateUrl: './create-template.component.html',
   styleUrls: ['./create-template.component.scss']
 })
+
 export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterViewChecked {
+  branches = BRANCHES;              // ['ALL','MKAY','YAT','NSW']
+selectedBranches: Branch[] = ['ALL'];
   @ViewChildren('canvasElement') canvasRefs!: QueryList<ElementRef<HTMLCanvasElement>>;
   isRemovingField: boolean = false;
   isDrawingSignature = false;
@@ -113,12 +120,13 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
 
   newField: FormField = this.getEmptyField();
   pendingFieldToAdd: FormField | null = null;
-
+displayedColumns: string[] = ['name', 'visibleIn', 'current', 'actions'];
   formPages: FormPage[] = [{ fields: [] }];
   currentPage = 0;
   savedForms: SavedForm[] = [];
   currentFormId: string | null = null;
-branchesToSave: string[] = ['NSW', 'YAT', 'MACKAY'];
+currentBranch: Branch | null = null;
+canManageAllBranches = false; 
 
   freeDragPositions: { [fieldId: string]: { x: number; y: number } } = {};
 
@@ -135,14 +143,26 @@ isClearing = false;
     private route: ActivatedRoute,
     private cdr: ChangeDetectorRef,
     private snackBar: MatSnackBar,
-     private formService: FormService 
-    
-
+     private formService: FormService,
+    private fb: FormBuilder,
+      private authService: AuthService 
   ) { }
 
 ngOnInit(): void {
   // 1) Clean locals first (no UI changes here, just storage hygiene)
   this.cleanupLocalDuplicates();
+    // a) get the user branch (prefer service getter if you add one)
+  const b = (localStorage.getItem('branch') as Branch | null) ?? null;
+  this.currentBranch = (b && ['MACKAY','YAT','NSW','ALL'].includes(b)) ? b as Branch : 'ALL';
+
+  // b) who can manage all branches? (toggle this however you like)
+  // Example: only 'crew-leader' can manage all branches
+  const role = this.authService.getUserRole();              // 'crew-leader' | 'crew-member' | 'ops'...
+  this.canManageAllBranches = role === 'crew-leader';       // tweak to your needs
+
+  // c) force the table to the user's branch (unless manager)
+  this.listBranchFilter = this.canManageAllBranches ? (this.currentBranch ?? 'ALL')
+                                                    : (this.currentBranch ?? 'ALL');
 
   // 2) Then handle route + preload list
   this.route.queryParams.subscribe(async params => {
@@ -151,6 +171,10 @@ ngOnInit(): void {
 
       // Preload Firebase list so open-by-id works reliably
       this.savedForms = await this.formService.getFormTemplates(); // must include firebaseId=d.id
+      this.savedForms = (this.savedForms || []).map(f => ({
+  ...f,
+  _uiSelection: (f.allowedBranches?.length ? [...f.allowedBranches] : (['ALL'] as Branch[]))
+}));
 
       // If navigated with ?templateId=..., open it if found by formId OR firebaseId
       if (templateId) {
@@ -168,6 +192,86 @@ ngOnInit(): void {
       this.snackBar.open('Failed to load templates.', 'Close', { duration: 3000 });
     }
   });
+}
+getBranchesModel(f: SavedForm): Branch[] {
+  const sel = f?.allowedBranches ?? [];
+  return sel.length ? [...sel] : ['ALL'];
+}
+async onTemplateBranchesChange(f: SavedForm, selection: Branch[] = []) {
+  let uiSel = Array.isArray(selection) ? [...selection] : [];
+
+  // Normalize selection: ALL is exclusive; empty -> ALL
+  if (uiSel.includes('ALL') && uiSel.length > 1) uiSel = uiSel.filter(b => b !== 'ALL');
+  if (uiSel.length === 0) uiSel = ['ALL'];
+
+  // Update row state (drives "Current" chips instantly)
+  f._uiSelection = [...uiSel];
+  f.allowedBranches = [...uiSel];
+
+  // If this form is open in editor, sync there too
+  if (this.selectedForm && this.selectedForm.formId === f.formId) {
+    this.selectedBranches = [...uiSel];
+    this.selectedForm.allowedBranches = [...uiSel];
+  }
+
+  // Persist locally
+  const local = this.readLocalTemplates();
+  const idx = this.findRecordIndex(local, { formId: f.formId, firebaseId: f.firebaseId || null });
+  if (idx >= 0) {
+    local[idx] = { ...local[idx], allowedBranches: [...uiSel] };
+    localStorage.setItem('savedFormPages', JSON.stringify(local));
+  }
+
+  // Persist remotely
+  try {
+    if (f.firebaseId) {
+      await this.formService.updateFormTemplate(f.firebaseId, { allowedBranches: uiSel });
+      await this.formService.updateTemplateInBranches(
+        f.firebaseId,
+        { formName: f.formName, formPages: f.formPages as any[], allowedBranches: uiSel },
+        this.expandBranches(uiSel)
+      );
+    }
+  } finally {
+    // 🔁 Refresh array reference so MatTable re-evaluates the getter
+    this.savedForms = [...this.savedForms];
+
+    // 🚀 Auto-switch the list view so the row "moves" to that branch immediately
+    this.listBranchFilter = uiSel.includes('ALL') ? 'ALL' : uiSel[0];
+
+    // (Optional) confirmation toast
+    const label = uiSel.includes('ALL') ? 'ALL' : uiSel.join(', ');
+    this.snackBar.open(`Forms will load for: ${label}`, 'Close', { duration: 2000 });
+  }
+}
+// Expands selection to concrete branches for the branch mirrors
+private expandBranches(sel: Branch[]): Branch[] {
+  const all: Branch[] = ['MACKAY', 'YAT', 'NSW'];
+  return sel.includes('ALL') ? all : sel;
+}
+private arraysEqual(a: Branch[] = [], b: Branch[] = []) {
+  return a.length === b.length && a.every((x, i) => x === b[i]);
+}
+
+async deleteForm(form: SavedForm): Promise<void> {
+  const confirmDelete = confirm(`Delete template "${form.formName}"?`);
+  if (!confirmDelete) return;
+
+  try {
+    // Remove from Firebase (if stored remotely)
+    if (form.firebaseId) {
+      await this.formService.deleteFormTemplate(form.firebaseId);
+    }
+
+    // Remove locally
+    this.savedForms = this.savedForms.filter(f => f !== form);
+    this.writeLocalTemplates(this.savedForms);
+
+    this.snackBar.open('Template deleted', 'Close', { duration: 2000 });
+  } catch (err) {
+    console.error('Delete failed', err);
+    this.snackBar.open('Failed to delete template', 'Close', { duration: 3000 });
+  }
 }
   trackBySavedForm(index: number, f: SavedForm): string {
   return (f.firebaseId && f.firebaseId.trim()) ? `fb:${f.firebaseId}` : `id:${f.formId}`;
@@ -208,7 +312,14 @@ private dedupeByIdentity(list: SavedForm[]): SavedForm[] {
   for (const r of list) m.set(this.identityKey(r), r);
   return Array.from(m.values());
 }
-
+onBranchesChange(selected: Branch[]) {
+  this.selectedBranches = selected.includes('ALL') ? ['ALL'] : selected;
+}
+get branchesToSave(): Branch[] {
+  return this.selectedBranches.includes('ALL')
+    ? ['MACKAY','YAT','NSW']   // must match BRANCHES (without ALL)
+    : this.selectedBranches.filter(b => b !== 'ALL');
+}
 // Safe parse for localStorage
 private readLocalTemplates(): SavedForm[] {
   try {
@@ -234,8 +345,10 @@ private async ensureTemplateInFirebase(
     if (existingFirebaseId && existingFirebaseId.trim()) {
       await this.formService.updateFormTemplate(existingFirebaseId, {
         formName: name,
-        formPages: pages as any[]
-      });
+      formPages: this.formPages as any[],
+  allowedBranches: this.selectedBranches  
+});
+      const allowed = this.selectedBranches.includes('ALL') ? [] : this.selectedBranches;
       return existingFirebaseId;
     } else {
       const ref = await this.formService.saveFormTemplate(name, pages as any[]);
@@ -359,7 +472,7 @@ openNewTemplate(): void {
 openForm(form: SavedForm): void {
   this.selectedForm = form;
   this.currentFormId = form.formId;
-
+this.selectedBranches = (form.allowedBranches?.length ? [...form.allowedBranches] : ['ALL']);
   // (Make sure firebaseId is preserved on selectedForm)
   // form.firebaseId may be undefined for pure-local templates – that’s fine.
   this.formPages = JSON.parse(JSON.stringify(form.formPages));
@@ -926,7 +1039,25 @@ stopResize = (event: MouseEvent) => {
         this.initializeFreeDragPositions();
       }, 0);
     }
-  
+  listBranchFilter: Branch = 'ALL';
+
+// computed list the table will use
+get filteredSavedForms(): SavedForm[] {
+
+  if (!this.canManageAllBranches && this.currentBranch && this.currentBranch !== 'ALL') {
+    this.listBranchFilter = this.currentBranch;
+  }
+
+
+  const target = this.listBranchFilter;
+  if (target === 'ALL') return this.savedForms ?? [];
+
+  // show forms visible in this branch (or global ALL)
+  return (this.savedForms ?? []).filter(f => {
+    const vis = f.allowedBranches?.length ? f.allowedBranches : (['ALL'] as Branch[]);
+    return vis.includes('ALL') || vis.includes(target);
+  });
+}
 
   backToDashboard(): void {
     this.router.navigate(['/dashboard']);
@@ -941,7 +1072,8 @@ stopResize = (event: MouseEvent) => {
       formId: it.formId || this.generateId(),
       formName: it.formName || 'Untitled',
       formPages: it.formPages || [],
-      firebaseId: it.firebaseId ?? undefined
+      firebaseId: it.firebaseId ?? undefined,
+      allowedBranches: it.allowedBranches || ['ALL']  
     }));
 
     // If only local requested
@@ -961,7 +1093,8 @@ stopResize = (event: MouseEvent) => {
   formId: it.formId,                  // ✅ use the service's formId
   formName: it.formName || 'Untitled',
   formPages: it.formPages || [],
-  firebaseId: it.firebaseId           // ✅ use the service's firebaseId
+  firebaseId: it.firebaseId ,
+    allowedBranches: it.allowedBranches || ['ALL'],           // ✅ use the service's firebaseId
 }));
 
     if (kind === 'firebase') {
@@ -1002,6 +1135,7 @@ for (const r of remoteNorm) {
   if (key) remoteByName.set(key, r);
 }
 
+
 // --- swap local-only items to their remote twin when names match ---
 const reconciled: SavedForm[] = merged.map(item => {
   const hasFb = !!item.firebaseId && item.firebaseId.trim().length > 0;
@@ -1023,6 +1157,11 @@ this.formBuilderVisible = false;
     console.error('Failed to load templates', e);
     this.snackBar.open('Failed to load templates.', 'Close', { duration: 3000 });
   }
+  this.savedForms = (this.savedForms || []).map(f => ({
+  ...f,
+  _uiSelection: (f.allowedBranches?.length ? [...f.allowedBranches] : (['ALL'] as Branch[]))
+}));
+
 }
 private dedupeByNamePreferRemote(list: SavedForm[]): SavedForm[] {
   const byName = new Map<string, SavedForm>();
@@ -1095,6 +1234,26 @@ async saveForm(): Promise<void> {
     }
   }
   if (!name) name = 'Untitled';
+  const selection = (this.selectedForm?.allowedBranches?.length
+    ? [...this.selectedForm.allowedBranches!]
+    : [...this.selectedBranches]);
+let allowedForThis: Branch[];    // what we store on master doc
+let branchesToMirror: Branch[];  // concrete copies to update/create
+
+if (!this.canManageAllBranches) {
+  // 🔒 Non-managers: lock to their branch only
+  const b = (this.currentBranch ?? 'ALL');
+  const concrete = (b === 'ALL') ? ['MACKAY','YAT','NSW'] as Branch[] : [b as Branch];
+  allowedForThis = concrete;     // do NOT allow ALL sentinel for non-managers
+  branchesToMirror = concrete;
+} else {
+  // Managers keep your current behavior
+  allowedForThis = selection.length ? selection : (['ALL'] as Branch[]);
+  branchesToMirror = selection.includes('ALL')
+    ? ['MACKAY', 'YAT', 'NSW']
+    : selection.filter(x => x !== 'ALL');
+}
+
 
   // 4) Save to Firebase (update when firebaseId exists; else create)
   let firebaseId = '';
@@ -1103,15 +1262,17 @@ try {
     // UPDATE master
     await this.formService.updateFormTemplate(existingFirebaseId, {
       formName: name,
-      formPages: this.formPages as any[]
+        formPages: this.formPages as any[],
+ allowedBranches: allowedForThis, 
     });
 
+
     // ✅ ALSO UPDATE branch copies
-    await this.formService.updateTemplateInBranches(
-      existingFirebaseId,
-      { formName: name, formPages: this.formPages as any[] },
-      this.branchesToSave // ['NSW','MACKAY','UAT']
-    );
+   await this.formService.updateTemplateInBranches(
+  existingFirebaseId,
+  { formName: name, formPages: this.formPages as any[], allowedBranches: allowedForThis },
+    branchesToMirror
+);
 
     firebaseId = existingFirebaseId;
   } else {
@@ -1119,7 +1280,8 @@ try {
     firebaseId = await this.formService.saveFormTemplateToBranches(
       name,
       this.formPages as any[],
-      this.branchesToSave
+        branchesToMirror,                                      // ✅ concrete list
+        allowedForThis 
     );
   }
 } catch (e) {
@@ -1132,7 +1294,8 @@ try {
     formId: idToUse,
     formName: name,
     formPages: this.formPages,
-    firebaseId: firebaseId && firebaseId.trim() ? firebaseId : undefined
+    firebaseId: firebaseId && firebaseId.trim() ? firebaseId : undefined,
+     allowedBranches: allowedForThis, 
   };
 
   // 6) Merge into local list by identity (prefers firebaseId)
@@ -1149,8 +1312,12 @@ try {
   // 8) Update component state consistently
   this.currentFormId = idToUse;
   this.selectedForm = record;
-
+  this.selectedBranches = [...allowedForThis];
   this.snackBar.open('Template saved.', 'Close', { duration: 2000 });
+}
+displayBranches(f: SavedForm): string[] {
+  const ab = f?.allowedBranches ?? [];
+  return ab.length ? ab : ['All Branches'];
 }
   saveFilledForm(): void {
       if (this.hasRequiredMissing()) {

@@ -25,6 +25,8 @@ import pdfWorker from 'pdfjs-dist/legacy/build/pdf.worker.entry';
 import { FormService } from 'src/app/services/form.service';
 import { Subscription, firstValueFrom } from 'rxjs';
 import { ActivatedRoute, Router } from '@angular/router';
+import type { SavedForm as ServiceSavedForm } from 'src/app/services/form.service';
+
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
@@ -70,15 +72,17 @@ interface FormPage {
   fields: FormField[];
 }
 
-interface SavedForm {
+interface SavedForm extends ServiceSavedForm {
   formId: string;
-  formName?: string;
-  formPages: FormPage[];
-  source?: 'template' | 'filled';
+  formName: string;
+  formPages: FormPage[];              // ⬅️ this is the key
+  source: 'template' | 'filled';
   pdfUrl?: string | null;
-   name?: string;
-    sourceFormId?: string | null; 
+  sourceFormId?: string | null;
+  name?: string;
   title?: string;
+  firebaseId?: string;  
+   allowedBranches?: Branch[];              // if you use it
 }
 
 interface FilledFormData {
@@ -98,7 +102,7 @@ interface FilledInstance {
   preview?: string | null;
   updatedAt: number;
 }
-
+type Branch = 'MACKAY' | 'YAT' | 'NSW' | 'ALL';
 /* ---------------- Component ---------------- */
 
 @Component({
@@ -106,6 +110,7 @@ interface FilledInstance {
   templateUrl: './create-form.component.html',
   styleUrls: ['./create-form.component.scss'],
 })
+
 export class CreateFormComponent implements OnInit, AfterViewInit, OnDestroy {
   private textareasSub?: Subscription;
   examplePdfUrl: string | null = null;
@@ -191,20 +196,32 @@ ngOnInit(): void {
     }
   });
 
-  // 2) Your existing template load
-  this.formService.getFormTemplates()
-    .then((list: any[]) => {
-      this.forms = (list || []).map((x: any) => ({
-        formId: this.makeId(x, 'template'),
-        formName: x?.formName ?? x?.name ?? x?.title ?? 'Untitled (template)',
-        formPages: x?.formPages ?? [],
-        source: 'template' as const,
-        pdfUrl: x?.pdfUrl ?? null,
-      }));
-      this.splitLists();
-    })
-    .catch(() => this.loadForms());
-}
+// 2) Branch-aware template load
+const fetchTemplates = this.isAdmin()
+  ? this.formService.getFormTemplates()                              // Admin sees all
+  : this.formService.getVisibleTemplatesForBranch(this.currentBranch); // Crew sees only their branch (or ALL)
+
+fetchTemplates
+  .then((list: any[]) => {
+    this.forms = (list || []).map((x: any) => ({
+      formId: this.makeId(x, 'template'),
+      formName: x?.formName ?? x?.name ?? x?.title ?? 'Untitled (template)',
+      formPages: x?.formPages ?? [],
+      source: 'template' as const,
+      pdfUrl: x?.pdfUrl ?? null,
+      allowedBranches: x?.allowedBranches?.length ? x.allowedBranches : ['ALL'],
+    }));
+    this.splitLists(); // populates this.templates
+    // Extra safety in case of legacy docs
+    if (!this.isAdmin()) this.templates = this.templates.filter(this.canSeeTemplate);
+  })
+  .catch(err => {
+    console.error('load templates failed', err);
+    this.loadForms();   // local fallback (legacy)
+    this.splitLists();
+    if (!this.isAdmin()) this.templates = this.templates.filter(this.canSeeTemplate);
+  });}
+
   trackByFormId = (_: number, f: SavedForm) => f.formId;
   ngAfterViewInit(): void {
     this.initCanvases();
@@ -261,6 +278,25 @@ private resizeAndRedrawSignature(
   };
   img.src = src;
 }
+private readonly ALL_BRANCHES: Exclude<Branch, 'ALL'>[] = ['MACKAY', 'YAT', 'NSW'];
+currentBranch: Branch = 
+  (localStorage.getItem('branch')?.toUpperCase() as Branch) || 'NSW';
+private isAdmin(): boolean {
+  return (localStorage.getItem('role') || '').toLowerCase() === 'admin';
+   
+}
+
+// expand ['ALL'] to concrete branches
+private expandAllowed(ab?: Branch[]): Exclude<Branch, 'ALL'>[] {
+  if (!ab || ab.length === 0) return this.ALL_BRANCHES;
+  return ab.includes('ALL') ? this.ALL_BRANCHES : (ab as Exclude<Branch, 'ALL'>[]);
+}
+
+// can this template be seen by the current branch?
+private canSeeTemplate = (f: SavedForm): boolean => {
+  const allowed = this.expandAllowed(f.allowedBranches as Branch[] | undefined);
+  return this.currentBranch === 'ALL' || allowed.includes(this.currentBranch as any);
+};
   private attachAutoGrowListeners() {
     this.textareas.forEach((textareaEl) => {
       const ta = textareaEl.nativeElement;
@@ -380,9 +416,18 @@ private async handleDashboardDownload(id: string) {
     };
   }
 
-  onAddTemplate(): void {
-    console.log('Add Template button clicked');
-  }
+ onAddTemplate(): void {
+  const tpl: SavedForm = {
+    formId: 'new-' + Math.random().toString(36).slice(2),
+    formName: 'Untitled',
+    formPages: [{ fields: [] }],
+    source: 'template',
+    allowedBranches: this.isAdmin() ? ['ALL'] : [this.currentBranch as Exclude<Branch,'ALL'>],
+  };
+  this.forms.unshift(tpl);
+  this.splitLists();
+  this.openForm(tpl);
+}
 
   /* ---------------- Dialog for Save/Load choice ---------------- */
 
@@ -485,56 +530,72 @@ loadForms(): void {
           .toLowerCase()}`
     );
   }
+loadFromFirebase(kind: 'filled' | 'templates' | 'both' = 'templates'): void {
+  const toSaved = (item: any, source: 'template' | 'filled'): SavedForm => ({
+    formId: this.makeId(item, source),
+    formName: item?.formName || item?.name || item?.title || `Untitled (${source})`,
+    formPages: source === 'filled'
+      ? (item?.formPagesSnapshot || item?.formPages || [])
+      : (item?.formPages || []),
+    source,
+    pdfUrl: item?.pdfUrl ?? item?.formPdfPreview ?? null,
+    sourceFormId: item?.sourceFormId ?? item?.templateId ?? null,
+    allowedBranches: item?.allowedBranches?.length ? item.allowedBranches : ['ALL'],
+  });
 
-  loadFromFirebase(kind: 'filled' | 'templates' | 'both' = 'templates'): void {
-   const toSaved = (item: any, source: 'template' | 'filled'): SavedForm => ({
-  formId: this.makeId(item, source),
-  formName: item?.formName || item?.name || item?.title || `Untitled (${source})`,
-  formPages: source === 'filled'
-    ? (item?.formPagesSnapshot || item?.formPages || [])
-    : (item?.formPages || []),
-  source,
-  pdfUrl: item?.pdfUrl ?? item?.formPdfPreview ?? null,   // <— keep URL
-  sourceFormId: item?.sourceFormId ?? item?.templateId ?? null, // <— keep source template
-});
+  const templatePromise = this.isAdmin()
+    ? this.formService.getFormTemplates()
+    : this.formService.getVisibleTemplatesForBranch(this.currentBranch);
 
-    if (kind === 'both') {
-      this.snackBar.open('Loading templates and filled forms…', undefined, { duration: 1500 });
-      Promise.all([this.formService.getFormTemplates(), this.formService.getFilledForms()])
-        .then(([templates, filled]) => {
-          const t = (templates || []).map((x: any) => toSaved(x, 'template'));
-          const f = (filled || []).map((x: any) => toSaved(x, 'filled'));
-          const nameOf = (x: SavedForm) => x.formName ?? '';
-          this.forms = [...t, ...f].sort((a, b) =>
-            nameOf(a).localeCompare(nameOf(b), undefined, { sensitivity: 'base' })
-          );
-          this.splitLists();
-          this.snackBar.open(`Loaded ${this.forms.length} forms from Firebase.`, 'Close', { duration: 2500 });
-        })
-        .catch((err: any) => {
-          console.error('Error loading from Firestore:', err);
-          this.snackBar.open('Failed to load from Firebase.', 'Close', { duration: 3000 });
-        });
-      return;
-    }
+  if (kind === 'both') {
+    this.snackBar.open('Loading templates and filled forms…', undefined, { duration: 1500 });
+    Promise.all([templatePromise, this.formService.getFilledForms()])
+      .then(([templates, filled]) => {
+        const t = (templates || []).map((x: any) => toSaved(x, 'template'));
+        const f = (filled || []).map((x: any) => toSaved(x, 'filled'));
+        const nameOf = (x: SavedForm) => x.formName ?? '';
+        this.forms = [...t, ...f].sort((a, b) =>
+          nameOf(a).localeCompare(nameOf(b), undefined, { sensitivity: 'base' })
+        );
+        this.splitLists();
+        if (!this.isAdmin()) this.templates = this.templates.filter(this.canSeeTemplate);
+        this.snackBar.open(`Loaded ${this.forms.length} forms from Firebase.`, 'Close', { duration: 2500 });
+      })
+      .catch((err: any) => {
+        console.error('Error loading from Firestore:', err);
+        this.snackBar.open('Failed to load from Firebase.', 'Close', { duration: 3000 });
+      });
+    return;
+  }
 
-    const p = kind === 'filled' ? this.formService.getFilledForms() : this.formService.getFormTemplates();
-    this.snackBar.open(`Loading ${kind} from Firebase…`, undefined, { duration: 1200 });
+  // ✅ Only one variable here
+  const listPromise =
+    kind === 'filled'
+      ? this.formService.getFilledForms()
+      : templatePromise;
 
-    p.then((list) => {
-      const normalized = (list || []).map((x: any) => toSaved(x, kind === 'filled' ? 'filled' : 'template'));
+  this.snackBar.open(`Loading ${kind} from Firebase…`, undefined, { duration: 1200 });
+
+  listPromise
+    .then((list) => {
+      const normalized = (list || []).map((x: any) =>
+        toSaved(x, kind === 'filled' ? 'filled' : 'template')
+      );
       const nameOf = (x: SavedForm) => x.formName ?? '';
       this.forms = normalized.sort((a, b) =>
         nameOf(a).localeCompare(nameOf(b), undefined, { sensitivity: 'base' })
       );
-        this.splitLists();
+      this.splitLists();
+      if (!this.isAdmin() && kind !== 'filled') {
+        this.templates = this.templates.filter(this.canSeeTemplate);
+      }
       this.snackBar.open(`Loaded ${normalized.length} ${kind}.`, 'Close', { duration: 2500 });
-    }).catch((err: any) => {
+    })
+    .catch((err: any) => {
       console.error('Error loading from Firestore:', err);
-
       this.snackBar.open(`Failed to load ${kind} from Firebase.`, 'Close', { duration: 3000 });
     });
-  }
+}
 loadFormsFromFirebase(): void {
   const kind: 'filled' | 'templates' | 'both' =
     this.viewMode === 'filled' ? 'filled' :
@@ -606,7 +667,8 @@ private freezePage(livePage: HTMLElement, clonePage: HTMLElement) {
 }
   private syncInkAndPhotosIntoValues() {
     (this.selectedForm?.formPages || []).forEach((p) =>
-      p.fields.forEach((f) => {
+     p.fields.forEach((f: FormField) => {
+
         if (f.type === 'signature') {
           const cnv = this.getCanvasById(f.id);
           if (cnv) f.value = cnv.toDataURL('image/png');
@@ -955,7 +1017,8 @@ private replaceControlsWithValues(root: HTMLElement) {
 
 private swapSignaturesInto(root: HTMLElement) {
   (this.selectedForm?.formPages || []).forEach(p =>
-    p.fields.forEach(f => {
+p.fields.forEach((f: FormField) => {
+
       if (f.type !== 'signature') return;
 
       const wrap = root.querySelector<HTMLElement>(`.field-wrapper[data-id="${f.id}"]`);
@@ -1032,8 +1095,8 @@ async confirmSaveFilledForm(): Promise<void> {
 
   // 1) capture signatures (best-effort)
   try {
-    this.selectedForm.formPages.forEach((page) => {
-      page.fields.forEach((field) => {
+this.selectedForm.formPages.forEach((page: FormPage) => {
+  page.fields.forEach((field: FormField) => {
         if (field.type === 'signature') {
           const c = this.getCanvasById(field.id);
           if (c) field.value = c.toDataURL('image/png');
@@ -1050,10 +1113,10 @@ this.selectedForm.formPages.forEach((p) => p.fields.forEach((f: any) => {
 }));
 
   // 2) collect values
-  const values: Record<string, any> = {};
-  try {
-    this.selectedForm.formPages.forEach((p) => p.fields.forEach((f) => (values[f.id] = f.value ?? null)));
-  } catch {}
+ const values: Record<string, any> = {};
+this.selectedForm.formPages.forEach((p: FormPage) =>
+  p.fields.forEach((f: FormField) => (values[f.id] = f.value ?? null))
+);
 
   // 3) tiny preview (non-blocking)
   try {
@@ -1201,10 +1264,9 @@ this.selectedForm.formPages.forEach((p) => p.fields.forEach((f: any) => {
       reader.readAsDataURL(file);
     }
   }
-deleteForm(form: SavedForm): void {
-  if (!confirm(`Delete "${form.formName || 'Untitled'}"? This cannot be undone.`)) return;
-
-  const isLocalOnlyFilled = form.source === 'filled' && form.formId.startsWith('filled-');
+async deleteForm(form: SavedForm): Promise<void> {
+  const ok = confirm(`Delete "${form.formName || 'Untitled'}"? This cannot be undone.`);
+  if (!ok) return;
 
   const doLocalCleanup = () => {
     const stored = localStorage.getItem('filledForms');
@@ -1214,25 +1276,34 @@ deleteForm(form: SavedForm): void {
       localStorage.setItem('filledForms', JSON.stringify(next));
     }
     this.forms = this.forms.filter((f) => f.formId !== form.formId);
-    this.splitLists();
-    if (this.selectedForm?.formId === form.formId) this.closeForm();
+    this.splitLists?.();
+    if (this.selectedForm?.formId === form.formId) this.closeForm?.();
     this.snackBar.open('Deleted.', 'Close', { duration: 2000 });
   };
 
-  if (isLocalOnlyFilled) {
+  try {
+    // Local-only filled instance
+    const isLocalOnlyFilled = form.source === 'filled' && form.formId.startsWith('filled-');
+    if (isLocalOnlyFilled) {
+      doLocalCleanup();
+      return;
+    }
+
+    if (form.source === 'filled') {
+      // Remote filled instance
+      await this.formService.deleteFilledForm(form.formId);
+      doLocalCleanup();
+      return;
+    }
+
+    // Template: delete master + branch mirrors
+    const id = form.firebaseId || form.formId;
+    await this.formService.deleteFormTemplate(id); // ✅ public method
     doLocalCleanup();
-    return;
-  }
-
-  const isFilled = form.source === 'filled';
-  const op = isFilled
-    ? this.formService.deleteFilledForm(form.formId)
-    : this.formService.deleteTemplate(form.formId);
-
-  op.then(doLocalCleanup).catch((err: any) => {
+  } catch (err) {
     console.error(err);
     this.snackBar.open('Failed to delete.', 'Close', { duration: 3000 });
-  });
+  }
 }
   /* ---------------- Signature / Pointer helpers ---------------- */
 
@@ -1302,8 +1373,8 @@ initCanvases(): void {
   });
 }
   private swapPhotosIntoClone(root: HTMLElement) {
-  (this.selectedForm?.formPages || []).forEach(p =>
-    p.fields.forEach(f => {
+(this.selectedForm?.formPages || []).forEach((p: FormPage) =>
+p.fields.forEach((f: FormField) => {
       if (f.type !== 'file' && f.type !== 'photo') return;
       if (!f.value) return;
       const wrap = root.querySelector<HTMLElement>(`.field-wrapper[data-id="${f.id}"]`);
@@ -1661,7 +1732,7 @@ clearSignatureCanvas(fieldId: string): void {
       this.stripBuilderChrome(clone);
 
       (this.selectedForm?.formPages || []).forEach((p) =>
-        p.fields.forEach((f) => {
+     p.fields.forEach((f: FormField) => {
           if (f.type !== 'signature') return;
           const wrap = clone.querySelector(`.field-wrapper[data-id="${f.id}"]`) as HTMLElement | null;
           const cnv = this.getCanvasById(f.id);
@@ -1875,7 +1946,7 @@ clearSignatureCanvas(fieldId: string): void {
       this.stripBuilderChrome(clone);
 
       (this.selectedForm?.formPages || []).forEach((p) =>
-        p.fields.forEach((f) => {
+  p.fields.forEach((f: FormField) => {
           if (f.type !== 'signature') return;
           const wrap = clone.querySelector(`.field-wrapper[data-id="${f.id}"]`) as HTMLElement | null;
           const cnv = this.getCanvasById(f.id);
@@ -2122,10 +2193,11 @@ this.injectPdfCleanupCss(clone); // ensures .print-value fills the control width
 
 openFilledForm(filled: any) {
   this.selectedForm = {
-    formId: filled.sourceFormId,
+    formId: filled.id ?? filled.formId,   
     formName: filled.formName,
     formPages: JSON.parse(JSON.stringify(filled.formPagesSnapshot)),
      source: 'filled', 
+     sourceFormId: filled.sourceFormId ?? filled.templateId ?? null,
   };
 this.restoreCheckboxesFromValue()
   // ✅ restore signature images
@@ -2354,7 +2426,8 @@ this.restoreCheckboxesFromValue()
  
 private swapSignaturesInClone(clone: HTMLElement) {
   (this.selectedForm?.formPages || []).forEach(p =>
-    p.fields.forEach(f => {
+p.fields.forEach((f: FormField) => {
+
       if (f.type !== 'signature') return;
 
       const wrap = clone.querySelector<HTMLElement>(`.field-wrapper[data-id="${f.id}"]`);
@@ -2726,7 +2799,7 @@ this.injectPdfCleanupCss(clone);
 
     // --- swap signatures (keep labels) & photos ---
     (this.selectedForm?.formPages || []).forEach(p =>
-      p.fields.forEach(f => {
+   p.fields.forEach((f: FormField) => {
         // signatures: canvas -> img (do NOT clear wrapper)
         if (f.type === 'signature') {
           const liveCanvas = this.getCanvasById(f.id);
@@ -2792,10 +2865,18 @@ const h = Math.round(f.height ?? (wrap.clientHeight ?? 150));
         this.snackBar.open(`Template "${form.formName}" saved locally!`, 'Close', { duration: 2000 });
       };
 
-      const saveFirebase = () =>
-        this.formService
-          .saveFormTemplate(form.formName || 'Untitled', form.formPages)
-          .then(() => this.snackBar.open('Template saved to Firestore!', 'Close', { duration: 2000 }));
+    const saveFirebase = () => {
+  const allowed = (form.allowedBranches?.length
+    ? form.allowedBranches
+    : [this.isAdmin() ? 'ALL' : (this.currentBranch as Exclude<Branch,'ALL'>)]);
+  return this.formService.saveFormTemplate(
+    form.formName || 'Untitled',
+    form.formPages,
+    allowed as Branch[]
+  ).then(() =>
+    this.snackBar.open('Template saved to Firestore!', 'Close', { duration: 2000 })
+  );
+};
 
       try {
         if (choice === 'local') saveLocal();

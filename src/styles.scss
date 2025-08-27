@@ -1,5 +1,33 @@
 /* You can add global styles to this file, and also import other style files */
+@use '@angular/material' as mat;
 
+@include mat.core();
+
+// Palettes
+$primary: mat.define-palette(mat.$indigo-palette);
+$accent:  mat.define-palette(mat.$deep-purple-palette);
+$warn:    mat.define-palette(mat.$red-palette);
+
+// Theme
+$my-theme: mat.define-light-theme((
+  color: (
+    primary: $primary,
+    accent:  $accent,
+    warn:    $warn
+  ),
+  typography: mat.define-typography-config(),
+  density: 0
+));
+
+// Scope the theme to a class
+.my-theme {
+  @include mat.all-component-themes($my-theme);
+}
+
+// optional helper
+.my-theme .mat-app-background {
+  background: #fff; // or keep your previous surface color
+}
 html, body { height: 100%; }
 body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
 
@@ -317,3 +345,7 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
   height: 12px !important;
   line-height: 12px !important;
 }
+.cdk-overlay-container {
+  z-index: 2000 !important; // higher than toolbar (100)
+}
+
