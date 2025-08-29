@@ -547,27 +547,7 @@ loadFromFirebase(kind: 'filled' | 'templates' | 'both' = 'templates'): void {
     ? this.formService.getFormTemplates()
     : this.formService.getVisibleTemplatesForBranch(this.currentBranch);
 
-  if (kind === 'both') {
-    this.snackBar.open('Loading templates and filled forms…', undefined, { duration: 1500 });
-    Promise.all([templatePromise, this.formService.getFilledForms()])
-      .then(([templates, filled]) => {
-        const t = (templates || []).map((x: any) => toSaved(x, 'template'));
-        const f = (filled || []).map((x: any) => toSaved(x, 'filled'));
-        const nameOf = (x: SavedForm) => x.formName ?? '';
-        this.forms = [...t, ...f].sort((a, b) =>
-          nameOf(a).localeCompare(nameOf(b), undefined, { sensitivity: 'base' })
-        );
-        this.splitLists();
-        if (!this.isAdmin()) this.templates = this.templates.filter(this.canSeeTemplate);
-        this.snackBar.open(`Loaded ${this.forms.length} forms from Firebase.`, 'Close', { duration: 2500 });
-      })
-      .catch((err: any) => {
-        console.error('Error loading from Firestore:', err);
-        this.snackBar.open('Failed to load from Firebase.', 'Close', { duration: 3000 });
-      });
-    return;
-  }
-
+ 
   // ✅ Only one variable here
   const listPromise =
     kind === 'filled'

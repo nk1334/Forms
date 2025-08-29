@@ -207,7 +207,9 @@ export class AuthService {
       //
       // Also set a branch if you load it from your backend:
       // this.setUserBranch(loadedBranchFromBackend);
-
+   const role: Role = 'ops';                 // or load from your backend/claims
+    this.setUserRole(role);
+    localStorage.setItem('role', role);
       if (!localStorage.getItem('branch')) this.setUserBranch('MACKAY');
 
       return true;

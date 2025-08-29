@@ -1228,3 +1228,22 @@ textarea.form-input {
 }
 .saved-forms-table tr.mat-mdc-row .actions-cell .mat-mdc-icon-button { opacity: 0.35; }
 .saved-forms-table tr.mat-mdc-row:hover .actions-cell .mat-mdc-icon-button { opacity: 1; }
+.simple-grid {
+  width: 100%;
+  border-collapse: collapse;
+}
+.simple-grid th, .simple-grid td {
+  border: 1px solid #e0e0e0;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+.simple-grid thead th {
+  background: #f7f9ff;
+  font-weight: 600;
+}
+.actions-col { width: 40px; text-align: center; }
+.grid-actions { margin-top: 8px; }
+.grid-field {
+  width: 100% !important;
+  height: 100% !important;
+}

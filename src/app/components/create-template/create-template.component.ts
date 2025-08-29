@@ -23,6 +23,22 @@ import { FormService } from 'src/app/services/form.service';
 import { BRANCHES, Branch } from 'src/app/permissions.model';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { AuthService } from 'src/app/services/auth.service';
+export type ColumnType = 'text' | 'number' | 'date' | 'select';
+export interface DataGridColumn {
+  id: string;              // key used in row objects
+  label: string;           // column header
+  type: ColumnType;
+  required?: boolean;
+  options?: string[];      // for 'select'
+  width?: number;          // optional UI hint
+}
+
+export interface DataGridConfig {
+  columns: DataGridColumn[];
+  addRowText?: string;
+  minRows?: number;
+  maxRows?: number;
+}
 
 export interface FormField {
   id: string;
@@ -34,16 +50,21 @@ export interface FormField {
   height?: number;
    options?: { label: string; value?: string; checked?: boolean }[];
   value?: any;
+
+ // 👇 NEW (only used when type === 'data-grid')
+  gridConfig?: DataGridConfig;
+  rows?: Array<Record<string, any>>;
+
   position?: { x: number; y: number };
   row?: number;
   col?: number;
   problemItems?: { no: number; text: string }[];
-nextNo?:number;
-required:boolean;
+  nextNo?: number;
+  required: boolean;
   layout?: 'row' | 'column';
-
-
 }
+
+
 
 interface FormPage {
   fields: FormField[];
@@ -109,6 +130,7 @@ selectedBranches: Branch[] = ['ALL'];
   { id: 'empty', label: 'Empty Box', type: 'empty', required: false },
   { id: 'signature', label: 'Signature', type: 'signature', required: false },
   { id: 'submit', label: 'Submit Button', type: 'submit', required: false },
+  { id: 'data-grid', label: 'Data Grid', type: 'data-grid', required: false },
 { id: 'checkbox', label: 'Checkbox', type: 'checkbox', required: false,
   options: [
     { label: 'Option 1', value: 'opt1', checked: false },
@@ -305,7 +327,24 @@ private findRecordIndex(list: SavedForm[], rec: { formId?: string | null; fireba
     return (fb && key === fb) || (!fb && id && key === id);
   });
 }
-
+private makeDataGridField(): FormField {
+  return {
+    id: this.generateId(),
+    label: 'Data Grid',
+    type: 'data-grid',
+    required: false,
+    position: { x: 0, y: 0 },
+    width: 420,
+    height: 180,
+    gridConfig: {
+      columns: [],
+       
+      addRowText: 'Add row',
+      minRows: 0
+    },
+    rows: []   // no rows yet
+  };
+}
 // Deduplicate by identity key (firebaseId wins when present)
 private dedupeByIdentity(list: SavedForm[]): SavedForm[] {
   const m = new Map<string, SavedForm>();
@@ -671,10 +710,23 @@ isFieldFilled(field: FormField): boolean {
       }
       return !!field.value; // fallback if ever used as single checkbox
 
-    default:
-      return true;
+
+         case 'data-grid': {
+      const rows = field.rows || [];
+      if (!rows.length) return false;
+      const cols = field.gridConfig?.columns || [];
+      // consider a row valid if ANY required column is non-empty
+      return rows.some(r =>
+        cols.some(c =>
+          c.required
+            ? r[c.id] !== null && r[c.id] !== undefined && String(r[c.id]).trim() !== ''
+            : false
+              )
+      );
   }
-}
+      default:
+      return true;
+}}
 // Any required fields missing across pages?
 hasRequiredMissing(): boolean {
   for (const page of this.formPages) {
@@ -854,6 +906,7 @@ onOptionKeydown(ev: KeyboardEvent) {
     if (typeof f.width === 'string') {
       f.width = parseInt(f.width, 10);
     }
+
 if (f.type === 'checkbox') {
     if (!Array.isArray(f.options) || f.options.length === 0) {
       f.options = [
@@ -862,6 +915,21 @@ if (f.type === 'checkbox') {
       ];
     }
     delete f.value; // we won't use single boolean for multi
+  }
+ if (f.type === 'data-grid') {
+    // Replace the simple palette placeholder with a full grid config
+    const grid = this.makeDataGridField();
+    grid.position = f.position;    // keep drop position
+    grid.label = f.label || 'Data Grid';
+    this.formPages[this.currentPage].fields.push(grid);
+    this.fixDuplicateIds();
+    this.pendingFieldToAdd = null;
+    this.cancelFieldConfig();
+    setTimeout(() => {
+      this.initCanvases();
+      this.initializeFreeDragPositions();
+    }, 50);
+    return; // <-- important: stop here for data-grid
   }
 
   f.id = this.generateId();
@@ -970,6 +1038,103 @@ startResize(
 
   document.addEventListener('mousemove', this.onResizeMove, true);
   document.addEventListener('mouseup', this.stopResize, true);
+}
+onFieldDroppedIntoGrid(event: CdkDragDrop<any>, gridField: any) {
+  const dropped = event.item?.data;
+  if (!gridField || !dropped) return;
+
+  gridField.gridConfig ??= { columns: [] };
+  const cols = gridField.gridConfig.columns;
+
+  // Build a unique column id from the field
+  const base = ((dropped.id || dropped.label || 'col') + '')
+    .trim().toLowerCase().replace(/\s+/g, '_');
+  let id = base, i = 1;
+  while (cols.some((c: any) => c.id === id)) id = `${base}_${i++}`;
+
+  // Store a LIGHT copy of the field as fieldDef (no position/drag stuff)
+  const fieldDef = {
+    type: dropped.type,
+    label: dropped.label,
+    placeholder: dropped.placeholder,
+    options: dropped.options ? dropped.options.map((o: any) => ({ ...o })) : undefined
+  };
+
+  cols.push({
+    id,
+    label: dropped.label || 'Column',
+    fieldDef,          // 👈 the original field definition for rendering
+    type: fieldDef.type === 'radio' ? 'select' : fieldDef.type  // radio behaves as a select in cells
+  });
+
+  // Ensure each row has the new key
+  gridField.rows = (gridField.rows || []).map((r: any) => ({ [id]: r[id] ?? (fieldDef.type === 'checkbox' ? [] : ''), ...r }));
+}
+
+/** Convert a palette field to a grid column config */
+makeGridColumnFromField(field: any, existingCols: any[] = []) {
+  const base = ((field.id || field.label || 'col') + '').trim().toLowerCase().replace(/\s+/g, '_');
+  let id = base, i = 1;
+  while (existingCols.some(c => c.id === id)) id = `${base}_${i++}`;
+
+  const map: Record<string, string> = {
+    text: 'text', number: 'number', date: 'date',
+    select: 'select', radio: 'select', checkbox: 'select',
+    email: 'text', tel: 'text', textarea: 'text', id: 'text', 'project-title': 'text'
+  };
+
+  const type = map[field.type] || 'text';
+  const options = (type === 'select')
+    ? (field.options || []).map((o: any) => o.value ?? o.label).filter(Boolean)
+    : undefined;
+
+  return { id, label: field.label || 'Column', type, options };
+}
+
+/** Rename a column from inline contenteditable */
+renameGridColumn(gridField: any, colIndex: number, newLabel: string) {
+  const col = gridField?.gridConfig?.columns?.[colIndex];
+  if (col) col.label = (newLabel || col.label || '').trim();
+}
+addGridRow(gridField: any) {
+  const cols = gridField?.gridConfig?.columns || [];
+  const empty = cols.reduce((acc: any, c: any) => {
+    acc[c.id] = c.fieldDef?.type === 'checkbox' ? [] : '';
+    return acc;
+  }, {});
+  gridField.rows = [...(gridField.rows || []), empty];
+}
+
+
+removeGridRow(gridField: any, rowIndex: number) {
+  (gridField.rows || []).splice(rowIndex, 1);
+  gridField.rows = [...(gridField.rows || [])];
+}
+
+updateGridCell(field: FormField, rowIndex: number, colId: string, value: any): void {
+  if (field.type !== 'data-grid' || !field.rows?.[rowIndex]) return;
+  field.rows[rowIndex][colId] = value;
+}
+
+addGridColumn(field: FormField): void {
+  if (field.type !== 'data-grid') return;
+  const id = 'col' + Math.random().toString(36).slice(2, 6);
+  const col: DataGridColumn = { id, label: 'Column', type: 'text' };
+  field.gridConfig = field.gridConfig || { columns: [] };
+  field.gridConfig.columns = [...field.gridConfig.columns, col];
+  // backfill value for existing rows
+  field.rows?.forEach(r => (r[id] = null));
+}
+
+removeGridColumn(gridField: any, colIndex: number) {
+  const cols = gridField?.gridConfig?.columns || [];
+  const col = cols[colIndex];
+  if (!col) return;
+  cols.splice(colIndex, 1);
+  gridField.rows = (gridField.rows || []).map((r: any) => {
+    const { [col.id]: _omit, ...rest } = r || {};
+    return rest;
+  });
 }
 onResizeMove = (event: MouseEvent) => {
   if (!this.resizingField) return;

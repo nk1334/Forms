@@ -16,6 +16,8 @@ import {
 } from '@angular/fire/firestore';
 import { Storage, ref, uploadBytes, getDownloadURL } from '@angular/fire/storage';
 import { Branch, ALL_CONCRETE_BRANCHES } from 'src/app/permissions.model';
+import { collectionData } from '@angular/fire/firestore';
+import { Observable, map } from 'rxjs';
 
 /** What your component lists on the dashboard */
 export interface SavedForm {
@@ -278,6 +280,42 @@ export class FormService {
           : ['ALL'],
     };
   }
+getFormTemplates$(): Observable<SavedForm[]> {
+  const colRef = collection(this.afs, TEMPLATES);
+  const qv = query(colRef, orderBy('createdAt', 'desc'));
+  return collectionData(qv, { idField: 'id' }).pipe(
+    map((rows: any[]) => rows.map(d => ({
+      formId: d.id ?? d.formId,
+      firebaseId: d.id ?? d.formId,
+      formName: d.formName ?? d.templateName ?? '(Untitled)',
+      formPages: d.formPages ?? (d.fields ? [{ fields: d.fields }] : []),
+      pdfUrl: d.pdfUrl ?? null,
+      source: 'template',
+      allowedBranches: Array.isArray(d.allowedBranches) && d.allowedBranches.length ? d.allowedBranches : ['ALL'],
+    })))
+  );
+}
+getVisibleTemplatesForBranch$(branch: Branch): Observable<SavedForm[]> {
+  if (branch === 'ALL') return this.getFormTemplates$();
+
+  const colRef = collection(this.afs, TEMPLATES);
+  const qv = query(
+    colRef,
+    where('allowedBranches', 'array-contains-any', ['ALL', branch]),
+    orderBy('createdAt', 'desc')
+  );
+  return collectionData(qv, { idField: 'id' }).pipe(
+    map((rows: any[]) => rows.map(d => ({
+      formId: d.id ?? d.formId,
+      firebaseId: d.id ?? d.formId,
+      formName: d.formName ?? '(Untitled)',
+      formPages: d.formPages ?? [],
+      pdfUrl: d.pdfUrl ?? null,
+      source: 'template',
+      allowedBranches: Array.isArray(d.allowedBranches) && d.allowedBranches.length ? d.allowedBranches : ['ALL'],
+    } as SavedForm)))
+  );
+}
 
   /** List templates (normalized) from master */
   async getFormTemplates(): Promise<SavedForm[]> {

@@ -19,6 +19,9 @@
   overflow:visible;                       /* keeps pill shadow inside */
   box-shadow:0 4px 14px rgba(0,0,0,.18);
   display:flex; align-items:center;
+
+  /* allow wrapping when the action-bar goes to a second line */
+  height:auto;
 }
 .title{ font-weight:600; color:#fff; }
 
@@ -31,6 +34,23 @@
   border-radius:12px;
   border:1px solid rgba(0,0,0,.06);
   box-shadow:0 6px 14px rgba(25,42,70,.12);
+
+  /* --- FIXES --- */
+  /* 1) wrap instead of shrinking children to 0 width */
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+/* 2) keep each child from shrinking to zero (avatar, select, buttons) */
+.action-bar > * {
+  flex: 0 0 auto !important;
+}
+
+/* 3) bound the Select field so it can't bulldoze the buttons */
+.action-bar .mat-mdc-form-field {
+  flex: 0 1 280px;   /* can shrink a bit if tight */
+  min-width: 200px;
+  max-width: 340px;
 }
 
 /* Avatar button */
@@ -38,6 +58,9 @@
   width:36px; height:36px; border-radius:50%;
   background:#f5f7ff; display:inline-flex; align-items:center; justify-content:center;
   box-shadow: inset 0 0 0 2px #e0e3ff;
+
+  /* ensure solid hit area even under pressure */
+  min-width:36px; min-height:36px;
 }
 .action-bar .avatar-btn mat-icon{ color:#3f51b5; }
 
@@ -215,52 +238,84 @@ table.mat-mdc-table{ width:100%; table-layout:fixed; }
   .section-header{ flex-wrap:wrap; gap:10px; }
   .section-header .search-box{ flex:1 1 220px; order:3; }
 }
+
+/* ===============================
+   CONTROL HEIGHT TOKENS (plain CSS)
+   =============================== */
 :root {
-  --control-h: 36px; // same as mat-flat-button height
+  /* same as mat-flat-button height */
+  --control-h: 36px;
 }
 
-/* for Select Plants */
-.plants.mat-form-field {
-  .mat-mdc-text-field-wrapper {
-    height: var(--control-h);
-    padding: 0 12px;
-    display: flex;
-    align-items: center;
-  }
-
-  .mat-mdc-form-field-infix {
-    padding: 0;
-    min-height: auto;
-    display: flex;
-    align-items: center;
-  }
-
-  .mat-mdc-select-trigger {
-    height: var(--control-h);
-    display: flex;
-    align-items: center;
-  }
+/* for Select Plants (converted from SCSS nesting) */
+.plants.mat-form-field .mat-mdc-text-field-wrapper {
+  height: var(--control-h);
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+}
+.plants.mat-form-field .mat-mdc-form-field-infix {
+  padding: 0;
+  min-height: auto;
+  display: flex;
+  align-items: center;
+}
+.plants.mat-form-field .mat-mdc-select-trigger {
+  height: var(--control-h);
+  display: flex;
+  align-items: center;
 }
 
-/* for Search templates */
-.search-box.mat-form-field {
-  .mat-mdc-text-field-wrapper {
-    height: var(--control-h);
-    padding: 0 12px;
-    display: flex;
-    align-items: center;
-  }
-
-  .mat-mdc-form-field-infix {
-    padding: 0;
-    min-height: auto;
-    display: flex;
-    align-items: center;
-  }
-
-  input.mat-mdc-input-element {
-    height: var(--control-h);
-    line-height: var(--control-h);
-    padding: 0;
-  }
+/* for Search templates (converted from SCSS nesting) */
+.search-box.mat-form-field .mat-mdc-text-field-wrapper {
+  height: var(--control-h);
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
 }
+.search-box.mat-form-field .mat-mdc-form-field-infix {
+  padding: 0;
+  min-height: auto;
+  display: flex;
+  align-items: center;
+}
+.search-box.mat-form-field input.mat-mdc-input-element {
+  height: var(--control-h);
+  line-height: var(--control-h);
+  padding: 0;
+}
+
+/* ===============================
+   OVERLAY SAFETY (menus/dialogs above toolbar)
+   Put this in a global stylesheet (not component-scoped)
+   =============================== */
+.cdk-overlay-container {
+  position: fixed;          /* explicit */
+  z-index: 2000;            /* higher than toolbar (100) */
+}
+/* toolbar can grow if the pill wraps */
+.mat-toolbar.toolbar { height: auto; }
+
+/* STOP the pill from stretching as a flex item of the toolbar */
+.mat-toolbar.toolbar .action-bar {
+  flex: 0 0 auto !important;     /* <-- key fix */
+  
+  /* layout that prevents squeeze/vanish */
+  display: grid !important;
+  grid-auto-flow: column;
+  grid-template-columns: auto minmax(220px,320px) minmax(140px,auto) minmax(140px,auto);
+  align-items: center;
+  gap: 10px;
+
+  width: max-content;            /* size to content, not full row */
+  max-width: 100%;
+}
+
+/* let the select only fill its own grid column */
+.action-bar .mat-mdc-form-field { width: 100%; }
+
+/* keep avatar clickable */
+.action-bar .avatar-btn { min-width: 36px; min-height: 36px; }
+
+/* make menus/dialogs appear above header (GLOBAL styles.scss) */
+.cdk-overlay-container { position: fixed; z-index: 2000 !important; }

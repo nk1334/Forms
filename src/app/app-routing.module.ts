@@ -25,7 +25,7 @@ const routes: Routes = [
   path: 'template',                       // (your route is singular)
   component: CreateTemplateComponent,
   canActivate: [authGuard, PermissionGuard],
-  data: { required: [Permission.TEMPLATES_VIEW] }  // 🚫 OPS won't have this
+  data: { required: [Permission.TEMPLATES_VIEW] }
 },
   {
     path: 'forms',

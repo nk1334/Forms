@@ -161,6 +161,8 @@
              class="form-row"
              [style.maxWidth]="(field.type==='textarea' && (field.id==='description' || field.label==='Description Field')) ? 'none' : null"
              [style.maxHeight]="(field.type==='textarea' && (field.id==='description' || field.label==='Description Field')) ? 'none' : null"
+               [style.maxWidth]="field.type === 'data-grid' ? 'none' : null"  
+  [style.maxHeight]="field.type === 'data-grid' ? 'none' : null"  
              [ngStyle]="{ left: field.position?.x + 'px', top: field.position?.y + 'px', width: field.width + 'px', height: field.height + 'px' }"
              style="position:absolute; cursor:move; padding:8px; border:1px solid #ccc; background:#fafafa;"
              [class.textarea-row]="field.type === 'textarea' || field.type === 'description'">
@@ -217,46 +219,146 @@
             <input *ngSwitchCase="'id'" id="field-{{i}}" name="field-{{i}}" type="text" class="form-input"
                    [style.width.px]="field.width" [value]="field.id" disabled placeholder="ID Field (readonly)" />
 
-<div *ngSwitchCase="'checkbox'"
-     class="checkbox-field"
-     [style.width.px]="field.width"
-     style="display:flex; flex-direction:column; gap:8px;">
+ <!-- Checkbox -->
+  <div *ngSwitchCase="'checkbox'" class="checkbox-field" [style.width.px]="field.width"
+       style="display:flex; flex-direction:column; gap:8px;">
+    <div style="display:flex; align-items:center; gap:8px;">
+      <span class="editable-label"
+            [attr.data-id]="field.id"
+            contenteditable="true"
+            (focus)="startLabelEdit(field, $event)"
+            (blur)="finishLabelEdit(field, $event)"
+            (keydown)="onLabelKeydown(field, $event)"
+            style="outline:0; border-bottom:1px dashed transparent;"
+            [style.borderBottomColor]="labelEditing===field.id ? '#999' : 'transparent'">
+        {{ field.label || 'Checkbox' }}
+      </span>
+      <span *ngIf="isRequiredField(field)" aria-hidden="true" style="color:#d32f2f;">*</span>
+    </div>
 
-  <!-- Inline editable group title (no separate heading) -->
-  <div style="display:flex; align-items:center; gap:8px;">
-    <span class="editable-label"
-          [attr.data-id]="field.id"
-          contenteditable="true"
-          (focus)="startLabelEdit(field, $event)"
-          (blur)="finishLabelEdit(field, $event)"
-          (keydown)="onLabelKeydown(field, $event)"
-          style="outline:0; border-bottom:1px dashed transparent;"
-          [style.borderBottomColor]="labelEditing===field.id ? '#999' : 'transparent'">
-      {{ field.label || 'Checkbox' }}
-    </span>
-    <span *ngIf="isRequiredField(field)" aria-hidden="true" style="color:#d32f2f;">*</span>
-  </div>
-
-  <!-- Multiple checkboxes from options -->
-     <div class="checkbox-options-row"
+    <div class="checkbox-options-row"
          style="display:flex; flex-wrap:wrap; align-items:center; column-gap:24px; row-gap:8px;">
-  <label *ngFor="let opt of (field.options || []); let oi = index"
-        style="display:inline-flex; align-items:center; gap:6px; width:auto; margin:0; white-space:nowrap;">
-    <input type="checkbox" [(ngModel)]="opt.checked">
-    <span contenteditable="true"
-        (blur)="onOptionLabelBlur($event, oi, opt)"
-          style="outline:0;">
-      {{ opt.label || ('Option ' + (oi+1)) }}
-    </span>
-  </label>
+      <label *ngFor="let opt of (field.options || []); let oi = index"
+             style="display:inline-flex; align-items:center; gap:6px; width:auto; margin:0; white-space:nowrap;">
+        <input type="checkbox" [(ngModel)]="opt.checked">
+        <span contenteditable="true" (blur)="onOptionLabelBlur($event, oi, opt)" style="outline:0;">
+          {{ opt.label || ('Option ' + (oi+1)) }}
+        </span>
+      </label>
+    </div>
+
+    <div *ngIf="isRequiredField(field) && !hasAnyChecked(field)"
+         style="color:#d32f2f; font-size:12px;">
+      * Required: select at least one option.
+    </div>
+  </div>
+<div *ngSwitchCase="'data-grid'" class="grid-field fill-box">
+  <div class="grid-header"
+       cdkDropList
+       id="gridHeaderDrop-{{field.id}}"
+       [cdkDropListConnectedTo]="['fieldPalette']"
+       [cdkDropListData]="field.gridConfig?.columns"
+       (cdkDropListDropped)="onFieldDroppedIntoGrid($event, field)"
+       style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+    <div style="font-weight:600;">
+      {{ field.label || 'Data Grid' }}
+      <span *ngIf="isRequiredField(field)" style="color:#d32f2f;">*</span>
+    </div>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <div class="drop-hint" style="font-size:12px; opacity:.8; padding:4px 8px; border:1px dashed #bbb; border-radius:4px;">
+        Drag fields here to add columns
+      </div>
+      <button mat-stroked-button type="button" (click)="addGridRow(field)">Add row</button>
+    </div>
   </div>
 
-  <!-- Single required message -->
-<div *ngIf="isRequiredField(field) && !hasAnyChecked(field)"
-     style="color:#d32f2f; font-size:12px;">
-  * Required: select at least one option.
+  <!-- stretch + scroll area -->
+  <div class="grid-body">
+    <table class="simple-grid">
+      <thead>
+        <tr>
+          <th *ngFor="let c of field.gridConfig?.columns; let ci = index"
+              style="border:1px solid #e0e0e0; background:#f7f9ff; text-align:left; padding:6px 8px; font-weight:600; white-space:nowrap;">
+            <span contenteditable="true"
+                  (blur)="renameGridColumn(field, ci, $any($event.target).textContent || c.label)">
+              {{ c.label }}
+            </span>
+            <button mat-icon-button type="button" (click)="removeGridColumn(field, ci)" aria-label="Remove column" style="margin-left:6px;">
+              <mat-icon>close</mat-icon>
+            </button>
+          </th>
+          <th style="border:1px solid #e0e0e0; width:44px;"></th>
+        </tr>
+      </thead>
+
+      <tbody>
+        <tr *ngFor="let row of (field.rows || []); let r = index">
+          <td *ngFor="let c of field.gridConfig?.columns" style="border:1px solid #e0e0e0; padding:4px 6px;">
+            <ng-container *ngTemplateOutlet="cellRenderer; context: { col: c, row: row }"></ng-container>
+          </td>
+          <td style="border:1px solid #e0e0e0; text-align:center;">
+            <button mat-icon-button type="button" (click)="removeGridRow(field, r)" aria-label="Remove row">
+              <mat-icon>delete</mat-icon>
+            </button>
+          </td>
+        </tr>
+
+        <tr *ngIf="!(field.rows?.length)">
+          <td [attr.colspan]="(field.gridConfig?.columns?.length || 0) + 1"
+              style="border:1px solid #e0e0e0; padding:8px; color:#666;">
+      
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div *ngIf="isRequiredField(field) && !isFieldFilled(field)"
+       style="color:#d32f2f; font-size:12px; margin-top:6px;">
+    * Required: add at least one row with a value in a required column.
+  </div>
 </div>
-</div>
+
+<!-- 🎯 Reusable cell renderer: renders the dropped field type inside a cell -->
+<ng-template #cellRenderer let-col="col" let-row="row">
+  <ng-container [ngSwitch]="col.fieldDef?.type || col.type">
+    <!-- Text-like -->
+    <input *ngSwitchCase="'text'" type="text"
+           [(ngModel)]="row[col.id]" [placeholder]="col.fieldDef?.placeholder || col.label"
+           style="width:100%; box-sizing:border-box;" />
+
+    <input *ngSwitchCase="'number'" type="number"
+           [(ngModel)]="row[col.id]" [placeholder]="col.fieldDef?.placeholder || col.label"
+           style="width:100%; box-sizing:border-box;" />
+
+    <input *ngSwitchCase="'date'" type="date"
+           [(ngModel)]="row[col.id]"
+           style="width:100%; box-sizing:border-box;" />
+
+    <!-- Select / Radio / Checkbox become dropdown/multi-select in a cell -->
+    <select *ngSwitchCase="'select'"
+            [(ngModel)]="row[col.id]" style="width:100%; box-sizing:border-box;">
+      <option *ngFor="let opt of (col.fieldDef?.options || col.options || [])"
+              [value]="opt.value ?? opt">
+        {{ opt.label ?? opt }}
+      </option>
+    </select>
+
+    <!-- simple multi-select version for checkbox-in-cell -->
+    <select *ngSwitchCase="'checkbox'" multiple
+            [(ngModel)]="row[col.id]" style="width:100%; box-sizing:border-box;">
+      <option *ngFor="let opt of (col.fieldDef?.options || [])"
+              [value]="opt.value ?? opt.label">
+        {{ opt.label ?? opt.value }}
+      </option>
+    </select>
+
+    <!-- default to text -->
+    <input *ngSwitchDefault type="text"
+           [(ngModel)]="row[col.id]" [placeholder]="col.label"
+           style="width:100%; box-sizing:border-box;" />
+  </ng-container>
+</ng-template>
 
 
             <!-- Date -->

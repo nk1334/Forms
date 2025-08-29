@@ -33,6 +33,7 @@ interface FilledFormData {
 
 export class DashboardComponent implements OnInit {
     public Permission = Permission;
+      canViewTemplates = false;
     branch: Branch = 'NSW';
   userBranch: Branch = 'NSW'; 
    
@@ -107,6 +108,7 @@ public  authService: AuthService,
 ) {}
 
 downloading = new Set<string>();
+trackByRego = (_: number, p: { regoName: string }) => p.regoName;
 
 hasPdf(f: any): boolean {
   return !!f?.pdfUrl;
@@ -136,6 +138,11 @@ async ngOnInit(): Promise<void> {
   this.userBranch = (raw === 'NSW' || raw === 'YAT' || raw === 'MACKAY') ? raw : 'NSW';
   this.branch = this.userBranch; // ✅ both BranchId now
 
+const cached = this.readTplCache();
+if (cached.length) {
+  this.templates = cached;
+  this.dataSource.data = cached;
+}
   this.router.events.subscribe((event) => {
     if (event instanceof NavigationEnd) {
       this.showDashboardUI = this.router.url === '/dashboard';
@@ -164,6 +171,7 @@ async ngOnInit(): Promise<void> {
     const userData = localStorage.getItem('user');
     this.user = userData ? JSON.parse(userData) : null;
   }
+  
   applyBranchFilter(): void {
   this.filteredTemplates = this.templates.filter(t =>
     t.allowedBranches?.includes('ALL') ||
@@ -209,6 +217,16 @@ createTemplate(): void {
     this.tabIndex = 0;      // bounce back
   }
   }
+  private readonly TPL_CACHE_KEY = 'templatesCache:v1';
+
+private writeTplCache(list: SavedForm[]) {
+  localStorage.setItem(this.TPL_CACHE_KEY, JSON.stringify(list || []));
+}
+
+private readTplCache(): SavedForm[] {
+  try { return JSON.parse(localStorage.getItem(this.TPL_CACHE_KEY) || '[]'); }
+  catch { return []; }
+}
    private _dialogPositionNear(trigger?: HTMLElement): { top: string; left: string } | undefined {
     if (!trigger) return undefined;
     const r = trigger.getBoundingClientRect();
@@ -216,25 +234,50 @@ createTemplate(): void {
     const left = r.left   + window.scrollX;
     return { top: `${top}px`, left: `${left}px` };
   }
-  private async loadTemplatesFor(b: Branch): Promise<void> {
-    try {
-      const admin = this.authService?.isAdmin?.() ?? false;
-      const list = (admin && b === 'ALL')
-        ? await this.formService.getFormTemplates()
-        : await this.formService.getVisibleTemplatesForBranch(b);
+ private async loadTemplatesFor(b: Branch): Promise<void> {
+  try {
+    const admin = this.authService?.isAdmin?.() ?? false;
+    const list = (admin && b === 'ALL')
+      ? await this.formService.getFormTemplates()
+      : await this.formService.getVisibleTemplatesForBranch(b);
 
-      this.templates = list;
-      this.dataSource.data = list;
-    } catch (e) {
-      console.error(e);
-      this.snackBar.open('Failed to load templates for branch.', 'Close', { duration: 3000 });
-    }
+    // normalize + default visibility
+    const normalized: SavedForm[] = (list || []).map((d: any) => ({
+      formId: d.id || d.formId,
+      formName: d.formName || d.name || 'Untitled',
+      allowedBranches: d.allowedBranches?.length ? d.allowedBranches : ['ALL'],
+      ...d
+    }));
+
+    this.templates = normalized;
+    this.dataSource.data = normalized;
+
+    // ✅ write-through cache so next reload shows instantly
+    this.writeTplCache(normalized);
+  } catch (e) {
+    console.error(e);
+    this.snackBar.open('Failed to load templates for branch.', 'Close', { duration: 3000 });
   }
-  onViewingBranchChange(b: Branch) {
-    this.branch = b;
-    localStorage.setItem('branch', b);
-    this.loadTemplatesFor(b);
+}
+onViewingBranchChange(b: Branch) {
+  this.branch = b;
+  localStorage.setItem('branch', b);
+
+  // show something right away from cache (in case Firestore is slow)
+  const cached = this.readTplCache();
+  if (cached.length) {
+    // only filter client-side if you want to hide out-of-branch items immediately
+    const inBranch = (t: SavedForm) =>
+      b === 'ALL' ||
+      (t.allowedBranches?.includes('ALL') || t.allowedBranches?.includes(b));
+    const filtered = cached.filter(inBranch);
+    this.templates = filtered;
+    this.dataSource.data = filtered;
   }
+
+  // then refresh from server
+  this.loadTemplatesFor(b);
+}
 
 onUserCreated(user: any) {
   console.log('User created:', user);
@@ -269,10 +312,15 @@ loadFilledForms(): void {
   })) as any[];
 }
 
-  applyFilter(event: Event): void {
-    const value = (event.target as HTMLInputElement).value;
-    this.dataSource.filter = value.trim().toLowerCase();
-  }
+private reapplySearch() {
+  if (!this.searchValue) { this.dataSource.filter = ''; return; }
+  this.dataSource.filter = this.searchValue.trim().toLowerCase();
+}
+
+applyFilter(event: Event): void {
+  this.searchValue = (event.target as HTMLInputElement).value || '';
+  this.reapplySearch();
+}
 
   addNew(): void {
     const dialogRef = this.dialog.open(AddNewTemplateModalComponent, {

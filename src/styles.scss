@@ -345,7 +345,51 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
   height: 12px !important;
   line-height: 12px !important;
 }
-.cdk-overlay-container {
-  z-index: 2000 !important; // higher than toolbar (100)
+.mat-toolbar.toolbar {
+  height: auto;
 }
 
+/* Make the white pill size to its content and lock column widths */
+.action-bar {
+  /* replace flex with grid: avatar | select | add plant | add user */
+  display: grid !important;
+  grid-auto-flow: column;
+  grid-template-columns: auto minmax(220px, 320px) auto auto;
+  align-items: center;
+  gap: 10px;
+
+  /* keep the pill compact (no stretching across the whole toolbar) */
+  width: max-content;
+  max-width: 100%;
+}
+
+/* Let the select fill its own column only (not the whole pill) */
+.action-bar .mat-mdc-form-field {
+  width: 100%;
+}
+
+/* Solid hit-area for avatar */
+.action-bar .avatar-btn {
+  min-width: 36px;
+  min-height: 36px;
+}
+.mat-toolbar.toolbar { position: relative; z-index: 1000; height: auto; }
+
+.action-bar { position: relative; z-index: 1001; }
+.action-bar > * { position: relative; z-index: 1002; }  /* children clickable */
+
+/* Explicitly lift the select trigger */
+.plants.mat-mdc-form-field,
+.plants .mat-mdc-text-field-wrapper,
+.plants .mat-mdc-form-field-infix,
+.plants .mat-mdc-select-trigger {
+  position: relative;
+  z-index: 1003;
+  pointer-events: auto !important;
+}
+
+/* Anything below (blue section header/card) sits under the toolbar */
+.section-header, .templates-card, .main-content { position: relative; z-index: 1; }
+
+/* Menus/dialogs/Select panel above everything */
+.cdk-overlay-container { position: fixed; z-index: 2000; }
