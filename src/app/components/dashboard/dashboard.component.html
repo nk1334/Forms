@@ -86,7 +86,7 @@
   mat-button
   class="menu-button"
   routerLink="/template"
-  *ngIf="authService.hasPermission(Permission.TEMPLATES_VIEW)">
+  *ngIf="canSeeTemplates || authService.hasPermission(Permission.TEMPLATES_VIEW)">
   <mat-icon>table_view</mat-icon>
   Templates
 </button>

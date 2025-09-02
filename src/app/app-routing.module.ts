@@ -1,6 +1,6 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
-
+import { environment } from 'src/environments/environment';
 import { LoginComponent } from './components/login/login.component';
 import { SignupComponent } from './components/signup/signup.component';
 import { DashboardComponent } from './components/dashboard/dashboard.component';
@@ -11,7 +11,7 @@ import { ProblemTrackerComponent } from './components/problem-tracker/problem-tr
 import { AddUserComponent } from './components/add-user/add-user.component';
 import { PermissionGuard } from './permission.guard';
 import { Permission } from './permissions.model';
-
+const templateGuards: any[] = environment.bypassPerms ? [] : [authGuard, PermissionGuard];
 
 const routes: Routes = [
   { path: 'login', component: LoginComponent },
@@ -24,7 +24,7 @@ const routes: Routes = [
 {
   path: 'template',                       // (your route is singular)
   component: CreateTemplateComponent,
-  canActivate: [authGuard, PermissionGuard],
+    canActivate: templateGuards,
   data: { required: [Permission.TEMPLATES_VIEW] }
 },
   {

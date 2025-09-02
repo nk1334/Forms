@@ -1,6 +1,7 @@
 // src/environments/firebase-config.ts
 export const environment = {
   production: false,
+    bypassPerms: true, 
   firebase: {
     apiKey: "AIzaSyBSSwleV6TnLJ5U_bpEGwhQ-AJHvFa1Z4w",
     authDomain: "avante-3b787.firebaseapp.com",

@@ -45,25 +45,44 @@ export interface FormField {
   label: string;
   type: string;
   placeholder?: string;
-  // Allow any number for width and height, not just fixed literal types
   width?: number;
   height?: number;
-   options?: { label: string; value?: string; checked?: boolean }[];
+  options?: { label: string; value?: string; checked?: boolean }[];
   value?: any;
-
- // 👇 NEW (only used when type === 'data-grid')
+ isDescription?: boolean; 
+  // OLD meaning (keep only if you still use docked labels somewhere)
+  labelDock?: 'top' | 'left' | 'right' | 'bottom';   // 👈 renamed
+  role?: 'description' | 'normal'; 
+  // Data grid (unchanged)
   gridConfig?: DataGridConfig;
   rows?: Array<Record<string, any>>;
 
+  // outer card position
   position?: { x: number; y: number };
   row?: number;
   col?: number;
-  problemItems?: { no: number; text: string }[];
+
+
   nextNo?: number;
   required: boolean;
   layout?: 'row' | 'column';
+problemItems?: { no: number; text: string; _size?: { w: number; h: number } }[];
+  // inline layout flags (optional)
+  inline?: boolean;
+  inputFirst?: boolean;
+  labelWidth?: number;
+  inputWidth?: number;
+  inputSize?: { w: number; h: number }; 
+  // NEW: inner free-drag positions (used by draggable label/input)
+  labelPos?: { x: number; y: number };
+  inputPos?: { x: number; y: number };
+  tagPos?: { x: number; y: number };
+arrange?: 'dock' | 'free'; 
+useTextarea?: boolean;                 // toggle between <input> and <textarea>
+textareaPos?: { x: number; y: number };
+textareaSize?: { w: number; h: number };
+    _lockParentDrag?: boolean; 
 }
-
 
 
 interface FormPage {
@@ -107,17 +126,31 @@ selectedBranches: Branch[] = ['ALL'];
   formListVisible = false;
     popupTop = 0;
   popupLeft = 0;
+  
+  
 
   paletteFields: FormField[] = [
   { id: 'project-title', label: 'Project Name', type: 'project-title', required: false },
   { id: 'id', label: 'ID Field', type: 'id', required: false },
-  { id: 'description', label: 'Description Field', type: 'textarea', required: false },
+
   { id: 'date', label: 'Date Field', type: 'date', required: false },
   { id: 'text', label: 'Text Field', type: 'text', required: false },
   { id: 'number', label: 'Number Field', type: 'number', required: false },
-  { id: 'email', label: 'Email Field', type: 'email', required: false },
+{ 
+  id: 'email',
+  label: 'Email Field',
+  type: 'email',
+  required: false,
+  width: 340,    // outer draggable box width
+  height: 64,    // outer draggable box height
+  inline: true,          // start inline
+  inputFirst: false,     // label on the left by default
+  labelWidth: 120,       // px
+  inputWidth: 180        // px
+},
   { id: 'branch', label: 'Branch Field', type: 'branch', required: false },
   { id: 'tel', label: 'Phone Field', type: 'tel', required: false },
+   { id: 'description', label: 'Description Field', type: 'textarea', required: false, isDescription: true },
   {
     id: 'radio',
     label: 'Radio Field',
@@ -215,6 +248,65 @@ ngOnInit(): void {
     }
   });
 }
+inputId(field: FormField, suffix = ''): string {
+  return suffix ? `${field.id}-${suffix}` : field.id;
+}
+
+
+
+saveTagPos(e: CdkDragEnd, f: FormField) {
+  const p = e.source.getFreeDragPosition();
+  f.tagPos = { x: p.x, y: p.y };
+  this.lockParentDrag(f, false);
+}
+
+// If your template calls this for the input's drag end
+saveInputPos(e: CdkDragEnd, f: FormField) {
+  const p = e.source.getFreeDragPosition();
+  f.inputPos = { x: p.x, y: p.y };
+  this.lockParentDrag(f, false);
+}
+
+
+// If your template has a draggable textarea
+saveTextareaPos(e: CdkDragEnd, f: FormField) {
+  const p = e.source.getFreeDragPosition();
+  f.textareaPos = { x: p.x, y: p.y };
+  this.lockParentDrag(f, false);
+}
+rememberProblemItemSize(ev: MouseEvent, f: FormField, idx: number) {
+  const el = ev.currentTarget as HTMLElement | null;
+  if (!el) return;
+  // persist size per item, not per whole field
+  const w = Math.round(el.offsetWidth);
+  const h = Math.round(el.offsetHeight);
+  if (!f.problemItems || !f.problemItems[idx]) return;
+  (f.problemItems[idx] as any)._size = { w, h };
+}
+
+// If your template lets the textarea be resized by user
+rememberTextareaSize(ev: MouseEvent, f: FormField) {
+  const el = ev.currentTarget as HTMLElement | null;
+  if (!el) return;
+
+  // Save inner size (for restoring after rerenders)
+  f.textareaSize = { w: Math.round(el.offsetWidth), h: Math.round(el.offsetHeight) };
+
+  // Auto-grow the outer card height so it never clips the textarea
+  const PADDING_AND_HEADER = 56;        // tweak if your header/padding differs
+  const neededH = Math.round(el.offsetHeight + PADDING_AND_HEADER);
+  if (!f.height || f.height < neededH) f.height = neededH;
+
+  // Optional: widen outer if inner is now wider
+  const SIDE_PADDING = 24;              // left+right paddings/borders
+  const neededW = Math.round(el.offsetWidth + SIDE_PADDING);
+  if (!f.width || f.width < neededW) f.width = neededW;
+}
+rememberInputSize(ev: MouseEvent, field: FormField) {
+  const el = ev.currentTarget as HTMLElement; // the .inner-widget
+  if (!el) return;
+  field.inputSize = { w: el.offsetWidth, h: el.offsetHeight };
+}
 getBranchesModel(f: SavedForm): Branch[] {
   const sel = f?.allowedBranches ?? [];
   return sel.length ? [...sel] : ['ALL'];
@@ -271,10 +363,29 @@ private expandBranches(sel: Branch[]): Branch[] {
   const all: Branch[] = ['MACKAY', 'YAT', 'NSW'];
   return sel.includes('ALL') ? all : sel;
 }
+isDesc(f: FormField): boolean {
+  // migrate old data once (role-based) without relying on label text
+  if (f && f.isDescription == null && f.role === 'description') f.isDescription = true;
+  return !!f?.isDescription;
+}
 private arraysEqual(a: Branch[] = [], b: Branch[] = []) {
   return a.length === b.length && a.every((x, i) => x === b[i]);
 }
+toggleInline(field: FormField) {
+  field.inline = !field.inline;
+  // If switching to inline and widths are missing, seed them
+  if (field.inline) {
+    const total = field.width ?? 340;
+    if (!field.labelWidth && !field.inputWidth) {
+      field.labelWidth = Math.max(60, Math.min(140, Math.round(total * 0.35)));
+      field.inputWidth = Math.max(100, total - field.labelWidth - 40); // minus gaps/handles
+    }
+  }
+}
 
+swapOrder(field: FormField) {
+  field.inputFirst = !field.inputFirst;
+}
 async deleteForm(form: SavedForm): Promise<void> {
   const confirmDelete = confirm(`Delete template "${form.formName}"?`);
   if (!confirmDelete) return;
@@ -297,6 +408,39 @@ async deleteForm(form: SavedForm): Promise<void> {
 }
   trackBySavedForm(index: number, f: SavedForm): string {
   return (f.firebaseId && f.firebaseId.trim()) ? `fb:${f.firebaseId}` : `id:${f.formId}`;
+}
+// Inline splitter drag
+startInlineResize(ev: MouseEvent, field: FormField) {
+  ev.stopPropagation(); // don't start dragging the outer block
+  ev.preventDefault();
+
+  const startX = ev.clientX;
+  const total = field.width ?? 340;
+  const gapAndSplitter = 8 /*gap*/ + 6 /*splitter*/ + 8 /*gap*/;
+
+  const startLabel = field.labelWidth ?? 120;
+  const startInput = field.inputWidth ?? Math.max(100, total - startLabel - gapAndSplitter);
+
+  const onMove = (e: MouseEvent) => {
+    const dx = e.clientX - startX;
+    let newLabel = startLabel + dx;
+
+    // clamp
+    newLabel = Math.max(40, Math.min(total - gapAndSplitter - 80, newLabel));
+    const newInput = Math.max(80, total - gapAndSplitter - newLabel);
+
+    field.labelWidth = Math.round(newLabel);
+    field.inputWidth = Math.round(newInput);
+    this.cdr.markForCheck();
+  };
+
+  const onUp = () => {
+    window.removeEventListener('mousemove', onMove, true);
+    window.removeEventListener('mouseup', onUp, true);
+  };
+
+  window.addEventListener('mousemove', onMove, true);
+  window.addEventListener('mouseup', onUp, true);
 }
 hasAnyChecked(field: { options?: { checked?: boolean }[] }): boolean {
   return Array.isArray(field.options) && field.options.some(o => !!o?.checked);
@@ -463,14 +607,30 @@ async clearAllSavedForms(): Promise<void> {
   }
 }
 
-  addProblemItem(field: FormField): void {
-  if(!field.problemItems)field.problemItems=[];
-  if(!field.nextNo)field.nextNo=1;
-  field.problemItems.push({no:field.nextNo,text:""});
+ addProblemItem(field: FormField): void {
+  if (!field.problemItems) field.problemItems = [];
+  if (!field.nextNo) field.nextNo = 1;
+
+  field.problemItems.push({
+    no: field.nextNo,
+    text: "",
+    _size: field.textareaSize
+      ? { w: field.textareaSize.w, h: field.textareaSize.h }
+      : undefined,                 // or e.g. { w: 280, h: 80 }
+  });
+
   field.nextNo++;
   this.cdr.detectChanges();
 }
+lockParentDrag(field: any, lock: boolean) {
+  field._lockParentDrag = lock;
+}
 
+onEmailDragEnd(event: CdkDragEnd, field: any) {
+  const pos = event.source.getFreeDragPosition();
+  field.inputPos = { x: pos.x, y: pos.y };   // persist position
+  this.lockParentDrag(field, false);         // re-enable parent drag
+}
 // Update problem text (used by your (ngModelChange))
 updateProblemText(field: FormField, idx: number, value: string): void {
   if (!field.problemItems ) return;
@@ -594,7 +754,7 @@ openFieldConfig() {
       required:false
     };
   }
-  field = {
+sampleCheckbox = {
   type: 'checkbox',
   options: [
     { label: 'Option 1', checked: false },
@@ -670,11 +830,17 @@ updateOptionLabel(field: FormField, index: number, ev: FocusEvent) {
   const curr = field.options[index] || { label: '' };
   field.options[index] = { ...curr, label: txt || `Option ${index + 1}` };
 }
+setLabelPos(f: FormField, pos: 'top'|'left'|'right'|'bottom') {
+  if (!f) return;
+  f.labelDock = pos;
+
+  this.cdr.markForCheck();
+}
 
 finishLabelEdit(field: FormField, ev: FocusEvent | KeyboardEvent) {
   const el = ev.target as HTMLElement;
   const text = (el.innerText || '').trim();
-  field.label = text || 'Checkbox';
+  field.label = text || this.prettyLabelForType(field.type); // ← was 'Checkbox'
   this.labelEditing = null;
 }
 
@@ -689,7 +855,13 @@ onLabelKeydown(field: FormField, ev: KeyboardEvent) {
 isFieldFilled(field: FormField): boolean {
   if (!this.isRequiredField(field)) return true;
 
+
   switch (field.type) {
+     case 'textarea':
+      return this.isDesc(field)
+        ? (field.problemItems?.length ?? 0) > 0
+        : (typeof field.value === 'string' ? field.value.trim().length > 0 : !!field.value);
+
     case 'text':
     case 'email':
     case 'tel':
@@ -894,11 +1066,35 @@ onOptionKeydown(ev: KeyboardEvent) {
   onDragMoved(event: CdkDragMove<any>) {
     this.pointerPosition = { x: event.pointerPosition.x, y: event.pointerPosition.y };
   }
-
+  prettyLabelForType(t: string): string {
+  // fallbacks if no label given
+  switch ((t || '').toLowerCase()) {
+    case 'project-title': return 'Project Name';
+    case 'id':            return 'ID';
+    case 'tel':           return 'Phone';
+    case 'signature':     return 'Signature';
+    case 'data-grid':     return 'Data Grid';
+    default:              return (t || 'Field').replace(/-/g, ' ')
+                                              .replace(/\b\w/g, m => m.toUpperCase());
+  }
+}
+ensureTagDefaults() {
+  this.formPages.forEach(p =>
+    p.fields.forEach(f => {
+      if (!f.tagPos) f.tagPos = { x: 10, y: 8 };
+      if (!f.label || !f.label.trim()) f.label = this.prettyLabelForType(f.type);
+    })
+  );
+}
   createField(): void {
     if (!this.pendingFieldToAdd) return;
     const f = { ...this.pendingFieldToAdd };
+    f.label = (f.label || '').trim() || this.prettyLabelForType(f.type);
+f.tagPos = f.tagPos || { x: 10, y: 8 };
 
+if (!f.labelDock) f.labelDock = 'left';  
+if (!f.labelPos)  f.labelPos  = { x: 12, y: 12 }; // free-drag start point
+if (!f.inputPos)  f.inputPos  = { x: 160, y: 12 };
   if (f.type === 'radio') {
     f.layout = f.layout || 'row';
   }
@@ -906,7 +1102,16 @@ onOptionKeydown(ev: KeyboardEvent) {
     if (typeof f.width === 'string') {
       f.width = parseInt(f.width, 10);
     }
+if (f.type === 'email') {
+  f.arrange      = f.arrange || 'dock';           // start inline
+  f.labelDock    = f.labelDock || 'left';         // label on the left
+  f.inputWidth   = f.inputWidth || 220;
 
+  // free-drag defaults (used when arrange === 'free')
+  f.tagPos       = f.tagPos       || { x: 10,  y: 8 };
+  f.inputPos     = f.inputPos     || { x: 12,  y: 36 };
+  f.inputSize    = f.inputSize    || { w: 220, h: 40 };
+}
 if (f.type === 'checkbox') {
     if (!Array.isArray(f.options) || f.options.length === 0) {
       f.options = [
@@ -916,6 +1121,19 @@ if (f.type === 'checkbox') {
     }
     delete f.value; // we won't use single boolean for multi
   }
+f.isDescription = !!f.isDescription;
+if (f.isDescription) f.role = 'description';
+
+// Description defaults
+if (f.type === 'textarea') {
+  if (f.isDescription) {
+    if (!Array.isArray(f.problemItems)) f.problemItems = [];
+    if (!Number.isFinite(f.nextNo as any)) f.nextNo = (f.problemItems.length || 0) + 1;
+  }
+  if (f.useTextarea === undefined) f.useTextarea = true;
+  f.textareaPos  = f.textareaPos  || { x: 12, y: 36 };
+  f.textareaSize = f.textareaSize || { w: 300, h: 120 };
+}
  if (f.type === 'data-grid') {
     // Replace the simple palette placeholder with a full grid config
     const grid = this.makeDataGridField();
@@ -931,6 +1149,7 @@ if (f.type === 'checkbox') {
     }, 50);
     return; // <-- important: stop here for data-grid
   }
+  
 
   f.id = this.generateId();
 
@@ -958,7 +1177,15 @@ if (f.type === 'checkbox') {
     this.pendingFieldToAdd = null;
     this.newField = this.getEmptyField();
   }
-
+setArrange(f: FormField, mode: 'dock'|'free') {
+  f.arrange = mode;
+  // optional: when switching to dock, snap widths nicely
+  if (mode === 'dock') {
+    f.labelWidth = f.labelWidth ?? 120;
+    f.inputWidth = f.inputWidth ?? 220;
+  }
+  this.cdr.markForCheck();
+}
   removeField(pageIndex: number, field: FormField): void {
     this.isRemovingField = true;
     this.formPages[pageIndex].fields = this.formPages[pageIndex].fields.filter(f => f !== field);
@@ -972,6 +1199,17 @@ if (f.type === 'checkbox') {
       this.initializeFreeDragPositions();
     }, 50);
   }
+labelOrder(f: any) { return (f?.labelDock === 'right' || f?.labelDock === 'bottom') ? 2 : 1; }
+ctrlOrder(f: any)  { return (f?.labelDock === 'right' || f?.labelDock === 'bottom') ? 1 : 2; }
+rowLayout(f: any) {
+  switch (f?.labelDock) {
+    case 'left': case 'right': return { display:'flex', flexDirection:'row', alignItems:'center', gap:'8px' };
+    case 'bottom':             return { display:'flex', flexDirection:'column-reverse', alignItems:'stretch', gap:'6px' };
+    default:                   return { display:'flex', flexDirection:'column', alignItems:'stretch', gap:'6px' };
+  }
+}
+labelStyle(f: any) { if (f?.labelDock === 'left' || f?.labelDock === 'right') return { width:'120px', margin:0 }; return { width:'auto', marginBottom:'4px' }; }
+ctrlStyle(f: any)  { if (f?.labelDock === 'left' || f?.labelDock === 'right') return { flex:'1 1 auto', minWidth:'120px' }; return { width:'100%' }; }
 onEmptyLabelInput(event: Event, field: any): void {
   const target = event.target as HTMLElement;
   field.label = target.innerText.trim();
@@ -1208,16 +1446,14 @@ stopResize = (event: MouseEvent) => {
 
 // computed list the table will use
 get filteredSavedForms(): SavedForm[] {
+  // what we should filter by (but don't assign!)
+  const target: Branch =
+    !this.canManageAllBranches && this.currentBranch && this.currentBranch !== 'ALL'
+      ? this.currentBranch
+      : this.listBranchFilter;
 
-  if (!this.canManageAllBranches && this.currentBranch && this.currentBranch !== 'ALL') {
-    this.listBranchFilter = this.currentBranch;
-  }
-
-
-  const target = this.listBranchFilter;
   if (target === 'ALL') return this.savedForms ?? [];
 
-  // show forms visible in this branch (or global ALL)
   return (this.savedForms ?? []).filter(f => {
     const vis = f.allowedBranches?.length ? f.allowedBranches : (['ALL'] as Branch[]);
     return vis.includes('ALL') || vis.includes(target);

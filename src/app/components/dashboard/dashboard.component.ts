@@ -16,6 +16,8 @@ import { FormService, SavedForm } from 'src/app/services/form.service';
 import { Branch } from 'src/app/permissions.model';       
 import { Permission } from 'src/app/permissions.model';
 import { MatMenuTrigger } from '@angular/material/menu';
+import { environment } from 'src/environments/environment';
+
 type BranchId = 'NSW' | 'YAT' | 'MACKAY';
 
 
@@ -36,7 +38,7 @@ export class DashboardComponent implements OnInit {
       canViewTemplates = false;
     branch: Branch = 'NSW';
   userBranch: Branch = 'NSW'; 
-   
+
   templates: SavedForm[] = [];
   searchValue = '';
   tabIndex = 0; 
@@ -46,7 +48,7 @@ isAddPlantOpen = false;
     showForm: boolean = false; 
   dashboardVisible = true;
   showDashboardUI = false;
-
+  env = environment;
   user: any;
   formListData: any[] = [];
   displayedColumns: string[] = [
@@ -179,7 +181,11 @@ if (cached.length) {
   );
   this.dataSource.data = this.filteredTemplates;  // update your table
 }
-  
+    get canSeeTemplates(): boolean {
+    return environment.bypassPerms ||
+           this.authService.hasPermission(Permission.TEMPLATES_VIEW);
+  }
+
   
 clearSearch(): void {
   this.searchValue = '';

@@ -1,5 +1,5 @@
 
-<div class="form-builder-wrapper">
+let field of formPages[currentPage]<div class="form-builder-wrapper">
   <!-- Top Section -->
   <div class="top-section">
     <h2>Form Builder</h2>
@@ -90,6 +90,8 @@
       </td>
     </ng-container>
 
+
+
     <!-- Row defs (no trailing semicolon in microsyntax) -->
     <tr mat-header-row *matHeaderRowDef="displayedColumns" class="sticky"></tr>
 <tr mat-row *matRowDef="let row; columns: displayedColumns; trackBy: trackBySavedForm"></tr>
@@ -149,48 +151,65 @@
          
 
         <!-- Render Fields -->
-        <div *ngFor="let field of formPages[currentPage].fields; let i = index; trackBy: trackByFieldId"
-             cdkDrag
-             [cdkDragData]="field"
-             [cdkDragFreeDragPosition]="field.position || { x: 0, y: 0 }"
-            [attr.cdkDragBoundary]="'#formCanvas'"
-             (cdkDragStarted)="onFieldDragStarted($event, field)"
-             (cdkDragMoved)="onFieldDragMoved($event, field)"
-             (cdkDragEnded)="onFieldDragEnded($event, field)"
-             [cdkDragDisabled]="labelEditing === field.id" 
-             class="form-row"
-             [style.maxWidth]="(field.type==='textarea' && (field.id==='description' || field.label==='Description Field')) ? 'none' : null"
-             [style.maxHeight]="(field.type==='textarea' && (field.id==='description' || field.label==='Description Field')) ? 'none' : null"
-               [style.maxWidth]="field.type === 'data-grid' ? 'none' : null"  
-  [style.maxHeight]="field.type === 'data-grid' ? 'none' : null"  
-             [ngStyle]="{ left: field.position?.x + 'px', top: field.position?.y + 'px', width: field.width + 'px', height: field.height + 'px' }"
-             style="position:absolute; cursor:move; padding:8px; border:1px solid #ccc; background:#fafafa;"
-             [class.textarea-row]="field.type === 'textarea' || field.type === 'description'">
+        <div
+  #row
+  *ngFor="let field of formPages[currentPage].fields; let i = index; trackBy: trackByFieldId"
+  cdkDrag
+  [cdkDragData]="field"
+  [cdkDragFreeDragPosition]="field.position || { x: 0, y: 0 }"
+  [attr.cdkDragBoundary]="null"
+  (cdkDragStarted)="onFieldDragStarted($event, field)"
+  (cdkDragMoved)="onFieldDragMoved($event, field)"
+  (cdkDragEnded)="onFieldDragEnded($event, field)"
+  [cdkDragDisabled]="labelEditing === field.id || field._lockParentDrag"
+  class="form-row"
 
-          <!-- Header / Drag handle -->
-          <div class="field-header" style="display:flex; justify-content:space-between; align-items:center;">
-            <div cdkDragHandle class="drag-handle" style="cursor:move; font-size:18px;">☰</div>
-          </div>
+    [style.left.px]="field.position?.x || 0"
+  [style.top.px]="field.position?.y || 0"
+    [style.width.px]="field.width ?? null"
+  [style.height.px]="field.height ?? null"
+  [style.maxWidth]="'none'"
+  [style.maxHeight]="'none'"
+  
 
-          <!-- Label (if not a title/empty) -->
-        <div *ngIf="field.label && field.type !== 'project-title' && field.type !== 'empty' && field.type !== 'checkbox'  && field.type !== 'radio'"
-     style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
-<label class="form-label" [attr.for]="'field-' + i" style="margin:0;"
-       [attr.aria-required]="isRequiredField(field) ? 'true' : null">
-  {{ field.label }}
-  <span *ngIf="isRequiredField(field)" aria-hidden="true" style="color:#d32f2f;">*</span>
-</label>
+  style="position:absolute; cursor:move; padding:8px; border:1px solid #ccc; overflow:visible; background:#fafafa;"
+  [class.textarea-row]="field.type === 'textarea' || field.type === 'description'">
 
-  <!-- Add button shown ONLY for the Description textarea -->
-  <button *ngIf="field.type === 'textarea' && (field.id === 'description' || field.label === 'Description Field')"
-          mat-stroked-button type="button" (click)="addProblemItem(field)">
-    <mat-icon>add</mat-icon>
-    Add
-  </button>
+  <!-- Header / Drag handle + delete -->
+  <div class="field-header" style="display:flex; justify-content:space-between; align-items:center;">
+    <div cdkDragHandle class="drag-handle" style="cursor:move; font-size:18px;">☰</div>
+    <button (click)="removeField(currentPage, field); $event.stopPropagation()"
+            class="delete-button" title="Delete field"
+            style="color:red; font-size:20px; border:none; background:transparent; cursor:pointer;">
+      &times;
+    </button>
+</div>
+       
+  <!-- ================= SWITCH: RENDER TYPES ================= -->
+  <ng-container [ngSwitch]="field.type">
+<div *ngSwitchCase="'email'"
+     class="email-field"
+     [ngStyle]="rowLayout(field)"
+     style="gap:8px; align-items:center; width:100%; background:transparent;">
+  <label class="editable-label"
+         [ngStyle]="labelStyle(field)"
+         [attr.data-id]="field.id"
+         contenteditable="true"
+         (focus)="startLabelEdit(field, $event)"
+         (blur)="finishLabelEdit(field, $event)"
+         (keydown)="onLabelKeydown(field, $event)">
+    {{ field.label || 'Email' }}
+    <span *ngIf="isRequiredField(field)" aria-hidden="true" style="color:#d32f2f;">*</span>
+  </label>
+
+  <input type="email"
+         class="form-input"
+         [id]="'field-' + i"
+         [(ngModel)]="field.value"
+         [placeholder]="field.placeholder || 'Enter email'"
+         [style.width.px]="field.inputWidth || 220" />
 </div>
 
-          <!-- Field content by type -->
-          <ng-container [ngSwitch]="field.type">
 
             <!-- Project Title -->
             <div *ngSwitchCase="'project-title'" contenteditable="true" class="form-input editable-div"
@@ -210,11 +229,6 @@
             <!-- Tel -->
             <input *ngSwitchCase="'tel'" id="field-{{i}}" name="field-{{i}}" type="tel"
                    [(ngModel)]="field.value" class="form-input" [style.width.px]="field.width" [placeholder]="field.placeholder || ''" />
-
-            <!-- Email -->
-            <input *ngSwitchCase="'email'" id="field-{{i}}" name="field-{{i}}" type="email"
-                   [(ngModel)]="field.value" class="form-input" [style.width.px]="field.width" [placeholder]="field.placeholder || ''" />
-
             <!-- ID (readonly) -->
             <input *ngSwitchCase="'id'" id="field-{{i}}" name="field-{{i}}" type="text" class="form-input"
                    [style.width.px]="field.width" [value]="field.id" disabled placeholder="ID Field (readonly)" />
@@ -290,7 +304,6 @@
           <th style="border:1px solid #e0e0e0; width:44px;"></th>
         </tr>
       </thead>
-
       <tbody>
         <tr *ngFor="let row of (field.rows || []); let r = index">
           <td *ngFor="let c of field.gridConfig?.columns" style="border:1px solid #e0e0e0; padding:4px 6px;">
@@ -319,48 +332,6 @@
   </div>
 </div>
 
-<!-- 🎯 Reusable cell renderer: renders the dropped field type inside a cell -->
-<ng-template #cellRenderer let-col="col" let-row="row">
-  <ng-container [ngSwitch]="col.fieldDef?.type || col.type">
-    <!-- Text-like -->
-    <input *ngSwitchCase="'text'" type="text"
-           [(ngModel)]="row[col.id]" [placeholder]="col.fieldDef?.placeholder || col.label"
-           style="width:100%; box-sizing:border-box;" />
-
-    <input *ngSwitchCase="'number'" type="number"
-           [(ngModel)]="row[col.id]" [placeholder]="col.fieldDef?.placeholder || col.label"
-           style="width:100%; box-sizing:border-box;" />
-
-    <input *ngSwitchCase="'date'" type="date"
-           [(ngModel)]="row[col.id]"
-           style="width:100%; box-sizing:border-box;" />
-
-    <!-- Select / Radio / Checkbox become dropdown/multi-select in a cell -->
-    <select *ngSwitchCase="'select'"
-            [(ngModel)]="row[col.id]" style="width:100%; box-sizing:border-box;">
-      <option *ngFor="let opt of (col.fieldDef?.options || col.options || [])"
-              [value]="opt.value ?? opt">
-        {{ opt.label ?? opt }}
-      </option>
-    </select>
-
-    <!-- simple multi-select version for checkbox-in-cell -->
-    <select *ngSwitchCase="'checkbox'" multiple
-            [(ngModel)]="row[col.id]" style="width:100%; box-sizing:border-box;">
-      <option *ngFor="let opt of (col.fieldDef?.options || [])"
-              [value]="opt.value ?? opt.label">
-        {{ opt.label ?? opt.value }}
-      </option>
-    </select>
-
-    <!-- default to text -->
-    <input *ngSwitchDefault type="text"
-           [(ngModel)]="row[col.id]" [placeholder]="col.label"
-           style="width:100%; box-sizing:border-box;" />
-  </ng-container>
-</ng-template>
-
-
             <!-- Date -->
             <input *ngSwitchCase="'date'" id="field-{{i}}" name="field-{{i}}" type="date"
                    [(ngModel)]="field.value" class="form-input" [style.width.px]="field.width" />
@@ -375,48 +346,93 @@
               <option *ngFor="let option of field.options || []" [value]="option.value">{{ option.label }}</option>
             </select>
 <!-- Textarea (normal) + Description (numbered items) -->
-<div *ngSwitchCase="'textarea'" style="width:100%;">
-  <!-- Description mode -->
-  <ng-container *ngIf="field.id === 'description' || field.label === 'Description Field'; else normalTextarea">
-   <div class="desc-list" style="display:flex;flex-direction:column;gap:6px;">
-      <div class="desc-row"
-           *ngFor="let item of (field.problemItems || []); let i = index"
-           style="display:flex;align-items:center;gap:8px;">
-        <span class="desc-no" style="width:24px;text-align:right;">{{ item.no }}.</span>
+<!-- Textarea (normal) + Description (numbered items) -->
+<ng-container *ngSwitchCase="'textarea'">
+  <div style="width:100%; height:100%; display:flex; flex-direction:column;">
 
-        <textarea class="desc-input"
-                  [ngModel]="item.text"
-                  (ngModelChange)="updateProblemText(field, i, $event)"
-                  placeholder="Write problem description..."
-                 style="flex:0 0 auto; min-width:160px; max-width:none; min-height:40px;
-       padding:4px; border:1px solid #ccc; border-radius:4px;
-       resize:both; overflow:auto;">
-                </textarea>
-
-        <button mat-icon-button type="button" (click)="removeProblemItem(field, i)" aria-label="Remove">
-          <mat-icon>close</mat-icon>
-        </button>
+    <!-- Description mode -->
+    <ng-container *ngIf="isDesc(field); else normalTextarea">
+      <!-- Header -->
+      <div class="desc-toolbar"
+           style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span class="editable-label"
+                [attr.data-id]="field.id"
+                contenteditable="true"
+                (focus)="startLabelEdit(field, $event)"
+                (blur)="finishLabelEdit(field, $event)"
+                (keydown)="onLabelKeydown(field, $event)"
+                style="outline:0; border-bottom:1px dashed transparent;"
+                [style.borderBottomColor]="labelEditing===field.id ? '#999' : 'transparent'">
+            {{ field.label || 'Description' }}
+          </span>
+          <span *ngIf="isRequiredField(field)" aria-hidden="true" style="color:#d32f2f;">*</span>
+        </div>
+        <button mat-stroked-button type="button" (click)="addProblemItem(field)">Add problem</button>
       </div>
-    </div>
-  </ng-container>
 
-  <!-- Normal textarea fallback -->
-  <ng-template #normalTextarea>
-    <div class="textarea-container" style="display:flex;align-items:stretch;gap:8px;width:100%;">
-   <textarea
-  [(ngModel)]="field.value"
-  [name]="field.id"
-  [id]="field.id"
+      <!-- Empty state -->
+      <div *ngIf="!(field.problemItems?.length)"
+           style="color:#666; font-size:12px; margin-bottom:6px;">
+        No problems yet. Click <strong>Add problem</strong>.
+      </div>
 
-  #textareaRef="ngModel"
-  class="textarea-resizable-both"
-  [ngClass]="{'desc-fill': field.type === 'textarea' && (field.id === 'description' || field.label === 'Description Field')}"
-  [attr.aria-describedby]="field.id + '-error'"
-  [placeholder]="field.placeholder || ''"
-  style="min-height:60px"></textarea>
-    </div>
-  </ng-template>
-</div>
+      <!-- Problems list -->
+      <div class="desc-list"
+           style="display:flex; flex-direction:column; gap:6px; flex:1 1 auto; overflow:auto;">
+        <div class="desc-row"
+             *ngFor="let item of (field.problemItems || []); let idx = index"
+             style="display:flex; align-items:stretch; gap:8px; width:100%; min-width:0;">
+
+          <span class="desc-no" style="flex:0 0 28px; text-align:right; line-height:28px;">
+            {{ item.no }}.
+          </span>
+
+          <div class="form-row desc-box">
+            <div class="desc-wrap">
+              <textarea class="desc-input"
+                        [(ngModel)]="item.text"
+                        placeholder="Write problem description..."
+                        (mousedown)="$event.stopPropagation()"
+                        (mouseup)="rememberProblemItemSize($event, field, idx)"></textarea>
+            </div>
+
+            <button mat-icon-button class="desc-close"
+                    (mousedown)="$event.stopPropagation()"
+                    (click)="removeProblemItem(field, idx)"
+                    aria-label="Remove">
+              <mat-icon>close</mat-icon>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- (optional) required message -->
+      <div *ngIf="isRequiredField(field) && !(field.problemItems?.length)"
+           style="color:#d32f2f; font-size:12px; margin-top:6px;">
+        * Required: add at least one problem.
+      </div>
+    </ng-container>
+
+    <!-- Normal textarea -->
+    <ng-template #normalTextarea>
+      <div class="textarea-container"
+           style="display:flex; align-items:stretch; gap:8px; width:100%; height:100%;">
+        <textarea [(ngModel)]="field.value"
+                  [name]="field.id"
+                  [id]="field.id"
+                  class="desc-free"
+                  [attr.aria-describedby]="field.id + '-error'"
+                  [placeholder]="field.placeholder || ''"
+                  (mousedown)="$event.stopPropagation()"
+                  style="flex:1 1 auto; min-height:60px; resize:vertical;">
+        </textarea>
+      </div>
+    </ng-template>
+
+  </div>
+</ng-container>
+
       <!--Radio-->
 <div *ngSwitchCase="'radio'" class="radio-field" [style.width.px]="field.width">
   <!-- Group title (same editable header you use in checkbox) -->
@@ -517,22 +533,60 @@
             <div *ngSwitchDefault>Unsupported field type: {{ field.type }}</div>
           </ng-container>
 
-          <div class="rh rh-n"  (mousedown)="startResize($event, field, true,  true, 'n')"></div>
-  <div class="rh rh-s"  (mousedown)="startResize($event, field, true,  true, 's')"></div>
-  <div class="rh rh-e"  (mousedown)="startResize($event, field, true,  true, 'e')"></div>
-  <div class="rh rh-w"  (mousedown)="startResize($event, field, true,  true, 'w')"></div>
 
-  <!-- Inner resize handles (corners) -->
-  <div class="rh rh-ne" (mousedown)="startResize($event, field, true,  true, 'ne')"></div>
-  <div class="rh rh-nw" (mousedown)="startResize($event, field, true,  true, 'nw')"></div>
-  <div class="rh rh-se" (mousedown)="startResize($event, field, true,  true, 'se')"></div>
-  <div class="rh rh-sw" (mousedown)="startResize($event, field, true,  true, 'sw')"></div>
+  <div class="rh rh-n"  (mousedown)="startResize($event, field, true, true, 'n')"></div>
+  <div class="rh rh-s"  (mousedown)="startResize($event, field, true, true, 's')"></div>
+  <div class="rh rh-e"  (mousedown)="startResize($event, field, true, true, 'e')"></div>
+  <div class="rh rh-w"  (mousedown)="startResize($event, field, true, true, 'w')"></div>
 
-  <!-- Delete button (unchanged) -->
-  <button (click)="removeField(currentPage, field); $event.stopPropagation()" class="delete-button" title="Delete field"
-          style="color:red; font-size:20px; border:none; background:transparent; cursor:pointer; position:absolute; top:4px; right:4px;">
-    &times;
-  </button>
+  <!-- Corners -->
+  <div class="rh rh-ne" (mousedown)="startResize($event, field, true, true, 'ne')"></div>
+  <div class="rh rh-nw" (mousedown)="startResize($event, field, true, true, 'nw')"></div>
+  <div class="rh rh-se" (mousedown)="startResize($event, field, true, true, 'se')"></div>
+  <div class="rh rh-sw" (mousedown)="startResize($event, field, true, true, 'sw')"></div>
+
+
+<!-- 🎯 Reusable cell renderer: renders the dropped field type inside a cell -->
+<ng-template #cellRenderer let-col="col" let-row="row">
+  <ng-container [ngSwitch]="col.fieldDef?.type || col.type">
+    <!-- Text-like -->
+    <input *ngSwitchCase="'text'" type="text"
+           [(ngModel)]="row[col.id]" [placeholder]="col.fieldDef?.placeholder || col.label"
+           style="width:100%; box-sizing:border-box;" />
+
+    <input *ngSwitchCase="'number'" type="number"
+           [(ngModel)]="row[col.id]" [placeholder]="col.fieldDef?.placeholder || col.label"
+           style="width:100%; box-sizing:border-box;" />
+
+    <input *ngSwitchCase="'date'" type="date"
+           [(ngModel)]="row[col.id]"
+           style="width:100%; box-sizing:border-box;" />
+
+    <!-- Select / Radio / Checkbox become dropdown/multi-select in a cell -->
+    <select *ngSwitchCase="'select'"
+            [(ngModel)]="row[col.id]" style="width:100%; box-sizing:border-box;">
+      <option *ngFor="let opt of (col.fieldDef?.options || col.options || [])"
+              [value]="opt.value ?? opt">
+        {{ opt.label ?? opt }}
+      </option>
+    </select>
+
+    <!-- simple multi-select version for checkbox-in-cell -->
+    <select *ngSwitchCase="'checkbox'" multiple
+            [(ngModel)]="row[col.id]" style="width:100%; box-sizing:border-box;">
+      <option *ngFor="let opt of (col.fieldDef?.options || [])"
+              [value]="opt.value ?? opt.label">
+        {{ opt.label ?? opt.value }}
+      </option>
+    </select>
+
+    <!-- default to text -->
+    <input *ngSwitchDefault type="text"
+           [(ngModel)]="row[col.id]" [placeholder]="col.label"
+           style="width:100%; box-sizing:border-box;" />
+  </ng-container>
+</ng-template>
+ 
 </div>
 
         <!-- Field Config Modal -->
@@ -564,10 +618,33 @@
    <mat-checkbox [(ngModel)]="newField.required" name="required">
   Required
 </mat-checkbox>
+     <!-- ⬇️ ADD THIS BLOCK: layout options for Email field -->
+      <ng-container *ngIf="newField.type === 'email'">
+        <mat-divider style="margin:12px 0;"></mat-divider>
+        <div style="font-weight:600; margin-bottom:6px;">Layout</div>
+
+        <!-- Label position -->
+        <div style="margin-bottom:10px;">
+          <div style="opacity:.8; margin-bottom:4px;">Label position</div>
+          <mat-radio-group [(ngModel)]="newField.labelDock" name="labelDock">
+            <mat-radio-button value="left"  style="margin-right:10px;">Left</mat-radio-button>
+            <mat-radio-button value="right" style="margin-right:10px;">Right</mat-radio-button>
+            <mat-radio-button value="top"   style="margin-right:10px;">Top</mat-radio-button>
+            <mat-radio-button value="bottom">Bottom</mat-radio-button>
+          </mat-radio-group>
+        </div>
+
+        <!-- Input width (px) -->
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Input width (px)</mat-label>
+          <input matInput type="number" min="80" [(ngModel)]="newField.inputWidth" name="inputWidth">
+        </mat-form-field>
+      </ng-container>
 
               <div class="action-buttons">
                 <button mat-raised-button color="primary" type="submit">Create</button>
                 <button mat-button color="warn" type="button" (click)="cancelFieldConfig()">Cancel</button>
+                <mat-divider></mat-divider>
               </div>
             </form>
           </div>

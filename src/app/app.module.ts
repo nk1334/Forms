@@ -41,7 +41,9 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatSidenavModule } from '@angular/material/sidenav';
+import { MatRadioModule } from '@angular/material/radio';
 
+import { MatMenuModule } from '@angular/material/menu';
 
 
 
@@ -88,7 +90,8 @@ export function MSALInstanceFactory() {
              MatButtonToggleModule,
      RouterModule,
      ReactiveFormsModule ,
-     
+      MatMenuModule,
+         MatRadioModule,
        MatProgressSpinnerModule,
           MatTabsModule,
   MatSidenavModule,
