@@ -1,5 +1,5 @@
 
-let field of formPages[currentPage]<div class="form-builder-wrapper">
+<div class="form-builder-wrapper">
   <!-- Top Section -->
   <div class="top-section">
     <h2>Form Builder</h2>
@@ -52,17 +52,17 @@ let field of formPages[currentPage]<div class="form-builder-wrapper">
     <ng-container matColumnDef="visibleIn">
       <th mat-header-cell *matHeaderCellDef> Visible In </th>
       <td mat-cell *matCellDef="let f">
-        <mat-form-field appearance="outline" class="compact-select">
-          <mat-select
-            multiple
-            [(ngModel)]="f._uiSelection"
-            name="branch-{{f.formId}}"
-            (ngModelChange)="onTemplateBranchesChange(f, $event)"
-               [disabled]="!canManageAllBranches"   >
-            <mat-option *ngFor="let b of branches" [value]="b">
-              {{ b === 'ALL' ? 'All Branches' : b }}
-            </mat-option>
-          </mat-select>
+       <mat-form-field appearance="outline" class="compact-select">
+  <mat-select
+    multiple
+    [(ngModel)]="f._uiSelection"
+    [ngModelOptions]="{ standalone: true }"
+    
+    (ngModelChange)="onTemplateBranchesChange(f, $event)">
+    <mat-option *ngFor="let b of branches" [value]="b">
+      {{ b === 'ALL' ? 'All Branches' : b }}
+    </mat-option>
+  </mat-select>
         </mat-form-field>
       </td>
     </ng-container>
@@ -176,21 +176,23 @@ let field of formPages[currentPage]<div class="form-builder-wrapper">
   [class.textarea-row]="field.type === 'textarea' || field.type === 'description'">
 
   <!-- Header / Drag handle + delete -->
-  <div class="field-header" style="display:flex; justify-content:space-between; align-items:center;">
-    <div cdkDragHandle class="drag-handle" style="cursor:move; font-size:18px;">☰</div>
-    <button (click)="removeField(currentPage, field); $event.stopPropagation()"
-            class="delete-button" title="Delete field"
-            style="color:red; font-size:20px; border:none; background:transparent; cursor:pointer;">
-      &times;
-    </button>
+<div class="field-header"
+     *ngIf="field.type !== 'email'"
+     style="display:flex; justify-content:space-between; align-items:center;">
+  <div cdkDragHandle class="drag-handle" style="cursor:move; font-size:18px;">☰</div>
+  <button (click)="removeField(currentPage, field); $event.stopPropagation()"
+          class="delete-button" title="Delete field"
+          style="color:red; font-size:20px; border:none; background:transparent; cursor:pointer;">
+    &times;
+  </button>
 </div>
        
   <!-- ================= SWITCH: RENDER TYPES ================= -->
   <ng-container [ngSwitch]="field.type">
-<div *ngSwitchCase="'email'"
-     class="email-field"
-     [ngStyle]="rowLayout(field)"
-     style="gap:8px; align-items:center; width:100%; background:transparent;">
+<div *ngSwitchCase="'email'" class="email-inline-row inner-controls"
+    [style.gridTemplateColumns]="'24px max-content minmax(80px, max-content)'">
+  <div class="email-inline-drag" cdkDragHandle title="Drag field">☰</div>
+
   <label class="editable-label"
          [ngStyle]="labelStyle(field)"
          [attr.data-id]="field.id"
@@ -202,15 +204,53 @@ let field of formPages[currentPage]<div class="form-builder-wrapper">
     <span *ngIf="isRequiredField(field)" aria-hidden="true" style="color:#d32f2f;">*</span>
   </label>
 
-  <input type="email"
-         class="form-input"
-         [id]="'field-' + i"
-         [(ngModel)]="field.value"
-         [placeholder]="field.placeholder || 'Enter email'"
-         [style.width.px]="field.inputWidth || 220" />
-</div>
+  <!-- Flexible input: fills remaining space of the row -->
+   <div class="inline-resize-wrap"
+      
+       [style.--w.px]="field._emailW ?? 220"
+     [style.--h.px]="field._emailH ?? 32"
+     [style.marginLeft.px]="field._emailML ?? 0"
+     (mousedown)="$event.stopPropagation()" >
+
+  <!-- side grips (keep) -->
 
 
+  <!-- NEW: shell that owns the input + corner + delete -->
+  <div class="email-input-shell"
+   [style.width.px]="field._emailW ?? 220"
+     [style.height.px]="field._emailH ?? 32">
+    <input type="email"
+           class="resizable-email form-input"
+           [(ngModel)]="field.value"
+           [placeholder]="field.placeholder || 'Enter email'"
+           (mousedown)="$event.stopPropagation()" />
+
+    <!-- corner now lives INSIDE the input shell -->
+  <div class="edge-grip inner right"
+       (mousedown)="startEmailResize($event, field, 'right')"
+       (dragstart)="$event.preventDefault()"></div>
+  <div class="edge-grip inner left"
+       (mousedown)="startEmailResize($event, field, 'left')"
+       (dragstart)="$event.preventDefault()"></div>
+
+  <!-- corners INSIDE the input -->
+  <i class="corner-grip inner se"
+     (mousedown)="startEmailResize($event, field, 'se')"
+     (dragstart)="$event.preventDefault()"></i>
+  <i class="corner-grip inner sw"
+     (mousedown)="startEmailResize($event, field, 'sw')"
+     (dragstart)="$event.preventDefault()"></i>
+
+    <!-- delete button also stays inside the input -->
+    <button class="email-inline-delete inside"
+            title="Delete field"
+            (mousedown)="$event.stopPropagation()"
+            (click)="removeField(currentPage, field)">
+      &times;
+    </button>
+  </div>
+  </div>
+  </div>
             <!-- Project Title -->
             <div *ngSwitchCase="'project-title'" contenteditable="true" class="form-input editable-div"
                  (input)="onContentEditableInput($event, field)" [attr.aria-label]="'Project Name'" spellcheck="false"

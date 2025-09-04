@@ -1329,7 +1329,134 @@ textarea.form-input {
   border: 1px solid #ccc;
   border-radius: 4px;
 }
+.email-inline-row{
+  display: grid;
+  grid-template-columns: 24px max-content minmax(80px, max-content) 32px;
+  align-items: center;
+  gap: 4px;
+}
+.email-inline-row > *{ min-width: 0; }
+/* drag on the left */
+.email-inline-drag{
+  cursor: move;
+  user-select: none;
+  display:flex; align-items:center; justify-content:center;
+  font-size: 18px; line-height: 1;
+}
+.email-input {
+  display: inline-block;     /* obeys width */
+/* JS can set px width */
+  min-width: 80px;
+  box-sizing: border-box;
+}
 
+/* keep label tidy */
+.email-inline-row .editable-label {
+  white-space: nowrap;
+  margin: 0;
+}
+.email-delete{
+  background: transparent;
+  border: none;
+  color: #d32f2f;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 6px;               /* feels like a small button */
+}
+
+/* let the input flex; prevent the whole row from dragging when clicking it */
+
+
+
+/* 1) Let the input decide its own width inside the wrap */
+
+
+
+.resizable-email {
+  display: block;
+  box-sizing: border-box;
+  min-width: 80px;
+  padding-right: 38px; /* space for delete + corner grip */
+}
+
+
+.inline-resize-wrap .form-input{
+  min-width: 120px;         /* prevent collapsing */
+  max-width: 100%;          /* don't overflow its cell */
+  box-sizing: border-box;
+}
+
+
+
+
+.email-inline-delete { height: 100%; aspect-ratio: 1/1; }
+.delete-resize-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: auto;            /* don't force tall block */
+  min-width: 0;
+}
+/* keep email row items aligned in the middle */
+.form-row .email-inline-row{
+  align-items: center !important;              /* beats the earlier “stretch” */
+  --h: 32px;                                   /* control height */
+}
+
+/* make label the same height as the input */
+.form-row .email-inline-row .editable-label{
+  display: inline-flex;
+  align-items: center;
+  height: var(--h);
+  line-height: var(--h);
+  margin: 0;
+}
+.form-row .email-inline-row{ height:100%; }            /* row fills the card */
+.email-inline-row .inline-resize-wrap{ height:100%; }  /* wrapper fills row  */
+
+
+
+
+
+.email-inline-delete {
+  border: 0 !important;          /* remove rounded box */
+  background: transparent !important;
+  width: auto !important;         /* don't fill the cell */
+  height: auto !important;
+  padding: 0 6px;
+  color: #d32f2f;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+/* bottom corners for diagonal resize (optional) */
+.corner-grip{ position:absolute; width:10px; height:10px; bottom:0; z-index:3; background:transparent; }
+.corner-grip::after{
+  content:''; position:absolute; width:6px; height:6px;
+  right:1px; bottom:1px; border-right:2px solid rgba(0,0,0,.25); border-bottom:2px solid rgba(0,0,0,.25);
+}
+
+
+.grip-sw::after{ right:auto; left:1px; transform:scaleX(-1); }
+
+/* delete button styling (keep minimal) */
+.email-inline-delete{ border:0; background:transparent; padding:0 6px; line-height:1; }
+
+.delete-resize-wrap .inline-grip{ width:6px; opacity:.2; right:0; left:auto; }
+
+.delete-resize-wrap .inline-grip::after {
+  content: '';
+  position: absolute;
+  right: 3px; top: 20%; bottom: 20%;
+  width: 2px;
+  background: rgba(0,0,0,.15);
+  border-radius: 2px;
+}
+
+/* (optional) make the email row a bit tighter inside the box */
+.form-row .email-inline-row { margin-top: 0; }
 
 
 .form-row.desc-box{
@@ -1375,7 +1502,17 @@ textarea.form-input {
   border: none;
   cursor: pointer;
 }
+/* keep delete area the same vertical rhythm as others */
+.delete-resize-wrap{
+  height: auto;            /* don’t force 32px block */
+  align-items: center;     /* vertical center */
+}
 
+/* optional: make the grip slimmer and less visible */
+.delete-resize-wrap .inline-grip{
+  width: 6px;
+  opacity: .2;
+}
 
 .form-row.desc-box .form-label,
 .form-row.desc-box label { 
@@ -1419,6 +1556,27 @@ textarea.form-input {
   margin-left: 8px;
   z-index: 2;
 }
+/* inside edges */
+.form-row > .rh{ position:absolute; z-index:5; pointer-events:auto; }
+.form-row > .rh-n { top:    2px !important; left:50%; transform:translateX(-50%); cursor:ns-resize; }
+.form-row > .rh-s { bottom: 2px !important; left:50%; transform:translateX(-50%); cursor:ns-resize; }
+.form-row > .rh-e { right:  2px !important; top:50%;  transform:translateY(-50%); cursor:ew-resize; }
+.form-row > .rh-w { left:   2px !important; top:50%;  transform:translateY(-50%); cursor:ew-resize; }
+
+/* inside corners */
+.form-row > .rh-ne{ top:    2px !important; right: 2px !important; cursor:nesw-resize; }
+.form-row > .rh-nw{ top:    2px !important; left:  2px !important; cursor:nwse-resize; }
+.form-row > .rh-se{ bottom: 2px !important; right: 2px !important; cursor:nwse-resize; }
+.form-row > .rh-sw{ bottom: 2px !important; left:  2px !important; cursor:nesw-resize; }
+
+/* override any earlier rules that pushed them outside */
+.form-row .rh-se,
+.form-row .rh-sw,
+.form-row .rh-ne,
+.form-row .rh-nw { box-shadow:none; }
+
+/* keep desc rows special (no outer handles there) */
+.form-row.desc-box .rh{ display:none !important; }
 .desc-wrap > .desc-close { position: static !important; }
 /* Remove any global clamps that fight growth */
 .form-row textarea { max-width: none !important; }
@@ -1432,7 +1590,7 @@ textarea.form-input {
 .form-row .rh-s,
 .form-row .rh-e,
 .form-row .rh-w {
-  pointer-events: none;
+   display: none !important;
 }
 
 /* Keep corners clickable, but park them slightly outside the box */
@@ -1523,3 +1681,388 @@ textarea.form-input {
   width: 100%;
   box-sizing: border-box;
 }
+
+
+/* 3) Input just fills the wrapper; never compute from 100% of the outer card */
+.email-inline-row .resizable-email{
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+
+  /* own the size now */
+  width: var(--w, 220px) !important;        /* ← moved from wrapper */
+  height: var(--h, 32px) !important;        /* ← moved from wrapper */
+
+  /* keep your margins & padding */
+  margin-left:  var(--left, 0px);
+  margin-right: var(--right, 8px);
+  padding-right: 28px;                      /* room for ✕ / grip */
+}
+.delete-resize-wrap{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;                 /* matches the last grid column */
+  height: var(--h, 32px);
+}
+.email-inline-delete{
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent !important;
+  border: 0 !important;
+  color: #d32f2f;
+}
+/* move the delete inside the input’s border */
+.email-inline-delete.inside {
+  position: absolute;
+  top: 50%;
+  right: 20px; /* leaves room for grip */
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  border: 0;
+  background: transparent;
+  color: #d32f2f;
+  cursor: pointer;
+  z-index: 4;
+}
+
+.edge-grip.inner {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 10px;
+  cursor: ew-resize;
+  z-index:11;}
+.edge-grip.inner.right{ right:2px; }
+.edge-grip.inner.left { left:2px;  }
+
+/* inner corners (frozen) */
+.corner-grip.inner{ position:absolute; width:12px; height:12px; z-index: 12; background:transparent; }
+.corner-grip.inner.se{ right:2px; bottom:2px; cursor:nwse-resize; }
+.corner-grip.inner.sw{ left: 2px; bottom:2px; cursor:nesw-resize; }
+
+/* simple corner visuals */
+.corner-grip.inner.se::after,
+.corner-grip.inner.sw::after{
+  content:''; position:absolute; width:6px; height:6px; bottom:1px;
+  border-bottom:2px solid rgba(0,0,0,.25);
+}
+.corner-grip.inner.se::after{ right:1px;  border-right:2px solid rgba(0,0,0,.25); }
+.corner-grip.inner.sw::after{ left: 1px;  border-left: 2px solid rgba(0,0,0,.25); }
+
+.inline-resize-wrap > .edge-grip:not(.inner),
+.inline-resize-wrap > .corner-grip:not(.inner){
+  display: none !important;
+}
+/* Grip lines */
+.edge-grip::after{
+  content: '';
+  position: absolute;
+  top: 20%; bottom: 20%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  border-radius: 2px;
+  background: rgba(0,0,0,.18);
+}
+ /* a touch more outside so it’s easy to grab */
+
+
+
+/* Corner grips (if you use them) */
+
+.grip-se{
+  right: calc(var(--right, 8px) + 4px); /* inside the input by ~4px */
+  bottom: 4px;                           /* sit on the bottom border */
+  cursor: nwse-resize;
+  z-index: 4;
+}
+.grip-sw{ left:  var(--left, 0px);   cursor:nesw-resize; }
+
+/*
+.inline-grip, .edge-grip{
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 10px;
+  user-select: none;
+  cursor: ew-resize;
+  z-index: 2;
+}
+.grip-left  { left:  -4px; right: auto; }
+.grip-right { right: -4px; left:  auto; }
+*/
+
+
+
+
+.inline-resize-wrap .corner-grip::after,
+.inline-resize-wrap .grip-se::after {
+  content: '';
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid rgba(0,0,0,.25);
+  border-bottom: 2px solid rgba(0,0,0,.25);
+}
+.email-input-shell {
+  position: relative;
+  overflow: visible;
+  box-sizing: border-box;
+  min-height: 28px;              /* keeps tiny heights usable */
+}
+
+/* Input always fills shell, so grips (anchored to shell) stay aligned */
+.resizable-email {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  box-sizing: border-box;
+  min-width: 80px;
+  padding-right: 38px; /* room for ✕ + corner */
+}
+.email-inline-row.inner-controls{
+  /* remove the old, empty 4th grid column (32px) */
+  grid-template-columns: 24px max-content minmax(80px, max-content);
+}
+.email-inline-row,
+.email-inline-row .inline-resize-wrap {
+  overflow: visible !important;
+  position: relative;            /* create a safe anchoring context */
+}
+
+/* If any old “right column” pieces still render, hide them */
+.email-inline-row.inner-controls .delete-resize-wrap,
+.email-inline-row.inner-controls .inline-grip{
+  display: none !important;
+}
+
+/* Let the input column size tightly to the shell */
+.email-inline-row.inner-controls .inline-resize-wrap{
+  width: auto;
+  max-width: none;
+}
+.email-inline-row .inline-resize-wrap{
+  width: auto !important;
+  max-width: none !important;
+  flex: 0 0 auto !important;
+  overflow: visible !important;
+  padding: 0 !important;
+}
+
+/* hide any legacy outer grips/column if still present */
+.email-inline-row .delete-resize-wrap,
+.email-inline-row .edge-grip:not(.inner),
+.email-inline-row .corner-grip:not(.inner){
+  display: none !important;
+}
+.right-grip {
+  position: absolute;
+  top: 50%;
+  right: 0;                    /* anchored to the inside edge */
+  transform: translateY(-50%); /* perfectly centered on the side */
+  width: var(--grip);
+  height: 28px;                /* any visible height you like */
+  cursor: ew-resize;
+  box-sizing: border-box;
+  pointer-events: auto;
+}
+
+/* Bottom-right corner grip (square inside the corner) */
+.corner-grip {
+  position: absolute;
+  right: 0;                    /* inside corner */
+  bottom: 0;                   /* inside corner */
+  width: var(--grip);
+  height: var(--grip);
+  cursor: nwse-resize;
+  box-sizing: border-box;
+  pointer-events: auto;
+}
+
+/* Optional visual styling so you can see them */
+.right-grip,
+.corner-grip {
+  background: rgba(0,0,0,.06);
+  border: 1px solid #bbb;
+  border-radius: 2px;
+}
+:root { --grip: 12px; }        /* one place to change size */
+
+.inner-widget { padding-right: calc(8px + var(--grip)); } 
+
+.email-input-shell{
+  position: relative;             /* <- anchor for all grips */
+ 
+  box-sizing: border-box;
+  overflow: visible;              /* let grips sit on the border */
+}
+
+/* input always fills the shell; leave space for X + corner */
+.email-input-shell .resizable-email{
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 80px;
+  box-sizing: border-box;
+  padding-right: 40px;            /* room for delete + corner */
+  z-index: 1;
+}
+
+/* Right/Left edge grips – pinned inside the shell edge */
+.email-input-shell .edge-grip.inner{
+  position: absolute;
+  top:4px; bottom:4px;    
+  width: 10px;
+  cursor: ew-resize;
+  z-index: 12;
+ 
+}
+.email-input-shell .edge-grip.inner.right{ right: 4px; }
+.email-input-shell .edge-grip.inner.left { left:  4px; }
+
+/* Bottom corners – pinned inside bottom border */
+.email-input-shell .corner-grip.inner{
+  position: absolute;
+  width: 12px; height: 12px;
+  z-index: 13;
+  background: transparent;
+}
+.email-input-shell .corner-grip.inner.se{ right: 4px; bottom: 4px; cursor: nwse-resize; }
+.email-input-shell .corner-grip.inner.sw{ left:  px; bottom: 2px; cursor: nesw-resize; }
+
+/* small visual so you can see the grips */
+.email-input-shell .edge-grip.inner::after{
+  content: ""; position: absolute; top: 20%; bottom: 20%; left: 50%;
+  transform: translateX(-50%);
+  width: 2px; border-radius: 2px; background: rgba(0,0,0,.18);
+}
+.email-input-shell .corner-grip.inner::after{
+  content:''; position:absolute; right:1px; bottom:1px; width:6px; height:6px;
+  border-right:2px solid rgba(0,0,0,.25);
+  border-bottom:2px solid rgba(0,0,0,.25);
+}
+
+/* Delete sits *inside* the input, not in a separate grid column */
+.email-inline-row.inner-controls{ grid-template-columns: 24px max-content minmax(80px, max-content); }
+.email-inline-row.inner-controls .inline-resize-wrap{
+  width: auto !important; max-width: none !important; overflow: visible !important; padding: 0 !important;
+}
+.email-inline-delete.inside{
+  position: absolute; top: 50%; right: 20px; transform: translateY(-50%);
+  width: 18px; height: 18px; border: 0; background: transparent; color: #d32f2f; z-index: 14;
+}
+
+/* ===== Neutralize legacy/global grip rules that pushed things outside ===== */
+/* Hide any non-inner grips for this row */
+.email-inline-row.inner-controls .edge-grip:not(.inner),
+.email-inline-row.inner-controls .corner-grip:not(.inner),
+.email-inline-row.inner-controls .delete-resize-wrap{
+  display: none !important;
+}
+.inner-widget { overflow: visible; }
+/* kill any outer/card handles for this row so only inner grips show */
+.no-outer-handles .rh,
+.no-outer-handles .rh-n, .no-outer-handles .rh-s,
+.no-outer-handles .rh-e, .no-outer-handles .rh-w,
+.no-outer-handles .rh-ne, .no-outer-handles .rh-nw,
+.no-outer-handles .rh-se, .no-outer-handles .rh-sw,
+.no-outer-handles .resize-handle, .no-outer-handles .corner-handle {
+  display: none !important;
+}
+
+/* if the outer widget uses native CSS resize, disable it for this row */
+.no-outer-handles .inner-widget { resize: none !important; }
+.email-inline-row .email-input-shell .edge-grip.inner{
+  position: absolute;
+  top: 4px; bottom: 4px;
+  width: 8px;
+  cursor: ew-resize;
+  z-index: 12;
+}
+.email-inline-row .email-input-shell .edge-grip.inner.right{ right: 4px !important; }
+.email-inline-row .email-input-shell .edge-grip.inner.left { left:  4px !important; }
+
+.email-inline-row .email-input-shell .corner-grip.inner{
+  position: absolute;
+  width: 10px; height: 10px;
+  z-index: 13;
+  background: transparent;
+}
+.email-inline-row .email-input-shell .corner-grip.inner.se{ right: 4px !important; bottom: 4px !important; cursor: nwse-resize; }
+.email-inline-row .email-input-shell .corner-grip.inner.sw{ left:  4px !important; bottom: 4px !important; cursor: nesw-resize; }
+
+/* make sure the row doesn’t clip them */
+.email-inline-row, .email-inline-row .inline-resize-wrap { overflow: visible !important; }
+
+/* disable any outer/card handles for this row */
+.email-inline-row.no-outer-handles .rh,
+.email-inline-row.no-outer-handles .rh-*, 
+.email-inline-row.no-outer-handles .resize-handle,
+.email-inline-row.no-outer-handles .corner-handle { display: none !important; }
+.email-inline-row .email-input-shell{
+  position: relative;
+  box-sizing: border-box;
+  overflow: visible;
+  border: 1px solid #ccc;              /* visual border on shell */
+  border-radius: 4px;
+  background: #fff;
+}
+
+/* input fills shell; no separate border */
+.email-inline-row .email-input-shell .resizable-email{
+  width: 100% !important;
+  height: 100% !important;
+  box-sizing: border-box;
+  border: 0 !important;                /* important: remove input border */
+  background: transparent;
+  padding: 6px 40px 6px 10px;          /* room for × + SE corner */
+  z-index: 1;
+}
+
+/* --- HIDE ANY OUTER/NON-INNER HANDLES JUST FOR THIS ROW --- */
+.email-inline-row.inner-controls .right-grip:not(.inner),
+.email-inline-row.inner-controls .corner-grip:not(.inner),
+.email-inline-row.inner-controls .delete-resize-wrap{
+  display: none !important;
+}
+
+/* --- PIN INNER GRIPS INSIDE THE BOX (INSET BY 4PX) --- */
+.email-inline-row .email-input-shell .edge-grip.inner{
+  position: absolute;
+  top: 4px; bottom: 4px;               /* not on the border line */
+  width: 8px;
+  cursor: ew-resize;
+  z-index: 12;
+}
+.email-inline-row .email-input-shell .edge-grip.inner.right{ right: 4px !important; }
+.email-inline-row .email-input-shell .edge-grip.inner.left { left:  4px !important; }
+
+.email-inline-row .email-input-shell .corner-grip.inner{
+  position: absolute;
+  width: 10px; height: 10px;
+  z-index: 13;
+  background: transparent;
+}
+.email-inline-row .email-input-shell .corner-grip.inner.se{ right: 4px !important; bottom: 4px !important; cursor: nwse-resize; }
+.email-inline-row .email-input-shell .corner-grip.inner.sw{ left:  4px !important; bottom: 4px !important; cursor: nesw-resize; }
+
+/* minor visuals so you can see them */
+.email-inline-row .email-input-shell .edge-grip.inner::after{
+  content: ""; position: absolute; top: 20%; bottom: 20%; left: 50%;
+  transform: translateX(-50%); width: 2px; border-radius: 2px; background: rgba(0,0,0,.18);
+}
+.email-inline-row .email-input-shell .corner-grip.inner::after{
+  content:''; position:absolute; right:1px; bottom:1px; width:6px; height:6px;
+  border-right:2px solid rgba(0,0,0,.25); border-bottom:2px solid rgba(0,0,0,.25);
+}
+
+/* ensure nothing clips them */
+.email-inline-row,
+.email-inline-row .inline-resize-wrap{ overflow: visible !important; }
