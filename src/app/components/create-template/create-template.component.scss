@@ -2066,3 +2066,175 @@ textarea.form-input {
 /* ensure nothing clips them */
 .email-inline-row,
 .email-inline-row .inline-resize-wrap{ overflow: visible !important; }
+.date-inline-row .editable-label { 
+  display: inline-flex !important; 
+  align-items: center; 
+  white-space: nowrap; 
+}
+
+/* row layout like email */
+.date-inline-row{
+  display: grid;
+  grid-template-columns: 24px max-content minmax(120px, max-content);
+  align-items: center;
+  gap: 4px;
+}
+.date-inline-row, .date-inline-row .inline-resize-wrap{ overflow: visible !important; }
+
+/* shell is the visible box; input fills it (same as email) */
+.input-shell{
+  position: relative;
+  display: inline-block;
+  box-sizing: border-box;
+  overflow: visible;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #fff;
+  min-height: 28px;
+}
+.input-shell .resizable-input{
+  width: 100% !important;
+  height: 100% !important;
+  border: 0 !important;
+  background: transparent;
+  box-sizing: border-box;
+  padding: 6px 40px 6px 10px;
+   padding-right: 40px;  /* keep space for SE corner/× if you add it */
+}
+
+/* inside grips */
+.input-shell .edge-grip.inner{
+  position: absolute;
+  top: 4px; bottom: 4px;
+  width: 8px; cursor: ew-resize; z-index: 12;
+}
+.input-shell .edge-grip.inner.right{ right: 4px; }
+.input-shell .edge-grip.inner.left { left:  4px; }
+
+.input-shell .corner-grip.inner{
+  position: absolute;
+  width: 10px; height: 10px; z-index: 13; background: transparent;
+}
+.input-shell .corner-grip.inner.se{ right: 4px; bottom: 4px; cursor: nwse-resize; }
+.input-shell .corner-grip.inner.sw{ left:  4px; bottom: 4px; cursor: nesw-resize; }
+
+/* optional: tiny visuals on grips */
+.input-shell .edge-grip.inner::after{
+  content:""; position:absolute; top:20%; bottom:20%; left:50%;
+  transform:translateX(-50%); width:2px; border-radius:2px; background:rgba(0,0,0,.18);
+}
+.input-shell .corner-grip.inner::after{
+  content:""; position:absolute; right:1px; bottom:1px; width:6px; height:6px;
+  border-right:2px solid rgba(0,0,0,.25); border-bottom:2px solid rgba(0,0,0,.25);
+}
+
+/* hide any outer/non-inner grips on this row */
+.date-inline-row.inner-controls .right-grip:not(.inner),
+.date-inline-row.inner-controls .corner-grip:not(.inner){ display:none !important; }
+.no-outer-handles .rh, .no-outer-handles .corner-handle{ display:none !important; }
+.input-shell .inline-delete.inside{
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  background: transparent;
+  font-size: 18px;
+  line-height: 1;
+  color: #d32f2f;
+  cursor: pointer;
+  z-index: 15;            /* above the input/select */
+  pointer-events: auto;   /* ensure it’s clickable */
+}
+.input-shell .inline-delete.inside:hover{ opacity: .85; }
+.input-shell .edge-grip.inner,
+.input-shell .corner-grip.inner { z-index: 30; }   /* > delete z-index */
+
+/* Easier to grab */
+.input-shell .edge-grip.inner { width: 12px; }     /* was 8px */
+.input-shell .corner-grip.inner { width: 12px; height: 12px; }
+
+/* Keep a 10px “free” band at the far right for resizing */
+.input-shell { padding-right: 44px; }              /* room for × + free band */
+.input-shell .inline-delete.inside { right: 12px; }/* move × off the edge */
+
+/* While resizing, ignore delete clicks (optional but nice) */
+.input-shell .inline-delete.inside { z-index: 15; pointer-events: auto; }
+.input-shell.resizing .inline-delete.inside { pointer-events: none; }
+/* --- Size helpers for Angular Material buttons (MDC) --- */
+.btn-xs.mat-mdc-button-base{
+  height: 28px !important;
+  min-height: 28px !important;
+  line-height: 28px !important;
+  padding: 0 12px !important;
+  font-size: 12px !important;
+  font-weight: 700;
+}
+.btn-sm.mat-mdc-button-base{
+  height: 32px !important;
+  min-height: 32px !important;
+  line-height: 32px !important;
+  padding: 0 14px !important;
+  font-size: 13px !important;
+}
+/* optional larger sizes later…
+.btn-md.mat-mdc-button-base{ height: 36px !important; padding: 0 16px !important; }
+*/
+
+/* rounded pill */
+.btn-pill.mat-mdc-button-base{ border-radius: 9999px !important; }
+
+/* --- Green filled style for raised buttons --- */
+.btn-green.mat-mdc-raised-button{
+  /* MDC tokens (works across Angular Material v15+) */
+  --mdc-protected-button-container-color: #16a34a;
+  --mdc-protected-button-label-text-color: #fff;
+
+  /* hard fallback in case theme tokens are ignored */
+  background-color: #16a34a !important;   /* green-600 */
+  color: #fff !important;
+  box-shadow: var(--mat-elevation-2, 0 2px 4px rgba(0,0,0,.15));
+}
+.btn-green.mat-mdc-raised-button:hover{ filter: brightness(.97); }
+.btn-green.mat-mdc-raised-button:active{ transform: translateY(.5px); }
+
+/* Make sure the toolbar stays draggable but the button doesn't */
+.desc-head-free{ cursor: move; }
+.desc-head-free .btn-add{ cursor: pointer; pointer-events: auto; }
+
+/* If any legacy handle sneaks in inside the header, hide it */
+.desc-head-free .drag-handle{ display:none !important; }
+.desc-inline-row{
+  display:grid;
+  grid-template-columns: 24px 1fr max-content max-content;
+  align-items:center;
+  gap:8px;
+}
+.desc-inline-drag{ cursor:move; user-select:none; font-size:18px; line-height:1; }
+
+/* little red × */
+.desc-inline-delete{
+  width:24px; height:24px; padding:0;
+  border:0; background:transparent;
+  color:#d32f2f; font-size:18px; line-height:1;
+  cursor:pointer; border-radius:4px;
+}
+.desc-inline-delete:hover{
+  color:#b71c1c; background:rgba(211,47,47,.08);
+}
+
+/* keep label from pushing buttons off-screen */
+.desc-inline-row .editable-label{
+  min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+
+/* your small green add button (from before) */
+.btn-xs.mat-mdc-button-base{
+  height:28px!important; min-height:28px!important; line-height:28px!important;
+  padding:0 12px!important; font-size:12px!important; font-weight:700;
+}
+.btn-pill.mat-mdc-button-base{ border-radius:9999px!important; }
+.btn-green.mat-mdc-raised-button{
+  background:#16a34a!important; color:#fff!important;
+}

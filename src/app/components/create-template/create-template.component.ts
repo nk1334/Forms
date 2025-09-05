@@ -68,6 +68,12 @@ export interface FormField {
   _emailW?: number;
   _emailML?:number;
   _emailShiftX?: number;
+    _dateW?: number;
+  _dateH?: number;
+  _dateML?: number;
+    _branchW?: number;
+  _branchH?: number;
+  _branchML?: number;
   nextNo?: number;
   required: boolean;
   layout?: 'row' | 'column';
@@ -262,7 +268,23 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
   inputId(field: FormField, suffix = ''): string {
     return suffix ? `${field.id}-${suffix}` : field.id;
   }
+calendarLocked = true;
 
+onDateFocus(ev: FocusEvent) {
+  if (this.calendarLocked) {
+    (ev.target as HTMLInputElement).blur();
+  }
+}
+
+onDateMouseDown(ev: MouseEvent) {
+  if (this.calendarLocked) {
+    // prevent the native picker from opening
+    ev.preventDefault();
+  } else {
+    // during normal use, don’t start dragging the card
+    ev.stopPropagation();
+  }
+}
 
 
   saveTagPos(e: CdkDragEnd, f: FormField) {
@@ -643,6 +665,55 @@ startEmailResize(ev: MouseEvent, field: any, mode: 'left' | 'right' | 'se' | 'sw
   window.addEventListener('mousemove', onMove, true);
   window.addEventListener('mouseup', onUp, true);
 }
+startDateResize(ev: MouseEvent, field: any, mode: 'left'|'right'|'se'|'sw') {
+  ev.preventDefault();
+  ev.stopPropagation();
+
+  const shell = (ev.currentTarget as HTMLElement).closest('.date-input-shell') as HTMLElement | null;
+  if (!shell) return;
+
+  const r = shell.getBoundingClientRect();
+  const startW  = field._dateW  ?? Math.round(r.width)  ?? 240;
+  const startH  = field._dateH  ?? Math.round(r.height) ?? 36;
+  const startML = field._dateML ?? 0;
+
+  const startX = ev.pageX, startY = ev.pageY;
+  const clamp = (v:number,a:number,b:number)=>Math.max(a,Math.min(b,v));
+  const MIN_W=120, MAX_W=1200, MIN_H=28, MIN_ML=-240, MAX_ML=400;
+  const RIGHT_INSET = 40; // must match padding-right in CSS
+
+  const prevC = document.body.style.cursor;
+  const prevSel = (document.body.style as any).userSelect;
+  document.body.style.cursor = (mode==='se'||mode==='sw')?'nwse-resize':'ew-resize';
+  (document.body.style as any).userSelect = 'none';
+
+  const onMove = (e: MouseEvent) => {
+    const dx = e.pageX - startX;
+    const dy = e.pageY - startY;
+
+    let W=startW, H=startH, ML=startML;
+    if (mode==='right'){ W = clamp(startW + dx, MIN_W, MAX_W); }
+    else if (mode==='left'){ W = clamp(startW - dx, MIN_W, MAX_W); ML = clamp(startML + dx, MIN_ML, MAX_ML); }
+    else if (mode==='se'){ W = clamp(startW + dx, MIN_W, MAX_W); H = Math.max(MIN_H, startH + dy); }
+    else if (mode==='sw'){ W = clamp(startW - dx, MIN_W, MAX_W); H = Math.max(MIN_H, startH + dy); ML = clamp(startML + dx, MIN_ML, MAX_ML); }
+
+    if (W < RIGHT_INSET + MIN_W) W = RIGHT_INSET + MIN_W;
+
+    field._dateW  = Math.round(W);
+    field._dateH  = Math.round(H);
+    field._dateML = Math.round(ML);
+  };
+
+  const onUp = () => {
+    window.removeEventListener('mousemove', onMove, true);
+    window.removeEventListener('mouseup', onUp, true);
+    document.body.style.cursor = prevC;
+    (document.body.style as any).userSelect = prevSel;
+  };
+
+  window.addEventListener('mousemove', onMove, true);
+  window.addEventListener('mouseup', onUp, true);
+}
   private cleanupLocalDuplicates(): void {
     const local: SavedForm[] = JSON.parse(localStorage.getItem('savedFormPages') || '[]');
     const seen = new Map<string, SavedForm>();
@@ -709,7 +780,56 @@ startEmailResize(ev: MouseEvent, field: any, mode: 'left' | 'right' | 'se' | 'sw
       return [];
     }
   }
+startBranchResize(ev: MouseEvent, field: any, mode: 'left'|'right'|'se'|'sw') {
+  ev.preventDefault();
+  ev.stopPropagation();
 
+  // find the shell for branch
+  const shell = (ev.currentTarget as HTMLElement).closest('.branch-input-shell') as HTMLElement | null;
+  if (!shell) return;
+
+  const r = shell.getBoundingClientRect();
+  const startW  = field._branchW  ?? Math.round(r.width)  ?? 240;
+  const startH  = field._branchH  ?? Math.round(r.height) ?? 36;
+  const startML = field._branchML ?? 0;
+
+  const startX = ev.pageX, startY = ev.pageY;
+  const clamp = (v:number,a:number,b:number)=>Math.max(a,Math.min(b,v));
+  const MIN_W=120, MAX_W=1200, MIN_H=28, MIN_ML=-240, MAX_ML=400;
+  const RIGHT_INSET = 40; // match padding-right inside the select, like others
+
+  const prevC = document.body.style.cursor;
+  const prevSel = (document.body.style as any).userSelect;
+  document.body.style.cursor = (mode==='se'||mode==='sw') ? 'nwse-resize' : 'ew-resize';
+  (document.body.style as any).userSelect = 'none';
+
+  const onMove = (e: MouseEvent) => {
+    const dx = e.pageX - startX;
+    const dy = e.pageY - startY;
+
+    let W=startW, H=startH, ML=startML;
+    if (mode==='right'){ W = clamp(startW + dx, MIN_W, MAX_W); }
+    else if (mode==='left'){ W = clamp(startW - dx, MIN_W, MAX_W); ML = clamp(startML + dx, MIN_ML, MAX_ML); }
+    else if (mode==='se'){ W = clamp(startW + dx, MIN_W, MAX_W); H = Math.max(MIN_H, startH + dy); }
+    else if (mode==='sw'){ W = clamp(startW - dx, MIN_W, MAX_W); H = Math.max(MIN_H, startH + dy); ML = clamp(startML + dx, MIN_ML, MAX_ML); }
+
+    if (W < RIGHT_INSET + MIN_W) W = RIGHT_INSET + MIN_W;
+
+    field._branchW  = Math.round(W);
+    field._branchH  = Math.round(H);
+    field._branchML = Math.round(ML);
+  };
+
+  const onUp = () => {
+    window.removeEventListener('mousemove', onMove, true);
+    window.removeEventListener('mouseup', onUp, true);
+    document.body.style.cursor = prevC;
+    (document.body.style as any).userSelect = prevSel;
+  };
+
+  window.addEventListener('mousemove', onMove, true);
+  window.addEventListener('mouseup', onUp, true);
+}
   // Safe write to localStorage and keep in-memory copy in sync
   private writeLocalTemplates(list: SavedForm[]): void {
     const clean = this.dedupeByIdentity(list);
@@ -1291,6 +1411,7 @@ startEmailResize(ev: MouseEvent, field: any, mode: 'left' | 'right' | 'se' | 'sw
     f.tagPos = f.tagPos || { x: 10, y: 8 };
 
     if (!f.labelDock) f.labelDock = 'left';
+    if (!f.inputWidth) f.inputWidth = 220;
     if (!f.labelPos) f.labelPos = { x: 12, y: 12 }; // free-drag start point
     if (!f.inputPos) f.inputPos = { x: 160, y: 12 };
     if (f.type === 'radio') {
@@ -1300,6 +1421,11 @@ startEmailResize(ev: MouseEvent, field: any, mode: 'left' | 'right' | 'se' | 'sw
     if (typeof f.width === 'string') {
       f.width = parseInt(f.width, 10);
     }
+    if (f.type === 'date') {
+  if (typeof f._dateW  !== 'number') f._dateW  = f.inputWidth;
+  if (typeof f._dateH  !== 'number') f._dateH  = 36;
+  if (typeof f._dateML !== 'number') f._dateML = 0;
+}
     if (f.type === 'email') {
       f.arrange = f.arrange || 'dock';           // start inline
       f.labelDock = f.labelDock || 'left';         // label on the left
@@ -1358,7 +1484,11 @@ startEmailResize(ev: MouseEvent, field: any, mode: 'left' | 'right' | 'se' | 'sw
         { value: '0', label: 'NSW' },
         { value: '1', label: 'Branch 0 - YATALA' },
         { value: '2', label: 'Branch 3 - MACKAY' }
+
       ];
+        if (typeof f._branchW  !== 'number') f._branchW  = f.inputWidth;
+  if (typeof f._branchH  !== 'number') f._branchH  = 36;
+  if (typeof f._branchML !== 'number') f._branchML = 0;
     }
 
     this.formPages[this.currentPage].fields.push(f);

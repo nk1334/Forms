@@ -177,7 +177,8 @@
 
   <!-- Header / Drag handle + delete -->
 <div class="field-header"
-     *ngIf="field.type !== 'email'"
+           *ngIf="!(['email','date','branch'].includes(field.type) ||
+              (field.type==='textarea' && isDesc(field)))"
      style="display:flex; justify-content:space-between; align-items:center;">
   <div cdkDragHandle class="drag-handle" style="cursor:move; font-size:18px;">☰</div>
   <button (click)="removeField(currentPage, field); $event.stopPropagation()"
@@ -209,8 +210,8 @@
       
        [style.--w.px]="field._emailW ?? 220"
      [style.--h.px]="field._emailH ?? 32"
-     [style.marginLeft.px]="field._emailML ?? 0"
-     (mousedown)="$event.stopPropagation()" >
+     [style.marginLeft.px]="field._emailML ?? 0">
+  
 
   <!-- side grips (keep) -->
 
@@ -373,18 +374,119 @@
 </div>
 
             <!-- Date -->
-            <input *ngSwitchCase="'date'" id="field-{{i}}" name="field-{{i}}" type="date"
-                   [(ngModel)]="field.value" class="form-input" [style.width.px]="field.width" />
-                   <div *ngIf="isRequiredField(field) && !isFieldFilled(field)"
-     style="color:#d32f2f; font-size:12px; margin-top:4px;">
-  * Required: please select {{ field.label || 'Date' }}.
-</div>
+    <!-- DATE (same structure as Email) -->
+<div *ngSwitchCase="'date'"
+     class="inner-controls no-outer-handles"
+     [ngStyle]="rowLayout(field)">
 
-            <!-- Branch select -->
-            <select *ngSwitchCase="'branch'" id="field-{{i}}" name="field-{{i}}" [(ngModel)]="field.value"
-                    class="form-input" [style.width.px]="field.width">
-              <option *ngFor="let option of field.options || []" [value]="option.value">{{ option.label }}</option>
-            </select>
+  <div class="date-inline-drag" cdkDragHandle title="Drag field" style="margin-right:8px;">☰</div>
+
+  <!-- Label -->
+  <label class="editable-label"
+         [ngStyle]="labelStyle(field)"
+         [attr.data-id]="field.id"
+         contenteditable="true"
+         (focus)="startLabelEdit(field, $event)"
+         (blur)="finishLabelEdit(field, $event)"
+         (keydown)="onLabelKeydown(field, $event)">
+    {{ field.label || 'Date' }}
+    <span *ngIf="isRequiredField(field)" aria-hidden="true" style="color:#d32f2f;">*</span>
+  </label>
+
+  <!-- Control -->
+  <div class="inline-resize-wrap"
+       [ngStyle]="ctrlStyle(field)"
+       [style.marginLeft.px]="(field.labelDock==='left'||field.labelDock==='right') ? (field._dateML ?? 0) : null"
+       (mousedown)="$event.stopPropagation()">
+
+    <div class="input-shell date-input-shell"
+         [class.locked]="calendarLocked"
+         [style.width.px]="field._dateW ?? field.inputWidth ?? 240"
+         [style.height.px]="field._dateH ?? 36">
+
+      <input type="date"
+             class="resizable-input"
+             [(ngModel)]="field.value"
+             />
+
+      <!-- grips -->
+      <div class="edge-grip inner left"  (mousedown)="startDateResize($event, field, 'left')"></div>
+      <div class="edge-grip inner right" (mousedown)="startDateResize($event, field, 'right')"></div>
+      <i class="corner-grip inner sw"     (mousedown)="startDateResize($event, field, 'sw')"></i>
+      <i class="corner-grip inner se"     (mousedown)="startDateResize($event, field, 'se')"></i>
+
+        <button class="inline-delete inside"
+          title="Delete field"
+          (mousedown)="$event.stopPropagation()"
+          (click)="removeField(currentPage, field)">
+    &times;
+  </button>
+    </div>
+  </div>
+
+  <div class="req-msg"
+       *ngIf="isRequiredField(field) && !isFieldFilled(field)"
+       style="width:100%; color:#d32f2f; font-size:12px;">
+    * Required: please select {{ field.label || 'Date' }}.
+  </div>
+</div>
+<div *ngSwitchCase="'branch'"
+     class="date-inline-row inner-controls no-outer-handles"
+     [style.gridTemplateColumns]="'24px max-content minmax(120px, max-content)'">
+
+  <div class="date-inline-drag" cdkDragHandle title="Drag field">☰</div>
+
+  <label class="editable-label"
+         [ngStyle]="labelStyle(field)"
+         [attr.data-id]="field.id"
+         contenteditable="true"
+         (focus)="startLabelEdit(field, $event)"
+         (blur)="finishLabelEdit(field, $event)"
+         (keydown)="onLabelKeydown(field, $event)">
+    {{ field.label || 'Branch' }}
+    <span *ngIf="isRequiredField(field)" aria-hidden="true" style="color:#d32f2f;">*</span>
+  </label>
+
+  <div class="inline-resize-wrap"
+       [ngStyle]="ctrlStyle(field)"
+       [style.marginLeft.px]="(field.labelDock==='left'||field.labelDock==='right') ? (field._branchML ?? 0) : null"
+       (mousedown)="$event.stopPropagation()">
+
+    <div class="input-shell branch-input-shell"
+         [style.width.px]="field._branchW ?? field.inputWidth ?? 240"
+         [style.height.px]="field._branchH ?? 36">
+
+      <select class="resizable-input"
+              [(ngModel)]="field.value"
+              (mousedown)="$event.stopPropagation()">
+        <option value="" disabled>Select branch</option>
+        <option *ngFor="let opt of field.options || []" [value]="opt.value">{{ opt.label }}</option>
+      </select>
+
+      <!-- grips -->
+      <div class="edge-grip inner left"  (mousedown)="startBranchResize($event, field, 'left')"></div>
+      <div class="edge-grip inner right" (mousedown)="startBranchResize($event, field, 'right')"></div>
+      <i class="corner-grip inner sw"     (mousedown)="startBranchResize($event, field, 'sw')"></i>
+      <i class="corner-grip inner se"     (mousedown)="startBranchResize($event, field, 'se')"></i>
+
+<button class="inline-delete inside"
+          title="Delete field"
+          (mousedown)="$event.stopPropagation()"
+          (click)="removeField(currentPage, field)">
+    &times;
+  </button>
+
+
+    </div>
+  </div>
+
+  <div class="req-msg"
+       *ngIf="isRequiredField(field) && !isFieldFilled(field)"
+       style="width:100%; color:#d32f2f; font-size:12px;">
+    * Required: please select {{ field.label || 'Branch' }}.
+  </div>
+</div>
+        
 <!-- Textarea (normal) + Description (numbered items) -->
 <!-- Textarea (normal) + Description (numbered items) -->
 <ng-container *ngSwitchCase="'textarea'">
@@ -393,29 +495,40 @@
     <!-- Description mode -->
     <ng-container *ngIf="isDesc(field); else normalTextarea">
       <!-- Header -->
-      <div class="desc-toolbar"
-           style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-        <div style="display:flex; align-items:center; gap:6px;">
-          <span class="editable-label"
-                [attr.data-id]="field.id"
-                contenteditable="true"
-                (focus)="startLabelEdit(field, $event)"
-                (blur)="finishLabelEdit(field, $event)"
-                (keydown)="onLabelKeydown(field, $event)"
-                style="outline:0; border-bottom:1px dashed transparent;"
-                [style.borderBottomColor]="labelEditing===field.id ? '#999' : 'transparent'">
-            {{ field.label || 'Description' }}
-          </span>
-          <span *ngIf="isRequiredField(field)" aria-hidden="true" style="color:#d32f2f;">*</span>
-        </div>
-        <button mat-stroked-button type="button" (click)="addProblemItem(field)">Add problem</button>
-      </div>
+<div class="desc-inline-row inner-controls no-outer-handles">
+  <span class="desc-inline-drag" cdkDragHandle title="Drag">☰</span>
 
-      <!-- Empty state -->
-      <div *ngIf="!(field.problemItems?.length)"
-           style="color:#666; font-size:12px; margin-bottom:6px;">
-        No problems yet. Click <strong>Add problem</strong>.
-      </div>
+  <span class="editable-label"
+        [attr.data-id]="field.id"
+        contenteditable="true"
+        (focus)="startLabelEdit(field, $event)"
+        (blur)="finishLabelEdit(field, $event)"
+        (keydown)="onLabelKeydown(field, $event)">
+    {{ field.label || 'Problem Tracker' }}
+  </span>
+
+
+  <button mat-raised-button
+          class="btn-add btn-xs btn-pill btn-green"
+          (mousedown)="$event.stopPropagation()"
+          (click)="addProblemItem(field)">
+    + Add problem
+  </button>
+
+  <button type="button"
+          class="desc-inline-delete"
+          aria-label="Delete field"
+          title="Delete field"
+          (mousedown)="$event.stopPropagation()"
+          (click)="removeField(currentPage, field)">
+    &times;
+  </button>
+
+
+</div>
+
+
+    
 
       <!-- Problems list -->
       <div class="desc-list"
@@ -552,10 +665,13 @@
                 <mat-icon>clear</mat-icon>
               </button>
             </div>
-            <div *ngIf="isRequiredField(field) && !isFieldFilled(field)"
-     style="color:#d32f2f; font-size:12px; margin-top:4px;">
+ <div *ngIf="field.type === 'signature' 
+            && isRequiredField(field) 
+            && !isFieldFilled(field)"
+     class="req-msg">
   * Required: please sign in the box.
 </div>
+
 
             <!-- Table placeholder -->
             <div *ngSwitchCase="'table'" class="table-container" [style.width.px]="field.width || 400"
@@ -659,7 +775,7 @@
   Required
 </mat-checkbox>
      <!-- ⬇️ ADD THIS BLOCK: layout options for Email field -->
-      <ng-container *ngIf="newField.type === 'email'">
+     <ng-container *ngIf="['email','date','branch'].includes(newField.type)">
         <mat-divider style="margin:12px 0;"></mat-divider>
         <div style="font-weight:600; margin-bottom:6px;">Layout</div>
 
