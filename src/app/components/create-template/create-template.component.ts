@@ -23,7 +23,50 @@ import { FormService } from 'src/app/services/form.service';
 import { BRANCHES, Branch } from 'src/app/permissions.model';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { AuthService } from 'src/app/services/auth.service';
+import { Input } from '@angular/core';
+import { MatTableDataSource } from '@angular/material/table';
+
+
 export type ColumnType = 'text' | 'number' | 'date' | 'select';
+
+function serializeForFirestorePages(pages: any[]): any[] {
+  const clone: any[] = JSON.parse(JSON.stringify(pages));
+  for (const p of clone) {
+    for (const f of p.fields || []) {
+      const gm = f.gridMatrix;
+      if (gm?.cells && Array.isArray(gm.cells) && Array.isArray(gm.cells[0])) {
+        const flat: Array<{ r:number; c:number; cell:any }> = [];
+        gm.cells.forEach((row: any[], r: number) =>
+          row.forEach((cell: any, c: number) => flat.push({ r, c, cell }))
+        );
+        gm.cellsFlat = flat;
+        delete gm.cells; // ❌ remove nested arrays
+      }
+    }
+  }
+  return clone;
+}
+
+// 🔹 Helper to rebuild Firestore data → back to 2D cells
+function deserializeFromFirestorePages(pages: any[]): any[] {
+  for (const p of pages) {
+    for (const f of p.fields || []) {
+      const gm = f.gridMatrix;
+      if (gm?.cellsFlat && Number.isInteger(gm.rows) && Number.isInteger(gm.cols)) {
+        const cells = Array.from({ length: gm.rows }, () =>
+          Array.from({ length: gm.cols }, () => ({ items: [] }))
+        );
+        for (const { r, c, cell } of gm.cellsFlat) {
+          if (cells[r] && cells[r][c]) cells[r][c] = cell;
+        }
+        gm.cells = cells;
+        delete gm.cellsFlat;
+      }
+    }
+  }
+  return pages;
+}
+
 export interface DataGridColumn {
   id: string;              // key used in row objects
   label: string;           // column header
@@ -47,7 +90,9 @@ export interface FormField {
   placeholder?: string;
   width?: number;
   height?: number;
-
+  _telW?: number;   // input width (px)
+  _telH?: number;   // input height (px)
+  _telML?: number; 
   options?: { label: string; value?: string; checked?: boolean }[];
   value?: any;
   isDescription?: boolean;
@@ -57,7 +102,9 @@ export interface FormField {
   // Data grid (unchanged)
   gridConfig?: DataGridConfig;
   rows?: Array<Record<string, any>>;
-
+  _sigW?: number;   // signature inner width (px)
+  _sigH?: number;   // signature inner height (px)
+  _sigML?: number;
   // outer card position
   position?: { x: number; y: number };
   row?: number;
@@ -71,9 +118,15 @@ export interface FormField {
     _dateW?: number;
   _dateH?: number;
   _dateML?: number;
+    _titleW?: number;
+  _titleH?: number;
+
     _branchW?: number;
   _branchH?: number;
   _branchML?: number;
+    _checkW?: number;
+  _checkH?: number;
+  _checkML?: number;
   nextNo?: number;
   required: boolean;
   layout?: 'row' | 'column';
@@ -84,10 +137,15 @@ export interface FormField {
   labelWidth?: number;
   inputWidth?: number;
   inputSize?: { w: number; h: number };
+    gridMatrix?: GridMatrix;     // ⬅️ 2D matrix of cells with items
+  gridMode?: 'matrix' | 'rows'; 
   // NEW: inner free-drag positions (used by draggable label/input)
   labelPos?: { x: number; y: number };
   inputPos?: { x: number; y: number };
   tagPos?: { x: number; y: number };
+    _textW?: number;  _textH?: number;  _textML?: number;
+  _radioW?: number; _radioH?: number; _radioML?: number;
+  _fileW?: number;  _fileH?: number;  _fileML?: number;
   arrange?: 'dock' | 'free';
   useTextarea?: boolean;                 // toggle between <input> and <textarea>
   textareaPos?: { x: number; y: number };
@@ -112,9 +170,35 @@ interface SavedForm {
   firebaseId?: string;
   _uiSelection?: Branch[];
 }
+ interface GridItem {
+  id: string;
+  type: string;
+  label: string;
+  options?: { label: string; value?: string }[];
+  value?: any;
+
+  // NEW:
+  pos?: { x: number; y: number };     // position inside the cell (px, relative)
+  size?: { w: number; h: number };
+}
+
+ interface GridCell {
+  items: GridItem[];
+}
 
 
-
+ interface GridMatrix {
+  rows: number;
+  cols: number;
+  cells: GridCell[][]; // cells[r][c]
+    cellsFlat?: Array<{ r: number; c: number; cell: GridCell }>;
+  showBorders?: boolean;
+    cellW?: number;   // px width per column
+  cellH?: number;   // px min-height per cell
+  gap?: number;     // px gap between cells
+}
+type FillLayoutMode = 'exact' | 'flow';
+type Dock = 'left' | 'right' | 'top' | 'bottom';
 @Component({
   selector: 'app-create-template',
   templateUrl: './create-template.component.html',
@@ -122,19 +206,22 @@ interface SavedForm {
 })
 
 export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterViewChecked {
+  displayedColumns: string[] = ['name', 'visibleIn', 'current', 'actions'];
+  trackBySavedForm = (_: number, f: any) => f?.id ?? f?.formId ?? f;
+    @Input() readonly = false; 
   branches = BRANCHES;              // ['ALL','MKAY','YAT','NSW']
   selectedBranches: Branch[] = ['ALL'];
   @ViewChildren('canvasElement') canvasRefs!: QueryList<ElementRef<HTMLCanvasElement>>;
   isRemovingField: boolean = false;
   isDrawingSignature = false;
-
+isFillMode = false;
   ctxMap: Record<string, CanvasRenderingContext2D> = {};
   drawingMap: Record<string, boolean> = {};
   isDragging: boolean[] = [];
-
+isOverAnyGridCell = false;
   lastCanvasCount = 0;
   shouldClearSignatureCanvas = false;
-
+fillLayoutMode: FillLayoutMode = 'exact';
   dashboardVisible = false;
   formBuilderVisible = true;
   fieldConfigVisible = false;
@@ -143,6 +230,7 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
   popupLeft = 0;
 
 
+isBuilderMode = false;
 
   paletteFields: FormField[] = [
     { id: 'project-title', label: 'Project Name', type: 'project-title', required: false },
@@ -188,10 +276,11 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
       width: 200, height: 44
     },
   ];
-
+commonTypes = new Set(['text','email','number','tel','date','radio','branch','textarea','signature']);
+isCommonType(type?: string) { return !!type && this.commonTypes.has(type); }
   newField: FormField = this.getEmptyField();
   pendingFieldToAdd: FormField | null = null;
-  displayedColumns: string[] = ['name', 'visibleIn', 'current', 'actions'];
+
   formPages: FormPage[] = [{ fields: [] }];
   currentPage = 0;
   savedForms: SavedForm[] = [];
@@ -204,10 +293,13 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
   private idCounter = 0;
 
   pointerPosition = { x: 0, y: 0 };
+  lastPointer?: { x: number; y: number };
   allowedWidths = [150, 300, 400];
   selectedForm: SavedForm | null = null;
   isEditingMaster = false;
   isClearing = false;
+   public dpr = (typeof window !== 'undefined' ? window.devicePixelRatio : 1) || 1;
+   public trackByIndex = (index: number, _item?: any): number => index;
   constructor(
 
     private router: Router,
@@ -220,6 +312,7 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
   ) { }
 
   ngOnInit(): void {
+      this.isBuilderMode = true; 
     // 1) Clean locals first (no UI changes here, just storage hygiene)
     this.cleanupLocalDuplicates();
     // a) get the user branch (prefer service getter if you add one)
@@ -244,6 +337,7 @@ export class CreateTemplateComponent implements OnInit, AfterViewInit, AfterView
         this.savedForms = await this.formService.getFormTemplates(); // must include firebaseId=d.id
         this.savedForms = (this.savedForms || []).map(f => ({
           ...f,
+          formPages: this.cloneAndRehydrate(f.formPages),
           allowedBranches: this.normalizeBranches(f.allowedBranches),
           _uiSelection: (f.allowedBranches?.length ? [...f.allowedBranches] : (['ALL'] as Branch[]))
         }));
@@ -275,7 +369,106 @@ onDateFocus(ev: FocusEvent) {
     (ev.target as HTMLInputElement).blur();
   }
 }
+startTelResize(downEvt: MouseEvent | TouchEvent, field: any, dir: 'left'|'right'|'sw'|'se') {
+  // prevent text selection / drag interference
+  downEvt.stopPropagation();
+  downEvt.preventDefault();
 
+  // resolve a pointer
+  const startPoint = ('touches' in downEvt && downEvt.touches.length)
+    ? downEvt.touches[0]
+    : (downEvt as MouseEvent);
+
+  // find the shells to compute real sizes
+  const gripEl = downEvt.target as HTMLElement;
+  const shellEl = gripEl.closest('.tel-input-shell') as HTMLElement | null;
+  const rowEl   = gripEl.closest('.form-row') as HTMLElement | null;
+
+  // fallbacks
+  const shellRect = shellEl?.getBoundingClientRect() ?? { width: (field._telW ?? field.inputWidth ?? 220), height: (field._telH ?? 36) } as DOMRect;
+  const rowRect   = rowEl?.getBoundingClientRect();
+
+  // starting numbers
+  const startX = startPoint.clientX;
+  const startY = startPoint.clientY;
+
+  const startW = Number(field._telW ?? Math.round(shellRect.width));
+  const startH = Number(field._telH ?? Math.round(shellRect.height));
+  const startML = Number(field._telML ?? 0);
+
+  const minW = 80;
+  const minH = 28;
+
+  // Optional: cap inner width to outer row width (minus a little padding)
+  const outerMaxW = rowRect ? Math.max(minW, Math.floor(rowRect.width - 24)) : Infinity;
+
+  let raf = 0;
+
+  const onMove = (moveEvt: MouseEvent | TouchEvent) => {
+    const pt = ('touches' in moveEvt && moveEvt.touches.length)
+      ? moveEvt.touches[0]
+      : (moveEvt as MouseEvent);
+
+    const dx = pt.clientX - startX;
+    const dy = pt.clientY - startY;
+
+    let w = startW;
+    let h = startH;
+    let ml = startML;
+
+    switch (dir) {
+      case 'right':
+        w = startW + dx;
+        break;
+      case 'left':
+        w = startW - dx;
+        if (field.labelDock === 'left' || field.labelDock === 'right') {
+          ml = startML + dx; // shift under/away from label
+        }
+        break;
+      case 'se':
+        w = startW + dx;
+        h = startH + dy;
+        break;
+      case 'sw':
+        w = startW - dx;
+        h = startH + dy;
+        if (field.labelDock === 'left' || field.labelDock === 'right') {
+          ml = startML + dx;
+        }
+        break;
+    }
+
+    // clamp
+    w = Math.max(minW, Math.min(w, outerMaxW));
+    h = Math.max(minH, h);
+    ml = Math.max(0, ml);
+
+    // schedule DOM/state update
+    if (!raf) {
+      raf = requestAnimationFrame(() => {
+        field._telW = Math.round(w);
+        field._telH = Math.round(h);
+        field._telML = Math.round(ml);
+        raf = 0;
+      });
+    }
+  };
+
+  const end = () => {
+    if (raf) cancelAnimationFrame(raf);
+    window.removeEventListener('mousemove', onMove as any, true);
+    window.removeEventListener('mouseup', end, true);
+    window.removeEventListener('touchmove', onMove as any, { capture: true } as any);
+    window.removeEventListener('touchend', end as any, true);
+  };
+
+  // listeners
+  window.addEventListener('mousemove', onMove as any, true);
+  window.addEventListener('mouseup', end, true);
+  window.addEventListener('touchmove', onMove as any, { passive: false, capture: true } as any);
+  window.addEventListener('touchend', end as any, true);
+}
 onDateMouseDown(ev: MouseEvent) {
   if (this.calendarLocked) {
     // prevent the native picker from opening
@@ -285,7 +478,51 @@ onDateMouseDown(ev: MouseEvent) {
     ev.stopPropagation();
   }
 }
+getFieldStyle(field: any) {
+  const x = Math.max(0, Math.round(field?.position?.x ?? 0));
+  const y = Math.max(0, Math.round(field?.position?.y ?? 0));
+  const w = Math.max(20, Math.round(field?.width ?? 300));
+  const h = Math.max(20, Math.round(field?.height ?? 44));
 
+  return {
+    position: 'absolute',
+    left: `${x}px`,
+    top: `${y}px`,
+    width: `${w}px`,
+    height: `${h}px`,
+    minHeight: `${h}px`,
+    boxSizing: 'border-box',
+    transform: 'none',
+    display: 'flex',
+    gap: `${field?.ui?.gapPx ?? 10}px`,
+  };
+}
+
+gridItemStyle(it: any, field: FormField): { [k: string]: any } {
+  if (this.isFillMode) {
+    // Stack nicely while filling
+    return {
+      position: 'relative',
+      left: 'auto',
+      top: 'auto',
+      width: '100%',
+      height: 'auto'
+    };
+  }
+
+  // Free placement in builder (if you use pos/size)
+  const x = it?.pos?.x ?? 6;
+  const y = it?.pos?.y ?? 6;
+  const w = it?.size?.w ?? 220;
+  const h = it?.size?.h ?? 60;
+  return {
+    position: 'absolute',
+    left: `${x}px`,
+    top: `${y}px`,
+    width: `${w}px`,
+    height: `${h}px`
+  };
+}
 
   saveTagPos(e: CdkDragEnd, f: FormField) {
     const p = e.source.getFreeDragPosition();
@@ -299,13 +536,42 @@ onDateMouseDown(ev: MouseEvent) {
     f.inputPos = { x: p.x, y: p.y };
     this.lockParentDrag(f, false);
   }
-
+private cloneAndRehydrate(pages: any[] | undefined): any[] {
+  const copy = JSON.parse(JSON.stringify(pages || []));
+  return deserializeFromFirestorePages(copy);
+}
   private _activeInputResize?: {
     field: any;
     startX: number;
     startW: number;
   };
+  private captureCurrentLayoutForSave(pages: Array<{ fields: any[] }>) {
+  for (const p of (pages || [])) {
+    for (const f of (p.fields || [])) {
+      f.position ||= { x: 0, y: 0 };
+      f.position.x = Math.max(0, Math.round(f.position.x ?? 0));
+      f.position.y = Math.max(0, Math.round(f.position.y ?? 0));
+      f.width  = Math.max(20, Math.round((f.width  ?? 300) as number));
+      f.height = Math.max(20, Math.round((f.height ?? 44)  as number));
+    }
+  }
+  }
+  private syncGridPixelsFromWrapper(pages: Array<{ fields: any[] }>) {
+  for (const p of (pages || [])) {
+    for (const f of (p.fields || [])) {
+      const t = String(f?.type || '').toLowerCase();
+      if (!/^(data-?grid|grid|matrix|datagrid)$/.test(t)) continue;
 
+      const gm = (f.gridMatrix ||= {});
+      gm.gap   = Math.max(0, gm.gap ?? 12);
+      gm.cols  = Math.max(1, gm.cols ?? (gm?.cells?.[0]?.length || 1));
+      gm.rows  = Math.max(1, gm.rows ?? (gm?.cells?.length || 1));
+      gm.cellW = this.gridCellWFromWrapper(f);
+      gm.cellH = this.gridCellHFromWrapper(f);
+    }
+  }
+}
+  
   startInputResize(ev: MouseEvent, field: any) {
     ev.stopPropagation(); ev.preventDefault();
     this._activeInputResize = {
@@ -363,12 +629,40 @@ onDateMouseDown(ev: MouseEvent) {
     window.addEventListener('mousemove', move, true);
     window.addEventListener('mouseup', up, true);
   }
+  private anchorPageToTopLeft(
+  page: { fields?: Array<{ position?: { x?: number; y?: number } }> },
+  pad: number = 12
+): void {
+  const fs = page?.fields || [];
+  if (!fs.length) return;
+
+  const minX = Math.min(...fs.map(f => Math.max(0, Math.round(f.position?.x ?? 0))));
+  const minY = Math.min(...fs.map(f => Math.max(0, Math.round(f.position?.y ?? 0))));
+
+  const shiftX = Math.max(0, minX - pad);
+  const shiftY = Math.max(0, minY - pad);
+
+  if (shiftX || shiftY) {
+    fs.forEach(f => {
+      f.position ||= { x: 0, y: 0 };
+      f.position.x = Math.max(0, Math.round((f.position.x ?? 0) - shiftX));
+      f.position.y = Math.max(0, Math.round((f.position.y ?? 0) - shiftY));
+    });
+  }
+}
   // If your template has a draggable textarea
   saveTextareaPos(e: CdkDragEnd, f: FormField) {
     const p = e.source.getFreeDragPosition();
     f.textareaPos = { x: p.x, y: p.y };
     this.lockParentDrag(f, false);
   }
+  async publishTemplate() {
+  const payload = JSON.parse(JSON.stringify(this.formPages || []));
+  this.captureCurrentLayoutForSave(payload);
+  this.syncGridPixelsFromWrapper(payload);       // <-- for data-grid parity
+ payload.forEach((p: { fields?: any[] }) => this.anchorPageToTopLeft(p, 12));  // optional
+  // send to Firestore…
+}
   rememberProblemItemSize(ev: MouseEvent, f: FormField, idx: number) {
     const el = ev.currentTarget as HTMLElement | null;
     if (!el) return;
@@ -378,7 +672,36 @@ onDateMouseDown(ev: MouseEvent) {
     if (!f.problemItems || !f.problemItems[idx]) return;
     (f.problemItems[idx] as any)._size = { w, h };
   }
+private isPointInsideField(x: number, y: number, f: FormField): boolean {
+  if (!f?.position) return false;
+  const left = f.position.x;
+  const top  = f.position.y;
+  const w = Math.max(20, (f.width ?? 150));
+  const h = Math.max(20, (f.height ?? 60));
+  return x >= left && x <= (left + w) && y >= top && y <= (top + h);
+}
 
+/** Find the topmost checkbox field under the (x,y) drop point */
+private findCheckboxGroupAt(x: number, y: number): FormField | null {
+  const page = this.formPages[this.currentPage];
+  // search from top-most (end) to bottom-most so the visually top card wins
+  for (let i = page.fields.length - 1; i >= 0; i--) {
+    const f = page.fields[i];
+    if (f?.type === 'checkbox' && this.isPointInsideField(x, y, f)) {
+      return f;
+    }
+  }
+  return null;
+}
+addFieldFromPalette(src: FormField) {
+  const f: FormField = {
+    ...JSON.parse(JSON.stringify(src)),
+    id: this.generateId(),
+    _inGrid: false,          // ✅ explicit
+    position: { x: 20, y: 20 }
+  };
+  this.formPages[this.currentPage].fields.push(f);
+}
   // If your template lets the textarea be resized by user
   rememberTextareaSize(ev: MouseEvent, f: FormField) {
     const el = ev.currentTarget as HTMLElement | null;
@@ -397,6 +720,40 @@ onDateMouseDown(ev: MouseEvent) {
     const neededW = Math.round(el.offsetWidth + SIDE_PADDING);
     if (!f.width || f.width < neededW) f.width = neededW;
   }
+  private openTemplateToFill(t: SavedForm) {
+  this.isFillMode = true;
+  this.isBuilderMode = false;  
+    this.fillLayoutMode = 'exact'; 
+  // IMPORTANT: take an exact copy of the template pages
+  this.formPages = this.cloneAndRehydrate(t.formPages);
+  this.formPages.forEach(p =>
+    p.fields
+      .filter(f => f.type === 'data-grid')
+      .forEach(f => this.clampGridItems(f))
+  );
+  // Do NOT run mutators in fill mode
+  // this.fixDuplicateIds();          // ❌ leave ids intact so positions/links stay 1:1
+  // this.assignGridPositions();      // ❌ never
+  // this.ensureGridPositions();      // ❌ never
+  // this.ensureFieldPositions();     // ❌ don't overwrite positions with {x:0,y:0}
+
+  this.selectedForm = t;
+  this.currentFormId = t.formId;
+  this.currentPage = 0;
+  this.dashboardVisible = false;
+  this.formListVisible = false;
+  this.formBuilderVisible = true;
+
+  // optional: email defaults are harmless; keep if you want
+  this.ensureEmailDefaultsOnAllFields();
+
+  this.cdr.detectChanges();
+  setTimeout(() => {
+    this.initCanvases();
+    
+    this.initializeFreeDragPositions(); // only reads existing positions
+  });
+}
   rememberInputSize(ev: MouseEvent, field: FormField) {
     const el = ev.currentTarget as HTMLElement; // the .inner-widget
     if (!el) return;
@@ -518,9 +875,73 @@ onDateMouseDown(ev: MouseEvent) {
       this.snackBar.open('Failed to delete template', 'Close', { duration: 3000 });
     }
   }
-  trackBySavedForm(index: number, f: SavedForm): string {
-    return (f.firebaseId && f.firebaseId.trim()) ? `fb:${f.firebaseId}` : `id:${f.formId}`;
-  }
+private _startInlineFieldResize(
+  ev: MouseEvent,
+  field: FormField,
+  keys: { w: '_textW' | '_radioW' | '_fileW'; h: '_textH' | '_radioH' | '_fileH'; ml: '_textML' | '_radioML' | '_fileML' },
+  shellSelector: string,
+  mode: 'left' | 'right' | 'se' | 'sw'
+) {
+  ev.preventDefault();
+  ev.stopPropagation();
+
+  const shell = (ev.currentTarget as HTMLElement).closest(shellSelector) as HTMLElement | null;
+  if (!shell) return;
+
+  const r = shell.getBoundingClientRect();
+  const startW  = (field as any)[keys.w]  ?? Math.round(r.width)  ?? 240;
+  const startH  = (field as any)[keys.h]  ?? Math.round(r.height) ?? 36;
+  const startML = (field as any)[keys.ml] ?? 0;
+
+  const startX = ev.pageX, startY = ev.pageY;
+  const clamp = (v:number,a:number,b:number)=>Math.max(a,Math.min(b,v));
+
+  const MIN_W=120, MAX_W=1200, MIN_H=28, MIN_ML=-240, MAX_ML=400;
+  const RIGHT_INSET = 40; // keep room for inside controls/grips
+
+  const prevC = document.body.style.cursor;
+  const prevSel = (document.body.style as any).userSelect;
+  document.body.style.cursor = (mode==='se'||mode==='sw') ? 'nwse-resize' : 'ew-resize';
+  (document.body.style as any).userSelect = 'none';
+
+  const onMove = (e: MouseEvent) => {
+    const dx = e.pageX - startX;
+    const dy = e.pageY - startY;
+
+    let W=startW, H=startH, ML=startML;
+    if (mode==='right'){ W = clamp(startW + dx, MIN_W, MAX_W); }
+    else if (mode==='left'){ W = clamp(startW - dx, MIN_W, MAX_W); ML = clamp(startML + dx, MIN_ML, MAX_ML); }
+    else if (mode==='se'){ W = clamp(startW + dx, MIN_W, MAX_W); H = Math.max(MIN_H, startH + dy); }
+    else if (mode==='sw'){ W = clamp(startW - dx, MIN_W, MAX_W); H = Math.max(MIN_H, startH + dy); ML = clamp(startML + dx, MIN_ML, MAX_ML); }
+
+    if (W < RIGHT_INSET + MIN_W) W = RIGHT_INSET + MIN_W;
+
+    (field as any)[keys.w]  = Math.round(W);
+    (field as any)[keys.h]  = Math.round(H);
+    (field as any)[keys.ml] = Math.round(ML);
+  };
+
+  const onUp = () => {
+    window.removeEventListener('mousemove', onMove, true);
+    window.removeEventListener('mouseup', onUp, true);
+    document.body.style.cursor = prevC;
+    (document.body.style as any).userSelect = prevSel;
+  };
+
+  window.addEventListener('mousemove', onMove, true);
+  window.addEventListener('mouseup', onUp, true);
+}
+
+/** Template shims */
+startTextResize(ev: MouseEvent, field: FormField, mode: 'left'|'right'|'se'|'sw') {
+  this._startInlineFieldResize(ev, field, { w: '_textW',  h: '_textH',  ml: '_textML'  }, '.text-input-shell',  mode);
+}
+startRadioResize(ev: MouseEvent, field: FormField, mode: 'left'|'right'|'se'|'sw') {
+  this._startInlineFieldResize(ev, field, { w: '_radioW', h: '_radioH', ml: '_radioML' }, '.radio-input-shell', mode);
+}
+startFileResize(ev: MouseEvent, field: FormField, mode: 'left'|'right'|'se'|'sw') {
+  this._startInlineFieldResize(ev, field, { w: '_fileW',  h: '_fileH',  ml: '_fileML'  }, '.file-input-shell',  mode);
+}
   // Inline splitter drag
   startInlineResize(ev: MouseEvent, field: FormField): void {
     ev.stopPropagation(); // don't start dragging the outer block
@@ -729,7 +1150,6 @@ startDateResize(ev: MouseEvent, field: any, mode: 'left'|'right'|'se'|'sw') {
   private identityKey(s: SavedForm): string {
     return (s.firebaseId && s.firebaseId.trim()) ? `fb:${s.firebaseId}` : `id:${s.formId}`;
   }
-
   // Find index in an array by matching identity with current record (by firebaseId, else formId)
   private findRecordIndex(list: SavedForm[], rec: { formId?: string | null; firebaseId?: string | null }): number {
     const fb = (rec.firebaseId && rec.firebaseId.trim()) ? `fb:${rec.firebaseId}` : null;
@@ -739,24 +1159,244 @@ startDateResize(ev: MouseEvent, field: any, mode: 'left'|'right'|'se'|'sw') {
       return (fb && key === fb) || (!fb && id && key === id);
     });
   }
-  private makeDataGridField(): FormField {
-    return {
-      id: this.generateId(),
-      label: 'Data Grid',
-      type: 'data-grid',
-      required: false,
-      position: { x: 0, y: 0 },
-      width: 420,
-      height: 180,
-      gridConfig: {
-        columns: [],
+  private normalizeGridForSave(pages: FormPage[]) {
+  pages.forEach(p =>
+    p.fields.forEach((f: any) => {
+      const t = String(f.type || '').toLowerCase().replace(/\s|_/g,'-');
+      if (t === 'data-grid' || t === 'datagrid' || t === 'grid' || t === 'matrix') {
+        f.type = 'data-grid';
+        const gm = (f.gridMatrix ||= { rows: 1, cols: 1, cells: [[{ items: [] }]] });
+        gm.cellH ??= 140; gm.gap ??= 12; gm.showBorders ??= true;
+        gm.rows = Math.max(1, gm.rows || gm.cells?.length || 1);
+        gm.cols = Math.max(1, gm.cols || gm.cells?.[0]?.length || 1);
+        gm.cells = Array.from({ length: gm.rows }, (_, r) =>
+          Array.from({ length: gm.cols }, (_, c) => {
+            const cell = gm.cells?.[r]?.[c] || { items: [] };
+            cell.items = (cell.items || []).map((it: any) => ({
+              ...it,
+              value: it.value ?? (it.type === 'checkbox' ? [] : null),
+              options: Array.isArray(it.options)
+                ? it.options.map((o: any) => ({
+                    label: o.label ?? String(o.value ?? ''),
+                    value: o.value ?? o.label ?? ''
+                  }))
+                : undefined
+            }));
+            return cell;
+          })
+        );
+      }
+    })
+  );
+}
+private makeDataGridField(): FormField {
+  const rows = 2, cols = 2;
+  const cells = Array.from({length: rows}, () =>
+    Array.from({length: cols}, () => ({ items: [] }))
+  );
+  return {
+    id: this.generateId(),
+    label: 'Data Grid',
+    type: 'data-grid',
+    required: false,
+    position: { x: 0, y: 0 },
+    width: 480,
+    height: 240,
+    gridMode: 'matrix',
+    gridMatrix: { rows, cols, cells, showBorders: true, cellW: 160, cellH: 90, gap: 8 },
+    gridConfig: { columns: [], addRowText: 'Add row', minRows: 0 },
+    rows: []
+  };
+}
 
-        addRowText: 'Add row',
-        minRows: 0
-      },
-      rows: []   // no rows yet
+canEnterCell = (_drag: any, drop: any) =>
+  drop.element?.nativeElement?.classList?.contains('dg-cell-drop');
+// All droplist ids that this grid connects to (plus 'palette')
+connectedGridLists(field: FormField): string[] {
+  const gm = field.gridMatrix!;
+  const ids: string[] = [];
+  for (let r = 0; r < gm.rows; r++) {
+    for (let c = 0; c < gm.cols; c++) ids.push(this.cellListId(field, r, c));
+  }
+  ids.push('fieldPalette'); // allow copying from palette
+  return ids;
+}
+cellListId(field: FormField, r: number, c: number) {
+  return `dg-${field.id}-${r}-${c}`;
+}
+ensureMatrixWidth(field: FormField, cols = 2) {
+  // init if missing
+  if (!field.gridMatrix) {
+    field.gridMatrix = {
+      rows: 1,
+      cols: Math.max(1, cols),
+      showBorders: true,
+      gap: 12,
+      cellH: 140,
+      cells: [[{ items: [] }]]
     };
   }
+
+  const gm = field.gridMatrix;
+  gm.cols = Math.max(1, cols);
+  gm.rows = Math.max(1, gm.rows || gm.cells?.length || 1);
+
+  const prevCells = gm.cells || [];
+
+  // rebuild cells grid to exact rows×cols, preserving old cells when present
+  gm.cells = Array.from({ length: gm.rows }, (_, r) =>
+    Array.from({ length: gm.cols }, (_, c) => {
+      const cell = prevCells?.[r]?.[c] ?? { items: [] as any[] };
+
+      // make sure every item has a value target for ngModel
+      cell.items = (cell.items || []).map((it: any) => ({
+        ...it,
+        value: it?.value ?? (it?.type === 'checkbox' ? [] : null)
+      }));
+
+      return cell;
+    })
+  );
+
+  // one-time sensible defaults
+  gm.cellH ??= 140;
+  gm.gap ??= 12;
+  gm.showBorders ??= true;
+
+  field.gridMode = 'matrix';
+}
+dropIntoGridCell(
+  e: CdkDragDrop<GridItem[]>,
+  field: FormField,
+  r: number,
+  c: number,
+  cellEl?: HTMLElement
+) {
+  if (field.type !== 'data-grid' || field.gridMode !== 'matrix' || !field.gridMatrix) return;
+
+  const target = field.gridMatrix.cells[r][c].items;
+
+  // 0) Same-container reorder
+  if (e.previousContainer === e.container) {
+    moveItemInArray(target, e.previousIndex, e.currentIndex);
+    this.clampGridItems(field); 
+    return;
+  }
+
+  // 1) Move between cells within this grid
+  if (e.previousContainer.id.startsWith(`dg-${field.id}-`)) {
+    transferArrayItem(e.previousContainer.data, target, e.previousIndex, e.currentIndex);
+    // ensure position stays inside new cell
+    const moved = target[e.currentIndex];
+    if (moved && !moved.pos) moved.pos = { x: 6, y: 6 }; 
+    this.clampGridItems(field);        // NEW (safety)
+    return;
+  }
+
+  // Helper: clone and initialise a grid item
+  const makeGridItem = (def: any): GridItem => ({
+    id: `${def.id}-${(crypto as any).randomUUID?.() || Date.now()}`,
+    type: def.type,
+    label: def.label,
+    options: def.options ? def.options.map((o: any) => ({ ...o })) : undefined,
+    ...(def.type === 'checkbox' ? { value: [] as string[] } : { value: null as any }),
+    pos: { x: 6, y: 6 },                                       // NEW default
+    size: { w: 220, h: 60 },                                   // NEW default
+  });
+
+  // --- NEW: compute drop position relative to the cell ---
+const setDropPosition = (g: GridItem) => {
+  if (!cellEl || !this.pointerPosition) return;
+  const rect = cellEl.getBoundingClientRect();
+  const x = Math.max(6, Math.round(this.pointerPosition.x - rect.left));
+  const y = Math.max(6, Math.round(this.pointerPosition.y - rect.top));
+  g.pos = { x, y };
+  const maxW = Math.max(40, rect.width - 12);
+  if (!g.size) g.size = { w: 220, h: 60 };
+  g.size.w = Math.min(g.size.w, maxW);
+};
+  // -------------------------------------------------------
+
+  // 2) From PALETTE -> GRID
+  if (e.previousContainer.id === 'fieldPalette') {
+    const def = e.item.data;
+    const copy = makeGridItem(def);
+    setDropPosition(copy);                                      // NEW
+    target.splice(e.currentIndex, 0, copy);
+    this.clampGridItems(field); 
+    return;
+  }
+
+  // 3) From CANVAS -> GRID
+  if (e.previousContainer.id === 'formCanvas') {
+    const srcField = e.item.data as FormField;
+    const copy = makeGridItem(srcField);
+    setDropPosition(copy);                                      // NEW
+    target.splice(e.currentIndex, 0, copy);
+
+    const page = this.formPages[this.currentPage];
+    const idx = page.fields.findIndex(f => f.id === srcField.id);
+    if (idx > -1) page.fields.splice(idx, 1);
+    this.clampGridItems(field); 
+    return;
+  }
+
+  // 4) Fallback
+  const def = e.item.data;
+  const copy = makeGridItem(def);
+  setDropPosition(copy);                                        // NEW
+  target.splice(e.currentIndex, 0, copy);
+  this.clampGridItems(field); 
+}
+makeTileFromPalette(def: any) {
+  const copy = { ...def };
+  // remove absolute/free-drag stuff so CSS sizing takes over
+  delete copy.position;
+  delete copy.width;
+  delete copy.height;
+  return copy;
+}
+// Grid ops
+addGridRowM(field: FormField, at?: number) {
+  if (!field.gridMatrix) return;
+  const g = field.gridMatrix;
+  const row: GridCell[] = Array.from({ length: g.cols }, () => ({ items: [] }));
+  g.cells.splice(typeof at === 'number' ? at : g.rows, 0, row);
+  g.rows++;
+    g.rows++;
+  this.clampGridItems(field);
+}
+
+addGridColM(field: FormField) {
+  const gm = field.gridMatrix!;
+  gm.cols += 1;
+  gm.cells.forEach(row => row.push({ items: [] }));
+
+  this.clampGridItems(field);
+}
+removeGridRowM(field: FormField, rowIndex: number) {
+  const gm = field.gridMatrix;
+  if (!gm) return;
+  gm.cells.splice(rowIndex, 1);
+  gm.rows = gm.cells.length;
+    this.clampGridItems(field); 
+  
+}
+
+removeGridColM(field: FormField, colIndex: number) {
+  const gm = field.gridMatrix;
+  if (!gm) return;
+  gm.cells.forEach(row => row.splice(colIndex, 1));
+  gm.cols = Math.max(1, gm.cols - 1);
+    this.clampGridItems(field); 
+}
+
+
+toggleGridBordersM(field: any) {
+  const gm = field.gridMatrix;
+  gm.showBorders = !gm.showBorders;
+}
+
   // Deduplicate by identity key (firebaseId wins when present)
   private dedupeByIdentity(list: SavedForm[]): SavedForm[] {
     const m = new Map<string, SavedForm>();
@@ -975,7 +1615,8 @@ startBranchResize(ev: MouseEvent, field: any, mode: 'left'|'right'|'se'|'sw') {
     this.formBuilderVisible = true;   // show builder
     this.formListVisible = false;     // hide list
     this.dashboardVisible = false;    // hide dashboard if shown
-    this.selectedForm = null;         // reset selection
+    this.selectedForm = null; 
+      this.isBuilderMode = true;          // reset selection
     this.currentFormId = null;
     this.formPages = [{ fields: [] }]; // fresh empty page
     this.cdr.detectChanges();
@@ -985,27 +1626,65 @@ startBranchResize(ev: MouseEvent, field: any, mode: 'left'|'right'|'se'|'sw') {
       this.initializeFreeDragPositions();
     }, 0);
   }
-  openForm(form: SavedForm): void {
-    this.selectedForm = form;
-    this.currentFormId = form.formId;
-    this.selectedBranches = (form.allowedBranches?.length ? [...form.allowedBranches] : ['ALL']);
-    // (Make sure firebaseId is preserved on selectedForm)
-    // form.firebaseId may be undefined for pure-local templates – that’s fine.
-    this.formPages = JSON.parse(JSON.stringify(form.formPages));
-    this.fixDuplicateIds();
-    this.checkDuplicateIds();
-    this.ensureEmailDefaultsOnAllFields();
-    this.currentPage = 0;
-    this.dashboardVisible = false;
-    this.formBuilderVisible = true;
-    this.formListVisible = false;
+  startTitleResize(evt: MouseEvent, field: any, dir: 'n'|'s'|'e'|'w'|'nw'|'ne'|'sw'|'se') {
+  evt.preventDefault(); evt.stopPropagation();
+  field._lockParentDrag = true; // if you use this elsewhere, it will stop parent drag
 
-    this.cdr.detectChanges();
-    setTimeout(() => {
-      this.initCanvases();
-      this.initializeFreeDragPositions();
-    }, 0);
-  }
+  const shell = (evt.target as HTMLElement).closest('.title-input-shell') as HTMLElement;
+  const startX = evt.clientX, startY = evt.clientY;
+  const startW = shell.offsetWidth, startH = shell.offsetHeight;
+  const minW = 140, minH = 36;
+
+  const onMove = (e: MouseEvent) => {
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+
+    let w = startW, h = startH;
+    if (dir.includes('e')) w = Math.max(minW, startW + dx);
+    if (dir.includes('w')) w = Math.max(minW, startW - dx);
+    if (dir.includes('s')) h = Math.max(minH, startH + dy);
+    if (dir.includes('n')) h = Math.max(minH, startH - dy);
+
+    field._titleW = w;
+    field._titleH = h;
+  };
+
+  const onUp = () => {
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+    field._lockParentDrag = false;
+  };
+
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+}
+ openForm(form: SavedForm) {
+  this.isFillMode = false;
+  this.selectedForm = form;
+  this.currentFormId = form.formId;
+ this.isBuilderMode = true; 
+   this.fillLayoutMode = 'exact';  
+     this.selectedForm = form;
+  this.currentFormId = form.formId;
+  this.formPages = this.cloneAndRehydrate(form.formPages); // ← important
+  this.formPages = this.cloneAndRehydrate(form.formPages);
+  this.formPages.forEach(p =>
+    p.fields
+      .filter(f => f.type === 'data-grid')
+      .forEach(f => this.clampGridItems(f))
+  );
+
+  this.currentPage = 0;
+  this.dashboardVisible = false;
+  this.formBuilderVisible = true;
+  this.formListVisible = false;
+
+  this.cdr.detectChanges();
+  setTimeout(() => {
+    this.initCanvases();
+    this.initializeFreeDragPositions();
+  }, 0);
+}
   openFieldConfig() {
     const canvas = document.getElementById('formCanvas');
     if (!canvas) return;
@@ -1114,6 +1793,7 @@ startBranchResize(ev: MouseEvent, field: any, mode: 'left'|'right'|'se'|'sw') {
   @HostListener('document:mousemove', ['$event'])
   onMouseMove(event: MouseEvent) {
     this.pointerPosition = { x: event.clientX, y: event.clientY };
+    this.lastPointer = { x: event.clientX, y: event.clientY };
   }
   isRequiredField(field: FormField): boolean {
     const label = (field.label || '').trim().toLowerCase();
@@ -1199,7 +1879,11 @@ startBranchResize(ev: MouseEvent, field: any, mode: 'left'|'right'|'se'|'sw') {
         }
         return !!field.value; // fallback if ever used as single checkbox
 
+case 'radio':
+  return field.value !== undefined && field.value !== null && String(field.value) !== '';
 
+case 'file':
+  return !!field.value; // you set base64 in onFileSelected
       case 'data-grid': {
         const rows = field.rows || [];
         if (!rows.length) return false;
@@ -1290,99 +1974,173 @@ startBranchResize(ev: MouseEvent, field: any, mode: 'left'|'right'|'se'|'sw') {
       reader.readAsDataURL(file);
     }
   }
+  startCheckboxResize(ev: MouseEvent, field: any, mode: 'left'|'right'|'se'|'sw') {
+  ev.preventDefault();
+  ev.stopPropagation();
 
+  const shell = (ev.currentTarget as HTMLElement).closest('.checkbox-input-shell') as HTMLElement | null;
+  if (!shell) return;
+
+  const r = shell.getBoundingClientRect();
+  const startW  = field._checkW  ?? Math.round(r.width)  ?? 260;
+  const startH  = field._checkH  ?? Math.round(r.height) ?? 40;
+  const startML = field._checkML ?? 0;
+
+  const startX = ev.pageX, startY = ev.pageY;
+  const clamp = (v:number,a:number,b:number)=>Math.max(a,Math.min(b,v));
+  const MIN_W=140, MAX_W=1200, MIN_H=28, MIN_ML=-240, MAX_ML=400;
+
+  const prevC = document.body.style.cursor;
+  const prevSel = (document.body.style as any).userSelect;
+  document.body.style.cursor = (mode==='se'||mode==='sw') ? 'nwse-resize' : 'ew-resize';
+  (document.body.style as any).userSelect = 'none';
+
+  const onMove = (e: MouseEvent) => {
+    const dx = e.pageX - startX;
+    const dy = e.pageY - startY;
+
+    let W=startW, H=startH, ML=startML;
+    if (mode==='right'){ W = clamp(startW + dx, MIN_W, MAX_W); }
+    else if (mode==='left'){ W = clamp(startW - dx, MIN_W, MAX_W); ML = clamp(startML + dx, MIN_ML, MAX_ML); }
+    else if (mode==='se'){ W = clamp(startW + dx, MIN_W, MAX_W); H = Math.max(MIN_H, startH + dy); }
+    else if (mode==='sw'){ W = clamp(startW - dx, MIN_W, MAX_W); H = Math.max(MIN_H, startH + dy); ML = clamp(startML + dx, MIN_ML, MAX_ML); }
+
+    field._checkW  = Math.round(W);
+    field._checkH  = Math.round(H);
+    field._checkML = Math.round(ML);
+  };
+
+  const onUp = () => {
+    window.removeEventListener('mousemove', onMove, true);
+    window.removeEventListener('mouseup', onUp, true);
+    document.body.style.cursor = prevC;
+    (document.body.style as any).userSelect = prevSel;
+  };
+
+  window.addEventListener('mousemove', onMove, true);
+  window.addEventListener('mouseup', onUp, true);
+}
+deleteCheckboxOption(field: FormField, idx: number): void {
+  if (!field.options || idx < 0 || idx >= field.options.length) return;
+
+  // remove the option
+  field.options.splice(idx, 1);
+
+  // keep at least one option
+  if (field.options.length === 0) {
+    field.options.push({ label: 'Option 1', value: 'opt1', checked: false });
+  }
+
+  // normalize labels/values after deletion
+  field.options = field.options.map((o, i) => ({
+    label: (o.label && o.label.trim()) || `Option ${i + 1}`,
+    value: o.value ?? `opt${i + 1}`,
+    checked: !!o.checked
+  }));
+
+  this.cdr.markForCheck();
+}
   onDrop(event: CdkDragDrop<FormField[]>) {
-    if (!event.isPointerOverContainer) return;
+  if (!event.isPointerOverContainer) return;
 
-    const draggedField = event.item.data;
+  const draggedField = event.item.data;
 
-    // Check if it's a new field or one already on the canvas
-    const isExistingField = this.formPages[this.currentPage].fields.some(
-      f => f.id === draggedField.id
-    );
+  // Get drop position (relative to the canvas/container)
+  const containerEl = event.container.element.nativeElement;
+  const containerRect = containerEl.getBoundingClientRect();
+  const nativeEvent = event.event as MouseEvent;
+  const clientX = nativeEvent?.clientX ?? 0;
+  const clientY = nativeEvent?.clientY ?? 0;
 
-    // Get drop position
-    const containerRect = event.container.element.nativeElement.getBoundingClientRect();
-    const nativeEvent = event.event as MouseEvent;
-    const clientX = nativeEvent?.clientX ?? 0;
-    const clientY = nativeEvent?.clientY ?? 0;
-    const paddingLeft = 10;
-    const paddingTop = 10;
-    const rawX = clientX - containerRect.left + event.container.element.nativeElement.scrollLeft;
-    const rawY = clientY - containerRect.top + event.container.element.nativeElement.scrollTop;
+  const paddingLeft = 10;
+  const paddingTop = 10;
+  const rawX = clientX - containerRect.left + containerEl.scrollLeft;
+  const rawY = clientY - containerRect.top + containerEl.scrollTop;
 
-    const gridSize = 20;
-    let snappedX = Math.round((rawX - paddingLeft) / gridSize) * gridSize;
-    let snappedY = Math.round((rawY - paddingTop) / gridSize) * gridSize;
-
-    // Avoid duplicate positions
-    const existingPositions = this.formPages[this.currentPage].fields
-      .filter(f => f.id !== draggedField.id) // only others
-      .map(f => f.position);
-    while (existingPositions.some(pos => pos?.x === snappedX && pos?.y === snappedY)) {
-      snappedX += gridSize;
-      snappedY += gridSize;
+  // ✅ If user drags a "Checkbox" palette item onto an existing checkbox field,
+  // just append an option instead of adding a new field.
+  if (draggedField?.type === 'checkbox') {
+    const target = this.findCheckboxGroupAt(rawX, rawY);
+    if (target) {
+      this.addCheckboxOption(target);
+      this.snackBar.open('Added checkbox option', 'Close', { duration: 1200 });
+      return; // stop here — don’t create a new field
     }
-
-    if (isExistingField) {
-      // Just update position
-      const field = this.formPages[this.currentPage].fields.find(f => f.id === draggedField.id);
-      if (field) field.position = { x: snappedX, y: snappedY };
-    } else {
-      // Prepare newField for modal config instead of adding immediately
-      this.newField = {
-        ...draggedField,
-        id: this.generateId(),
-        label: draggedField.label || 'New Field',
-        value: '',
-        position: { x: snappedX, y: snappedY },
-        width: 150 // default width if none provided
-      };
-      this.pendingFieldToAdd = this.newField;
-      this.fieldConfigVisible = true;
-    }
-
-    this.initializeFreeDragPositions();
-    this.fixDuplicateIds();
-    this.cdr.detectChanges(); // optional but helps sometimes
   }
 
-  onFieldDragStarted(event: CdkDragStart, field: FormField): void {
-    const pos = field.position || { x: 0, y: 0 };
-    event.source.setFreeDragPosition(pos);
+  // Otherwise keep your existing behavior (snap + add/move)
+  const isExistingField = this.formPages[this.currentPage].fields.some(
+    f => f.id === draggedField.id
+  );
+
+  const gridSize = 20;
+  let snappedX = Math.round((rawX - paddingLeft) / gridSize) * gridSize;
+  let snappedY = Math.round((rawY - paddingTop) / gridSize) * gridSize;
+
+  const existingPositions = this.formPages[this.currentPage].fields
+    .filter(f => f.id !== draggedField.id)
+    .map(f => f.position);
+
+  while (existingPositions.some(pos => pos?.x === snappedX && pos?.y === snappedY)) {
+    snappedX += gridSize;
+    snappedY += gridSize;
   }
 
-  onFieldDragMoved(event: CdkDragMove, field: FormField): void {
-    const position = event.source.getFreeDragPosition();
-    field.position = { x: position.x, y: position.y };
-    this.cdr.detectChanges();
+  if (isExistingField) {
+    const field = this.formPages[this.currentPage].fields.find(f => f.id === draggedField.id);
+    if (field) field.position = { x: snappedX, y: snappedY };
+  } else {
+    // Prepare new field (as you had)
+    this.newField = {
+      ...draggedField,
+      id: this.generateId(),
+      label: draggedField.label || 'New Field',
+      value: '',
+      position: { x: snappedX, y: snappedY },
+      width: 150
+    };
+    this.pendingFieldToAdd = this.newField;
+    this.fieldConfigVisible = true;
   }
 
-  onFieldDragEnded(event: CdkDragEnd, field: FormField): void {
-    const gridSize = 20;
-    const maxWidth = 1000; // Prevents endless loop
-    const pos = event.source.getFreeDragPosition();
-    let x = Math.round(pos.x / gridSize) * gridSize;
-    let y = Math.round(pos.y / gridSize) * gridSize;
+  this.initializeFreeDragPositions();
+  this.fixDuplicateIds();
+  this.cdr.detectChanges();
+}
 
-    const others = this.formPages[this.currentPage].fields.filter(f => f.id !== field.id);
-    let tries = 0;
-    while (others.some(f => f.position?.x === x && f.position?.y === y) && tries < 50) {
-      x += gridSize;
-      if (x > maxWidth) { // arbitrary max width
-        x = 0;
-        y += gridSize;
-      }
-      tries++;
-    }
+  onFieldDragStarted(e: CdkDragStart, f: FormField) {
+  e.source.setFreeDragPosition(f.position || { x: 0, y: 0 });
+}
 
-    field.position = { x, y };
-    event.source.setFreeDragPosition({ x, y });
-    this.cdr.detectChanges();
+onFieldDragMoved(_e: CdkDragMove, _f: FormField) { /* no-op */ }
+
+onFieldDragEnded(event: CdkDragEnd, field: FormField) {
+  if (this.isOverAnyGridCell) return; // grid cell drop owns it
+
+  const pos = event.source.getFreeDragPosition();
+
+  const grid = 20; // snap (optional)
+  let x = Math.max(0, Math.round(pos.x / grid) * grid);
+  let y = Math.max(0, Math.round(pos.y / grid) * grid);
+
+  const canvas = document.getElementById('formCanvas');
+  if (canvas) {
+    const el = event.source.element.nativeElement as HTMLElement;
+    const maxX = Math.max(0, canvas.clientWidth  - el.offsetWidth);
+    const maxY = Math.max(0, canvas.clientHeight - el.offsetHeight);
+    x = Math.min(x, maxX);
+    y = Math.min(y, maxY);
   }
+
+  field.position = { x, y };
+  event.source.setFreeDragPosition(field.position);
+  this.freeDragPositions[field.id] = field.position;
+  this.cdr.markForCheck();
+}
 
   onDragMoved(event: CdkDragMove<any>) {
     this.pointerPosition = { x: event.pointerPosition.x, y: event.pointerPosition.y };
+      this.lastPointer   = { x: event.pointerPosition.x, y: event.pointerPosition.y };
   }
   prettyLabelForType(t: string): string {
     // fallbacks if no label given
@@ -1396,6 +2154,18 @@ startBranchResize(ev: MouseEvent, field: any, mode: 'left'|'right'|'se'|'sw') {
         .replace(/\b\w/g, m => m.toUpperCase());
     }
   }
+  getCellAutoHeight(cell: GridCell, gm: GridMatrix): number {
+  const base = gm?.cellH ?? 140;
+  let max = base;
+  for (const it of (cell?.items ?? [])) {
+    const y = it.pos?.y ?? 6;
+    const h = it.size?.h ?? 60;
+    const bottom = y + h + 6; // padding
+    if (bottom > max) max = bottom;
+  }
+  return max;
+}
+
   ensureTagDefaults() {
     this.formPages.forEach(p =>
       p.fields.forEach(f => {
@@ -1404,6 +2174,115 @@ startBranchResize(ev: MouseEvent, field: any, mode: 'left'|'right'|'se'|'sw') {
       })
     );
   }
+ startSignatureResize(ev: MouseEvent, field: any, mode: 'left'|'right'|'se'|'sw') {
+  ev.preventDefault();
+  ev.stopPropagation();
+
+  // match the HTML class below
+  const shell = (ev.currentTarget as HTMLElement).closest('.sig-input-shell') as HTMLElement | null;
+  if (!shell) return;
+
+  // lock parent drag while resizing (cdkDrag)
+  field._lockParentDrag = true;
+
+  const canvas = shell.querySelector('canvas') as HTMLCanvasElement | null;
+
+  const r = shell.getBoundingClientRect();
+  const startW  = field._sigW  ?? Math.round(r.width)  ?? 300;
+  const startH  = field._sigH  ?? Math.round(r.height) ?? 150;
+  const startML = field._sigML ?? 0;
+
+  const startX = ev.pageX, startY = ev.pageY;
+
+  const clamp = (v:number,a:number,b:number)=>Math.max(a,Math.min(b,v));
+  const MIN_W=180, MAX_W=1600, MIN_H=80, MIN_ML=-240, MAX_ML=600;
+
+  // capture current drawing to restore after resize
+  let prevImage: HTMLImageElement | null = null;
+  let prevReady = false;
+  if (canvas) {
+    try {
+      const url = canvas.toDataURL('image/png');
+      if (url) {
+        prevImage = new Image();
+        prevImage.onload = () => { prevReady = true; };
+        prevImage.src = url;
+      }
+    } catch {}
+  }
+
+  const prevC = document.body.style.cursor;
+  const prevSel = (document.body.style as any).userSelect;
+  document.body.style.cursor = (mode==='se'||mode==='sw') ? 'nwse-resize' : 'ew-resize';
+  (document.body.style as any).userSelect = 'none';
+
+  const applySize = (w:number, h:number, ml:number) => {
+    field._sigW  = Math.round(w);
+    field._sigH  = Math.round(h);
+    field._sigML = Math.round(ml);
+
+    shell.style.width  = `${field._sigW}px`;
+    shell.style.height = `${field._sigH}px`;
+
+    if (canvas) {
+      const dpr = (window.devicePixelRatio || 1);
+
+      // CSS size
+      canvas.style.width  = `${field._sigW}px`;
+      canvas.style.height = `${field._sigH}px`;
+
+      // bitmap size
+      canvas.width  = Math.max(1, Math.round(field._sigW * dpr));
+      canvas.height = Math.max(1, Math.round(field._sigH * dpr));
+
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.setTransform(1,0,0,1,0,0);
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, field._sigW, field._sigH);
+
+        if (prevImage && prevReady) {
+          try { ctx.drawImage(prevImage, 0, 0, field._sigW, field._sigH); } catch {}
+        }
+      }
+    }
+  };
+
+  const onMove = (e: MouseEvent) => {
+    const dx = e.pageX - startX;
+    const dy = e.pageY - startY;
+
+    let W = startW, H = startH, ML = startML;
+
+    if (mode === 'right') {
+      W = clamp(startW + dx, MIN_W, MAX_W);
+    } else if (mode === 'left') {
+      W  = clamp(startW - dx, MIN_W, MAX_W);
+      ML = clamp(startML + dx, MIN_ML, MAX_ML);
+    } else if (mode === 'se') {
+      W = clamp(startW + dx, MIN_W, MAX_W);
+      H = Math.max(MIN_H, startH + dy);
+    } else if (mode === 'sw') {
+      W  = clamp(startW - dx, MIN_W, MAX_W);
+      H  = Math.max(MIN_H, startH + dy);
+      ML = clamp(startML + dx, MIN_ML, MAX_ML);
+    }
+
+    applySize(W, H, ML);
+  };
+
+  const onUp = () => {
+    window.removeEventListener('mousemove', onMove, true);
+    window.removeEventListener('mouseup', onUp, true);
+    document.body.style.cursor = prevC;
+    (document.body.style as any).userSelect = prevSel;
+
+    field._lockParentDrag = false; // unlock
+  };
+
+  window.addEventListener('mousemove', onMove, true);
+  window.addEventListener('mouseup', onUp, true);
+}
   createField(): void {
     if (!this.pendingFieldToAdd) return;
     const f = { ...this.pendingFieldToAdd };
@@ -1426,6 +2305,12 @@ startBranchResize(ev: MouseEvent, field: any, mode: 'left'|'right'|'se'|'sw') {
   if (typeof f._dateH  !== 'number') f._dateH  = 36;
   if (typeof f._dateML !== 'number') f._dateML = 0;
 }
+if (f.type === 'signature') {
+  if (typeof f._sigW  !== 'number') f._sigW  = f.inputWidth ?? 300;
+  if (typeof f._sigH  !== 'number') f._sigH  = 150;
+  if (typeof f._sigML !== 'number') f._sigML = 0;       // inline left margin when labelDock is left/right
+  f.labelDock = f.labelDock || 'left';
+}
     if (f.type === 'email') {
       f.arrange = f.arrange || 'dock';           // start inline
       f.labelDock = f.labelDock || 'left';         // label on the left
@@ -1437,15 +2322,42 @@ startBranchResize(ev: MouseEvent, field: any, mode: 'left'|'right'|'se'|'sw') {
       f.inputPos = f.inputPos || { x: 12, y: 36 };
       f.inputSize = f.inputSize || { w: 220, h: 40 };
     }
-    if (f.type === 'checkbox') {
-      if (!Array.isArray(f.options) || f.options.length === 0) {
-        f.options = [
-          { label: 'Option 1', value: 'opt1', checked: false },
-          { label: 'Option 2', value: 'opt2', checked: false }
-        ];
-      }
-      delete f.value; // we won't use single boolean for multi
-    }
+    if (f.type === 'text') {
+  if (typeof f._textW  !== 'number') f._textW  = f.inputWidth ?? 240;
+  if (typeof f._textH  !== 'number') f._textH  = 36;
+  if (typeof f._textML !== 'number') f._textML = 0;
+}
+
+
+// Radio
+if (f.type === 'radio') {
+  if (!Array.isArray(f.options) || !f.options.length) {
+    f.options = [{ label: 'Yes', value: 'yes' }, { label: 'No', value: 'no' }];
+  }
+  if (typeof f._radioW  !== 'number') f._radioW  = f.inputWidth ?? 260;
+  if (typeof f._radioH  !== 'number') f._radioH  = 40;
+  if (typeof f._radioML !== 'number') f._radioML = 0;
+}
+
+// File / Photo
+if (f.type === 'file') {
+  if (typeof f._fileW  !== 'number') f._fileW  = f.inputWidth ?? 220;
+  if (typeof f._fileH  !== 'number') f._fileH  = 36;
+  if (typeof f._fileML !== 'number') f._fileML = 0;
+}
+  if (f.type === 'checkbox') {
+  if (!Array.isArray(f.options) || f.options.length === 0) {
+    f.options = [
+      { label: 'Option 1', value: 'opt1', checked: false },
+      { label: 'Option 2', value: 'opt2', checked: false }
+    ];
+  }
+  if (typeof f._checkW  !== 'number') f._checkW  = f.inputWidth ?? 260;
+  if (typeof f._checkH  !== 'number') f._checkH  = 40;   // row height; grows as needed
+  if (typeof f._checkML !== 'number') f._checkML = 0;
+  f.labelDock = f.labelDock || 'left';
+}
+    
     f.isDescription = !!f.isDescription;
     if (f.isDescription) f.role = 'description';
 
@@ -1459,22 +2371,47 @@ startBranchResize(ev: MouseEvent, field: any, mode: 'left'|'right'|'se'|'sw') {
       f.textareaPos = f.textareaPos || { x: 12, y: 36 };
       f.textareaSize = f.textareaSize || { w: 300, h: 120 };
     }
-    if (f.type === 'data-grid') {
-      // Replace the simple palette placeholder with a full grid config
-      const grid = this.makeDataGridField();
-      grid.position = f.position;    // keep drop position
-      grid.label = f.label || 'Data Grid';
-      this.formPages[this.currentPage].fields.push(grid);
-      this.fixDuplicateIds();
-      this.pendingFieldToAdd = null;
-      this.cancelFieldConfig();
-      setTimeout(() => {
-        this.initCanvases();
-        this.initializeFreeDragPositions();
-      }, 50);
-      return; // <-- important: stop here for data-grid
-    }
+    if (f.type === 'textarea') {
+  if (f.isDescription) {
+    if (!Array.isArray(f.problemItems)) f.problemItems = [];
+    if (!Number.isFinite(f.nextNo as any)) f.nextNo = (f.problemItems.length || 0) + 1;
+  }
+  if (f.useTextarea === undefined) f.useTextarea = true;
+  f.textareaPos = f.textareaPos || { x: 12, y: 36 };
+  f.textareaSize = f.textareaSize || { w: 300, h: 120 };
+}
 
+// Data grid: replace stub in-place (no duplicates)
+if (f.type === 'data-grid') {
+  const fields = this.formPages[this.currentPage].fields;
+  const idx = fields.findIndex(ff => ff.id === f.id);
+
+  const grid = this.makeDataGridField();
+  grid.position = f.position;                   // keep drop position
+  grid.label    = f.label || 'Data Grid';
+
+  this.clampGridItems?.(grid);
+
+  if (idx > -1) fields.splice(idx, 1, grid);
+  else fields.push(grid);
+
+  this.fixDuplicateIds?.();
+  this.pendingFieldToAdd = null;
+  this.cancelFieldConfig?.();
+
+  this.cdr?.detectChanges?.();
+  setTimeout(() => {
+    this.initCanvases?.();
+    this.initializeFreeDragPositions?.();
+  }, 0);
+
+  return; // stop here for data-grid
+}
+if (f.type === 'tel') {
+  f._telW  = f._telW  ?? f.inputWidth ?? 220;
+  f._telH  = f._telH  ?? 36;
+  f._telML = f._telML ?? 0;
+}
 
     f.id = this.generateId();
 
@@ -1537,17 +2474,87 @@ startBranchResize(ev: MouseEvent, field: any, mode: 'left'|'right'|'se'|'sw') {
       this.initializeFreeDragPositions();
     }, 50);
   }
-  labelOrder(f: any) { return (f?.labelDock === 'right' || f?.labelDock === 'bottom') ? 2 : 1; }
-  ctrlOrder(f: any) { return (f?.labelDock === 'right' || f?.labelDock === 'bottom') ? 1 : 2; }
-  rowLayout(f: any) {
-    switch (f?.labelDock) {
-      case 'left': case 'right': return { display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '8px' };
-      case 'bottom': return { display: 'flex', flexDirection: 'column-reverse', alignItems: 'stretch', gap: '6px' };
-      default: return { display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '6px' };
-    }
+
+
+setDock(field: any, dock: Dock) {
+  field.labelDock = dock;
+  this.cdr.markForCheck();
+}
+
+/** CONTAINER GRID:
+ *  left  -> INPUT left,  LABEL right
+ *  right -> INPUT right, LABEL left
+ *  top   -> INPUT top,   LABEL bottom
+ *  bottom-> INPUT bottom, LABEL top
+ */
+rowLayout(field: any) {
+  const dock: Dock = field?.labelDock ?? 'left';
+  const gap = '8px';
+  const labelW =
+    typeof field?.labelWidth === 'number' ? `${field.labelWidth}px` : 'max-content';
+
+  switch (dock) {
+    case 'left':   // input | label
+      return {
+        display: 'grid',
+        gridTemplateColumns: `1fr ${labelW}`,
+        alignItems: 'center',
+        columnGap: gap,
+        width: '100%',
+      };
+    case 'right':  // label | input
+      return {
+        display: 'grid',
+        gridTemplateColumns: `${labelW} 1fr`,
+        alignItems: 'center',
+        columnGap: gap,
+        width: '100%',
+      };
+    case 'top':    // input on top, label below
+      return {
+        display: 'grid',
+        gridTemplateColumns: '1fr',
+        gridTemplateRows: 'auto auto',
+        rowGap: gap,
+        width: '100%',
+      };
+    case 'bottom': // label on top, input below
+      return {
+        display: 'grid',
+        gridTemplateColumns: '1fr',
+        gridTemplateRows: 'auto auto',
+        rowGap: gap,
+        width: '100%',
+      };
   }
-  labelStyle(f: any) { if (f?.labelDock === 'left' || f?.labelDock === 'right') return { width: '120px', margin: 0 }; return { width: 'auto', marginBottom: '4px' }; }
-  ctrlStyle(f: any) { if (f?.labelDock === 'left' || f?.labelDock === 'right') return { flex: '1 1 auto', minWidth: '120px' }; return { width: '100%' }; }
+}
+
+/** LABEL cell position (opposite of input) */
+labelStyle(field: any) {
+  const dock: Dock = field?.labelDock ?? 'left';
+  const base: any = { margin: 0, alignSelf: 'center', justifySelf: 'start' };
+
+  switch (dock) {
+    case 'left':   return { ...base, gridColumn: 2, gridRow: 1 }; // right side
+    case 'right':  return { ...base, gridColumn: 1, gridRow: 1 }; // left side
+    case 'top':    return { ...base, gridColumn: 1, gridRow: 2 }; // below
+    case 'bottom': return { ...base, gridColumn: 1, gridRow: 1 }; // above
+  }
+}
+
+/** INPUT/CONTROL cell position (matches the dock) */
+ctrlStyle(field: any) {
+  const dock: Dock = field?.labelDock ?? 'left';
+  const base: any = { width: '100%' };
+
+  switch (dock) {
+    case 'left':   return { ...base, gridColumn: 1, gridRow: 1 }; // left
+    case 'right':  return { ...base, gridColumn: 2, gridRow: 1 }; // right
+    case 'top':    return { ...base, gridColumn: 1, gridRow: 1 }; // top
+    case 'bottom': return { ...base, gridColumn: 1, gridRow: 2 }; // bottom
+  }
+}
+
   onEmptyLabelInput(event: Event, field: any): void {
     const target = event.target as HTMLElement;
     field.label = target.innerText.trim();
@@ -1572,7 +2579,53 @@ startBranchResize(ev: MouseEvent, field: any, mode: 'left'|'right'|'se'|'sw') {
       field.col = (index % 2) + 1;
     });
   }
+private clampGridItems(field: FormField) {
+  const gm = field.gridMatrix;
+  if (!gm || !gm.cells || !gm.rows || !gm.cols) return;
 
+  const pad = 6;
+
+  // ✅ Resolve a definite number for cellW and cache it back to gm.cellW
+  const resolvedCellW = (() => {
+    const c = gm.cellW;
+    if (typeof c === 'number' && isFinite(c) && c > 0) return c;
+
+    const gap = gm.gap ?? 12;
+    const outerW = field.width ?? 480;
+    const cols = Math.max(1, gm.cols || (gm.cells?.[0]?.length ?? 1));
+    const totalGap = gap * (cols - 1);
+    const usable = Math.max(80, outerW - totalGap); // no extra padding if CSS doesn't add it
+    const v = Math.max(80, Math.floor(usable / cols));
+    gm.cellW = v;    // cache for later calls
+    return v;
+  })();
+
+  const cellH = gm.cellH ?? 140;
+
+  gm.cells.forEach(row =>
+    row.forEach(cell => {
+      (cell.items || []).forEach(it => {
+        const w0 = it.size?.w ?? 220;
+        const h0 = it.size?.h ?? 60;
+
+        const w = Math.min(w0, Math.max(40, resolvedCellW - pad * 2));
+        const h = h0;
+
+        const x0 = it.pos?.x ?? pad;
+        const y0 = it.pos?.y ?? pad;
+
+        const maxX = Math.max(pad, resolvedCellW - w - pad);
+        const maxY = Math.max(pad, cellH - h - pad);
+
+        const x = Math.max(pad, Math.min(x0, maxX));
+        const y = Math.max(pad, Math.min(y0, maxY));
+
+        it.pos = { x, y };
+        it.size = { w, h };
+      });
+    })
+  );
+}
   private ensureFieldPositions(): void {
     this.formPages.forEach(page => {
       page.fields.forEach(field => {
@@ -1762,6 +2815,11 @@ startBranchResize(ev: MouseEvent, field: any, mode: 'left'|'right'|'se'|'sw') {
     this.isEditingMaster = true;
 
     this.formPages = JSON.parse(JSON.stringify(form.formPages));
+    this.formPages.forEach(p =>
+  p.fields
+    .filter(f => f.type === 'data-grid')
+    .forEach(f => this.clampGridItems(f))
+);
 
     this.fixDuplicateIds();
     this.checkDuplicateIds();
@@ -1797,7 +2855,9 @@ startBranchResize(ev: MouseEvent, field: any, mode: 'left'|'right'|'se'|'sw') {
       return vis.includes('ALL') || vis.includes(target);
     });
   }
-
+openToFill(form: SavedForm) {
+  this.router.navigate(['/forms/fill'], { state: { template: form } });
+}
   backToDashboard(): void {
     this.router.navigate(['/dashboard']);
   }
@@ -1810,7 +2870,8 @@ startBranchResize(ev: MouseEvent, field: any, mode: 'left'|'right'|'se'|'sw') {
       const localNorm: SavedForm[] = local.map(it => ({
         formId: it.formId || this.generateId(),
         formName: it.formName || 'Untitled',
-        formPages: it.formPages || [],
+      
+        formPages: this.cloneAndRehydrate(it.formPages),
         firebaseId: it.firebaseId ?? undefined,
         allowedBranches: it.allowedBranches || ['ALL']
       }));
@@ -1835,7 +2896,7 @@ startBranchResize(ev: MouseEvent, field: any, mode: 'left'|'right'|'se'|'sw') {
       const remoteNorm: SavedForm[] = (remote || []).map((it: any) => ({
         formId: it.formId,                  // ✅ use the service's formId
         formName: it.formName || 'Untitled',
-        formPages: it.formPages || [],
+  formPages: this.cloneAndRehydrate(it.formPages),
         firebaseId: it.firebaseId,
         allowedBranches: it.allowedBranches || ['ALL'],           // ✅ use the service's firebaseId
       }));
@@ -1945,131 +3006,160 @@ startBranchResize(ev: MouseEvent, field: any, mode: 'left'|'right'|'se'|'sw') {
     const pad = (x: number) => x.toString().padStart(2, '0');
     return `Untitled ${n.getFullYear()}-${pad(n.getMonth() + 1)}-${pad(n.getDate())} ${pad(n.getHours())}${pad(n.getMinutes())}`;
   }
-  async saveForm(): Promise<void> {
-    if (!this.formPages?.[0]?.fields?.length) {
-      this.snackBar.open('Cannot save an empty form', 'Close', { duration: 2500 });
+public gridCellWFromWrapper(f: any): number {
+  const gm   = f?.gridMatrix || {};
+  const cols = Math.max(1, gm.cols ?? (f?.gridMatrix?.cells?.[0]?.length || 1));
+  const gap  = Math.max(0, gm.gap ?? 12);
+  const wrapW = Math.max(40, Math.round(f?.width ?? 300));
+  return Math.max(40, Math.floor((wrapW - gap * (cols - 1)) / cols));
+}
+
+// was: private gridCellHFromWrapper(...)
+public gridCellHFromWrapper(f: any): number {
+  const gm   = f?.gridMatrix || {};
+  const rows = Math.max(1, gm.rows ?? (f?.gridMatrix?.cells?.length || 1));
+  const gap  = Math.max(0, gm.gap ?? 12);
+  const wrapH = Math.max(40, Math.round(f?.height ?? 240));
+  return Math.max(40, Math.floor((wrapH - gap * (rows - 1)) / rows));
+}
+
+// ensure this is public too
+public gridColsCss(f: any): string {
+  const cols  = Math.max(1, f?.gridMatrix?.cols ?? (f?.gridMatrix?.cells?.[0]?.length || 1));
+  const cellW = this.gridCellWFromWrapper(f);
+  return `repeat(${cols}, ${cellW}px)`;
+}
+  
+async saveForm(): Promise<void> {
+  if (!this.formPages?.[0]?.fields?.length) {
+    this.snackBar.open('Cannot save an empty form', 'Close', { duration: 2500 });
+    return;
+  }
+
+  // 1) Capture signatures (skip safely if canvas is not present)
+  try {
+    this.formPages.forEach(p =>
+      p.fields.forEach(f => {
+        if (f.type === 'signature') {
+          const ref = this.canvasRefs?.find(r => r.nativeElement.getAttribute('data-id') === f.id);
+          if (ref?.nativeElement) {
+            f.value = ref.nativeElement.toDataURL();
+          }
+        }
+      })
+    );
+  } catch { /* ignore capture errors to avoid blocking save */ }
+  this.captureCurrentLayoutForSave(this.formPages);
+  // 2) Load current local list
+  const local = this.readLocalTemplates();
+
+  // 3) Figure out name + firebaseId without prompting if editing
+  const localIdxById = this.currentFormId
+    ? local.findIndex(x => x.formId === this.currentFormId)
+    : -1;
+
+  let name = (this.selectedForm?.formName || local[localIdxById]?.formName || '').trim();
+  let existingFirebaseId = (this.selectedForm?.firebaseId || local[localIdxById]?.firebaseId || null) || null;
+
+  if (!this.currentFormId && !this.selectedForm) {
+    const raw = prompt('Enter template name:', 'form') || '';
+    name = raw.trim();
+    if (!name) {
+      this.snackBar.open('Please enter a valid name.', 'Close', { duration: 2500 });
       return;
     }
-
-    // 1) Capture signatures (skip safely if canvas is not present)
-    try {
-      this.formPages.forEach(p =>
-        p.fields.forEach(f => {
-          if (f.type === 'signature') {
-            const ref = this.canvasRefs?.find(r => r.nativeElement.getAttribute('data-id') === f.id);
-            if (ref?.nativeElement) {
-              f.value = ref.nativeElement.toDataURL();
-            }
-          }
-        })
-      );
-    } catch { /* ignore capture errors to avoid blocking save */ }
-
-    // 2) Load current local list
-    const local = this.readLocalTemplates();
-
-    // 3) Figure out name + firebaseId without prompting if editing
-    const localIdxById = this.currentFormId
-      ? local.findIndex(x => x.formId === this.currentFormId)
-      : -1;
-
-    let name = (this.selectedForm?.formName || local[localIdxById]?.formName || '').trim();
-    let existingFirebaseId = (this.selectedForm?.firebaseId || local[localIdxById]?.firebaseId || null) || null;
-
-    // If it's truly brand new (no selectedForm and no currentFormId), prompt once
-    if (!this.currentFormId && !this.selectedForm) {
-      const raw = prompt('Enter template name:', 'form') || '';
-      name = raw.trim();
-      if (!name) {
-        this.snackBar.open('Please enter a valid name.', 'Close', { duration: 2500 });
-        return;
-      }
-    }
-    if (!name) name = 'Untitled';
-    const selection = (this.selectedForm?.allowedBranches?.length
-      ? [...this.selectedForm.allowedBranches!]
-      : [...this.selectedBranches]);
-    let allowedForThis: Branch[];    // what we store on master doc
-    let branchesToMirror: Branch[];  // concrete copies to update/create
-
-    if (!this.canManageAllBranches) {
-      // 🔒 Non-managers: lock to their branch only
-      const b = (this.currentBranch ?? 'ALL');
-      const concrete = (b === 'ALL') ? ['MACKAY', 'YAT', 'NSW'] as Branch[] : [b as Branch];
-      allowedForThis = concrete;     // do NOT allow ALL sentinel for non-managers
-      branchesToMirror = concrete;
-    } else {
-      // Managers keep your current behavior
-      allowedForThis = selection.length ? selection : (['ALL'] as Branch[]);
-      branchesToMirror = selection.includes('ALL')
-        ? ['MACKAY', 'YAT', 'NSW']
-        : selection.filter(x => x !== 'ALL');
-    }
-
-
-    // 4) Save to Firebase (update when firebaseId exists; else create)
-    let firebaseId = '';
-    try {
-      if (existingFirebaseId && existingFirebaseId.trim()) {
-        // UPDATE master
-        await this.formService.updateFormTemplate(existingFirebaseId, {
-          formName: name,
-          formPages: this.formPages as any[],
-          allowedBranches: allowedForThis,
-        });
-
-
-        // ✅ ALSO UPDATE branch copies
-        await this.formService.updateTemplateInBranches(
-          existingFirebaseId,
-          { formName: name, formPages: this.formPages as any[], allowedBranches: allowedForThis },
-          branchesToMirror
-        );
-
-        firebaseId = existingFirebaseId;
-      } else {
-        // CREATE master + DUPLICATE into branches
-        firebaseId = await this.formService.saveFormTemplateToBranches(
-          name,
-          this.formPages as any[],
-          branchesToMirror,                                      // ✅ concrete list
-          allowedForThis
-        );
-      }
-    } catch (e) {
-      console.error('Firebase save failed', e);
-      this.snackBar.open('Saved locally. Firebase save failed.', 'Close', { duration: 3000 });
-    }
-    allowedForThis = this.normalizeBranches(allowedForThis);
-    branchesToMirror = this.normalizeBranches(branchesToMirror)
-      .filter(b => b !== 'ALL');
-    // 5) Build final record
-    const idToUse = this.currentFormId || this.selectedForm?.formId || this.generateId();
-    const record: SavedForm = {
-      formId: idToUse,
-      formName: name,
-      formPages: this.formPages,
-      firebaseId: firebaseId && firebaseId.trim() ? firebaseId : undefined,
-      allowedBranches: allowedForThis,
-    };
-
-    // 6) Merge into local list by identity (prefers firebaseId)
-    const idx = this.findRecordIndex(local, { formId: idToUse, firebaseId: record.firebaseId || null });
-    if (idx >= 0) {
-      local[idx] = record;
-    } else {
-      local.push(record);
-    }
-
-    // 7) Persist and sync in-memory list (dedupe by identity)
-    this.writeLocalTemplates(local);
-
-    // 8) Update component state consistently
-    this.currentFormId = idToUse;
-    this.selectedForm = record;
-    this.selectedBranches = [...allowedForThis];
-    this.snackBar.open('Template saved.', 'Close', { duration: 2000 });
   }
+  if (!name) name = 'Untitled';
+
+  const selection = (this.selectedForm?.allowedBranches?.length
+    ? [...this.selectedForm.allowedBranches!]
+    : [...this.selectedBranches]);
+
+  let allowedForThis: Branch[];    // master doc
+  let branchesToMirror: Branch[];  // concrete branch copies
+
+  if (!this.canManageAllBranches) {
+    const b = (this.currentBranch ?? 'ALL');
+    const concrete = (b === 'ALL') ? ['MACKAY', 'YAT', 'NSW'] as Branch[] : [b as Branch];
+    allowedForThis = concrete;
+    branchesToMirror = concrete;
+  } else {
+    allowedForThis = selection.length ? selection : (['ALL'] as Branch[]);
+    branchesToMirror = selection.includes('ALL')
+      ? ['MACKAY', 'YAT', 'NSW']
+      : selection.filter(x => x !== 'ALL');
+  }
+this.formPages.forEach(p =>
+  p.fields
+    .filter(f => f.type === 'data-grid')
+    .forEach(f => this.clampGridItems(f))
+);
+  // 🚩 NEW: build a deep copy and normalize grids BEFORE saving
+  const pagesToSave = serializeForFirestorePages(this.formPages);
+
+  // 4) Save to Firebase (update when firebaseId exists; else create)
+  let firebaseId = '';
+  try {
+    if (existingFirebaseId && existingFirebaseId.trim()) {
+      // UPDATE master
+      await this.formService.updateFormTemplate(existingFirebaseId, {
+        formName: name,
+        formPages: pagesToSave,                // <<< use normalized pages
+        allowedBranches: allowedForThis,
+      });
+
+      // ✅ ALSO UPDATE branch copies
+      await this.formService.updateTemplateInBranches(
+        existingFirebaseId,
+        { formName: name, formPages: pagesToSave, allowedBranches: allowedForThis }, // <<< use normalized pages
+        branchesToMirror
+      );
+
+      firebaseId = existingFirebaseId;
+    } else {
+      // CREATE master + DUPLICATE into branches
+      firebaseId = await this.formService.saveFormTemplateToBranches(
+        name,
+        pagesToSave,                             // <<< use normalized pages
+        branchesToMirror,
+        allowedForThis
+      );
+    }
+  } catch (e) {
+    console.error('Firebase save failed', e);
+    this.snackBar.open('Saved locally. Firebase save failed.', 'Close', { duration: 3000 });
+  }
+
+  allowedForThis = this.normalizeBranches(allowedForThis);
+  branchesToMirror = this.normalizeBranches(branchesToMirror).filter(b => b !== 'ALL');
+
+  // 5) Build final record (store normalized pages locally too)
+  const idToUse = this.currentFormId || this.selectedForm?.formId || this.generateId();
+  const record: SavedForm = {
+    formId: idToUse,
+    formName: name,
+    formPages: pagesToSave,                     // <<< use normalized pages
+    firebaseId: firebaseId && firebaseId.trim() ? firebaseId : undefined,
+    allowedBranches: allowedForThis,
+  };
+
+  // 6) Merge into local list by identity (prefers firebaseId)
+  const idx = this.findRecordIndex(local, { formId: idToUse, firebaseId: record.firebaseId || null });
+  if (idx >= 0) {
+    local[idx] = record;
+  } else {
+    local.push(record);
+  }
+
+  // 7) Persist and sync in-memory list (dedupe by identity)
+  this.writeLocalTemplates(local);
+
+  // 8) Update component state consistently
+  this.currentFormId = idToUse;
+  this.selectedForm = record;
+  this.selectedBranches = [...allowedForThis];
+  this.snackBar.open('Template saved.', 'Close', { duration: 2000 });
+}
   displayBranches(f: SavedForm): string[] {
     const ab = this.normalizeBranches(f?.allowedBranches);
     return ab.includes('ALL') ? ['ALL'] : ab;
@@ -2235,13 +3325,24 @@ startBranchResize(ev: MouseEvent, field: any, mode: 'left'|'right'|'se'|'sw') {
     ctx.lineTo(pos.x, pos.y);
     ctx.stroke();
   }
+stopDrawing(e: PointerEvent, fieldId: string): void {
+  if (!this.drawingMap[fieldId]) return;
 
-  stopDrawing(e: PointerEvent, fieldId: string): void {
-    if (!this.drawingMap[fieldId]) return;
-    const ctx = this.ctxMap[fieldId];
-    this.drawingMap[fieldId] = false;
-    ctx?.closePath();
-  }
+  const ctx = this.ctxMap[fieldId];
+  this.drawingMap[fieldId] = false;
+  ctx?.closePath();
+
+  // ✅ save the drawn signature into the field's value
+  const canvas = this.getCanvasById(fieldId);
+  if (!canvas) return;
+
+  const dataUrl = canvas.toDataURL('image/png');
+  const field = this.formPages[this.currentPage].fields.find(f => f.id === fieldId);
+  if (field) field.value = dataUrl;
+
+  // (optional) mark for change detection if needed
+  this.cdr.markForCheck();
+}
 
   getCanvasById(fieldId: string): HTMLCanvasElement | undefined {
     return this.canvasRefs.find(ref => ref.nativeElement.getAttribute('data-id') === fieldId)?.nativeElement;

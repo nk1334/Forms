@@ -388,8 +388,132 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
   pointer-events: auto !important;
 }
 
-/* Anything below (blue section header/card) sits under the toolbar */
-.section-header, .templates-card, .main-content { position: relative; z-index: 1; }
 
-/* Menus/dialogs/Select panel above everything */
-.cdk-overlay-container { position: fixed; z-index: 2000; }
+
+/* remove the A4 vars entirely */
+
+
+/* scroll area already exists; just let it fill */
+.canvas-scroll{ flex:1 1 auto; overflow:auto; }
+
+/* frame fills the available space */
+.page-frame{
+  display:flex; justify-content:center; align-items:flex-start;
+  width:100%; height:100%;
+  padding:16px; background:#f4f5f7;
+}
+
+/* the actual canvas = 100% of the viewport area */
+.page-sheet{
+  width:100%;          /* was var(--page-w) */
+  min-height:100%;     /* was fixed height */
+  height:auto;         /* grows with content */
+  position:relative; background:#fff;
+  box-shadow:0 2px 16px rgba(0,0,0,.08);
+  overflow:hidden;
+}
+
+/* keep consistent box model */
+.page-sheet, .page-sheet * { box-sizing:border-box; }
+/* Add a subtle resize corner only for textarea inputs */
+.textarea-resizable-both {
+  resize: both;            /* allow manual resize */
+  overflow: auto;
+  box-sizing: border-box;
+  position: relative;
+}
+
+/* visual corner */
+.textarea-resizable-both::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 12px;
+  height: 12px;
+  border-right: 2px solid #ccc;
+  border-bottom: 2px solid #ccc;
+  pointer-events: none;
+}
+/* Default: no corner grip in fill mode */
+.field-wrapper.fill-mode .textarea-resizable-both::after {
+  display: none !important;
+}
+
+/* Builder mode: show subtle resize grip */
+.field-wrapper.builder-mode .textarea-resizable-both {
+  resize: both;
+  overflow: auto;
+  position: relative;
+}
+.field-wrapper.builder-mode .textarea-resizable-both::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 12px;
+  height: 12px;
+  border-right: 2px solid #ccc;
+  border-bottom: 2px solid #ccc;
+  pointer-events: none;
+}
+.field-wrapper.fill-mode {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+.field-wrapper.fill-mode .corner-grip,
+.field-wrapper.fill-mode .edge-grip,
+.field-wrapper.fill-mode .row-handle,
+.field-wrapper.fill-mode .delete-button,
+.field-wrapper.fill-mode .inline-drag {
+  display: none !important;
+}
+
+/* Neat label + control stacking */
+.field-wrapper.fill-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.field-wrapper.fill-mode .field-label {
+  font-weight: 600;
+  font-size: 14px;
+  margin: 0 0 2px 0;
+  color: #222;
+}
+
+/* Make inner control fill the saved box */
+.field-wrapper.fill-mode .fw-control,
+.field-wrapper.fill-mode .fw-field {
+  width: 100%;
+  height: 100%;
+}
+
+/* Tighten Material field so it fills height nicely */
+.field-wrapper.fill-mode .mat-mdc-form-field { display:block; width:100%; height:100%; }
+.field-wrapper.fill-mode .mat-mdc-text-field-wrapper { height:100%; align-items:stretch; }
+.field-wrapper.fill-mode .mat-mdc-form-field-infix {
+  display:flex; align-items:center; height:100%; width:100%;
+  box-sizing:border-box; padding: 8px 12px;
+}
+.field-wrapper.fill-mode .mat-mdc-input-element { width:100%; height:100%; box-sizing:border-box; }
+
+/* Description: allow vertical resize by user */
+.field-wrapper.fill-mode.desc-resize .desc-input {
+  width: 100% !important;
+  min-height: 60px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+/* Small corner hint ONLY for Description in Fill mode */
+.field-wrapper.fill-mode.desc-resize::after {
+  content:"";
+  position:absolute;
+  right:6px; bottom:6px;
+  width:12px; height:12px;
+  border-right:2px solid #bbb; border-bottom:2px solid #bbb;
+  pointer-events:none;
+}

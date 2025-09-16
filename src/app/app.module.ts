@@ -42,9 +42,11 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatRadioModule } from '@angular/material/radio';
-
+import { CdkTableModule } from '@angular/cdk/table';
+import { MatDividerModule } from '@angular/material/divider';
 import { MatMenuModule } from '@angular/material/menu';
 
+import { SharedModule } from './shared/shared.module';
 
 
 
@@ -72,18 +74,23 @@ export function MSALInstanceFactory() {
     CreateFormComponent,
     ProblemTrackerComponent,
     AddUserComponent,
-    AddPlantDialogComponent,     
+    AddPlantDialogComponent,
+    
    ],
   imports: [
     BrowserModule,
+     MatDividerModule,
     AppRoutingModule,
     BrowserAnimationsModule,
     MaterialModule,
     ReactiveFormsModule,
     DragDropModule,
+        CdkTableModule,
+          SharedModule, 
      FormsModule,
      MatSnackBarModule,
      MsalModule ,
+         MatTableModule,
         MatChipsModule, 
      MatDialogModule,
          MatCheckboxModule,

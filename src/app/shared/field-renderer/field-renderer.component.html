@@ -1,0 +1,110 @@
+<ng-container [ngSwitch]="field?.type">
+
+  <!-- ================= TEXT ================= -->
+  <div *ngSwitchCase="'text'" class="fw-control"
+       [style.width.px]="field._textW ?? field.inputWidth ?? 240"
+       [style.height.px]="field._textH ?? field.height ?? 36">
+    <mat-form-field appearance="outline" class="fw-field" style="width:100%; height:100%;">
+      <input matInput [(ngModel)]="field.value" [placeholder]="field.placeholder || ''">
+    </mat-form-field>
+  </div>
+
+  <!-- ================= EMAIL ================= -->
+  <div *ngSwitchCase="'email'" class="fw-control"
+       [style.width.px]="field._emailW ?? field.inputWidth ?? 240"
+       [style.height.px]="field._emailH ?? field.height ?? 36">
+    <mat-form-field appearance="outline" class="fw-field" style="width:100%; height:100%;">
+      <input matInput type="email" [(ngModel)]="field.value"
+             [placeholder]="field.placeholder || 'Enter email'">
+    </mat-form-field>
+  </div>
+  
+
+  <!-- ================= NUMBER ================= -->
+  <div *ngSwitchCase="'number'" class="fw-control"
+       [style.width.px]="field._numW ?? field.inputWidth ?? 240"
+       [style.height.px]="field._numH ?? field.height ?? 36">
+    <mat-form-field appearance="outline" class="fw-field" style="width:100%; height:100%;">
+      <input matInput type="number" [(ngModel)]="field.value" [placeholder]="field.placeholder || ''">
+    </mat-form-field>
+  </div>
+
+  <!-- ================= TEL ================= -->
+  <div *ngSwitchCase="'tel'" class="fw-control"
+       [style.width.px]="field._telW ?? field.inputWidth ?? 240"
+       [style.height.px]="field._telH ?? field.height ?? 36">
+    <mat-form-field appearance="outline" class="fw-field" style="width:100%; height:100%;">
+      <input matInput type="tel" [(ngModel)]="field.value"
+             [placeholder]="field.placeholder || 'Enter phone'">
+    </mat-form-field>
+  </div>
+
+  <!-- ================= DATE ================= -->
+  <div *ngSwitchCase="'date'" class="fw-control"
+       [style.width.px]="field._dateW ?? field.inputWidth ?? 240"
+       [style.height.px]="field._dateH ?? field.height ?? 36">
+    <mat-form-field appearance="outline" class="fw-field" style="width:100%; height:100%;">
+      <input matInput [(ngModel)]="field.value" placeholder="dd / mm / yyyy">
+      <button mat-icon-button matSuffix type="button" aria-label="Open calendar">
+        <mat-icon>event</mat-icon>
+      </button>
+    </mat-form-field>
+  </div>
+
+  <!-- ================= RADIO ================= -->
+  <div *ngSwitchCase="'radio'" class="radio-group"
+       [style.width.px]="field._radioW ?? field.width ?? null"
+       [style.height.px]="field._radioH ?? field.height ?? null">
+    <label *ngFor="let opt of (field.options || []); let i = index" class="radio-option">
+      <input type="radio" [name]="field.id" [value]="opt.value" [(ngModel)]="field.value">
+      {{ opt.label }}
+    </label>
+  </div>
+
+  <!-- ================= BRANCH / SELECT ================= -->
+  <div *ngSwitchCase="'branch'" class="fw-control"
+       [style.width.px]="field._branchW ?? field.inputWidth ?? 240"
+       [style.height.px]="field._branchH ?? field.height ?? 36">
+    <mat-form-field appearance="outline" class="fw-field" style="width:100%; height:100%;">
+      <mat-label>Select</mat-label>
+      <mat-select [(ngModel)]="field.value" [name]="field.id">
+        <mat-option [value]="''">-- Select --</mat-option>
+        <mat-option *ngFor="let opt of field.options" [value]="opt.value">
+          {{ opt.label }}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+  </div>
+
+  <!-- ================= TEXTAREA ================= -->
+  <div *ngSwitchCase="'textarea'" class="fw-control"
+       [style.width.px]="field._taW ?? field.width ?? 300"
+       [style.height.px]="field._taH ?? field.height ?? 120">
+    <textarea [(ngModel)]="field.value"
+              class="textarea-resizable-both"
+              [placeholder]="field.placeholder || ''"
+              style="width:100%; height:100%; resize:none; box-sizing:border-box;"></textarea>
+  </div>
+
+  <!-- ================= SIGNATURE ================= -->
+  <div *ngSwitchCase="'signature'" class="fw-control"
+       [style.width.px]="field._sigW ?? field.inputWidth ?? 260"
+       [style.height.px]="field._sigH ?? field.height ?? 140">
+    <canvas class="signature-canvas"
+            [attr.data-id]="field.id"
+            [attr.width]="field._sigW ?? field.inputWidth ?? 260"
+            [attr.height]="field._sigH ?? field.height ?? 140"
+            style="width:100%; height:100%; display:block; touch-action:none;"
+            (pointerdown)="sigStart.emit({ev:$event, id: field.id})"
+            (pointermove)="sigMove.emit({ev:$event, id: field.id})"
+            (pointerup)="sigStop.emit({ev:$event, id: field.id})"
+            (pointerleave)="sigStop.emit({ev:$event, id: field.id})">
+    </canvas>
+  </div>
+
+  <!-- ================= FALLBACK ================= -->
+  <div *ngSwitchDefault class="fw-control">
+    Unsupported field type: {{ field?.type }}
+  </div>
+
+</ng-container>

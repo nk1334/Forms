@@ -32,7 +32,24 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 // use a single, modest scale everywhere to keep things fast
 const SNAPSHOT_SCALE = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
-
+function deserializeFromFirestorePages(pages: any[]): any[] {
+  for (const p of pages) {
+    for (const f of p.fields || []) {
+      const gm = f.gridMatrix;
+      if (gm?.cellsFlat && Number.isInteger(gm.rows) && Number.isInteger(gm.cols)) {
+        const cells = Array.from({ length: gm.rows }, () =>
+          Array.from({ length: gm.cols }, () => ({ items: [] }))
+        );
+        for (const { r, c, cell } of gm.cellsFlat) {
+          if (cells[r] && cells[r][c]) cells[r][c] = cell;
+        }
+        gm.cells = cells;
+        delete gm.cellsFlat;
+      }
+    }
+  }
+  return pages;
+}
 /* ---------------- Types ---------------- */
 function beginCapture(el: HTMLElement): () => void {
   const edited: Array<{ node: HTMLElement; prev: string | null }> = [];
@@ -59,17 +76,39 @@ interface FormField {
   type?: string;
   value?: any;
   placeholder?: string;
-  options?: { value: string; label: string; checked?: boolean }[];
-  width?: number;
+    gridMode?: 'matrix' | 'table';
+  gridMatrix?: GridMatrix;
+
+  // absolute placement of the outer card
   position?: { x: number; y: number };
+  width?: number | null;
+  height?: number | null;
+
+  // shared UI layout
+  labelDock?: 'top' | 'left' | 'right' | 'bottom';
+  inputWidth?: number | null;
+
+  // inner sizes per-control (use the ones you actually bind in templates)
+  _emailW?: number;  _emailH?: number;  _emailML?: number;
+  _dateW?: number;   _dateH?: number;   _dateML?: number;
+  _branchW?: number; _branchH?: number; _branchML?: number;
+  _checkW?: number;  _checkH?: number;  _checkML?: number;
+
+  options?: { value: string; label: string; checked?: boolean }[];
+  ui?: {
+    direction?: 'row' | 'column'; // horizontal like template or vertical stack
+    labelWidthPx?: number;        // label width for 'row'
+    gapPx?: number;               // gap between label and control
+  };
   required?: boolean;
-  height?: number;
   problemItems?: { no: number; text: string }[];
   problemCounter?: number;
   isDescription?: boolean;
 }
 interface FormPage {
   fields: FormField[];
+    offsetX?: number;  
+  offsetY?: number; 
 }
 
 interface SavedForm extends ServiceSavedForm {
@@ -92,6 +131,39 @@ interface FilledFormData {
   formPagesSnapshot?: FormPage[];
   formPdfPreview?: string | null;
 }
+export interface GridItem {
+  id: string;
+type: 'text' | 'number' | 'date' | 'textarea' | 'select' | 'file'; 
+  label: string;
+  value?: any;
+  options?: { label: string; value?: string }[];
+    pos?: { x: number; y: number };     // position inside the cell (px, relative)
+  size?: { w: number; h: number }; 
+}
+export interface GridCell { items: GridItem[]; }
+export interface GridMatrix {
+  rows: number;
+  cols: number;
+gap?: number;
+  cellH?: number;
+    cellW?: number;  
+  showBorders?: boolean;
+  // could be many shapes in saved JSON:
+  cells?: GridCell[][] | GridCell[];          // 2D or flat
+  matrix?: GridCell[][];                      // alt name
+  data?: { rows: Array<{ cols?: GridCell[]; cells?: GridCell[] }>; }; // row/col objects
+}
+
+interface DataGridField {
+  id: string;
+  type: 'data-grid'|'datagrid'|'grid'|'matrix';
+  label?: string;
+  required?: boolean;
+  height?: number;
+  width?: number;
+    gridMode?: string; 
+  gridMatrix: GridMatrix;
+}
 
 interface FilledInstance {
   instanceId: string | null;
@@ -104,7 +176,7 @@ interface FilledInstance {
 }
 type Branch = 'MACKAY' | 'YAT' | 'NSW' | 'ALL';
 /* ---------------- Component ---------------- */
-
+type FillLayoutMode = 'exact' | 'flow';  
 @Component({
   selector: 'app-create-form',
   templateUrl: './create-form.component.html',
@@ -112,9 +184,15 @@ type Branch = 'MACKAY' | 'YAT' | 'NSW' | 'ALL';
 })
 
 export class CreateFormComponent implements OnInit, AfterViewInit, OnDestroy {
+    fillLayoutMode: FillLayoutMode = 'exact';  
+    isBuilderMode = true;
+private readonly GRID_STRICT_FULL_CELL = true; // fill entire cell
+  private readonly GRID_CELL_PAD_PX = 8;         // inner padding
+  private readonly GRID_REPLACE_EXISTING = true; // one item per cell
+trackByIndex(index: number): number { return index; }
   private textareasSub?: Subscription;
   examplePdfUrl: string | null = null;
-
+calendarLocked = true;
   forms: SavedForm[] = [];
   templates: SavedForm[] = [];
 filledForms: SavedForm[] = [];
@@ -134,7 +212,17 @@ filledForms: SavedForm[] = [];
   get firebaseTemplates(): SavedForm[] { return this.templates.filter(x => this.isFirebaseForm(x)); }
   get firebaseFilled(): SavedForm[]    { return this.filledForms.filter(x => this.isFirebaseForm(x)); }
 
+ isDG(field: any): field is DataGridField {
+    const t = field?.type;
+    return t === 'data-grid' || t === 'datagrid' || t === 'grid' || t === 'matrix';
+  }
   //
+  private readonly FILLABLE_TYPES = new Set([
+  'text','email','number','tel','date',
+  'textarea','description','radio','checkbox',
+  'branch','file','signature','project-title',
+  'data-grid','datagrid','grid','matrix'
+]);
   
 showFormsToFill() {
   if (!this.templates.length) this.loadFromFirebase('templates');
@@ -179,7 +267,11 @@ showFormsToFill() {
   ) {}
 
   /* ---------------- Lifecycle ---------------- */
+
 ngOnInit(): void {
+  this.normalizeCurrentForm();
+  this.isBuilderMode = false;
+
   // 1) Listen for /forms?download=...&back=...
   this.route.queryParamMap.subscribe(async (params) => {
     const downloadId = params.get('download');
@@ -196,31 +288,125 @@ ngOnInit(): void {
     }
   });
 
-// 2) Branch-aware template load
-const fetchTemplates = this.isAdmin()
-  ? this.formService.getFormTemplates()                              // Admin sees all
-  : this.formService.getVisibleTemplatesForBranch(this.currentBranch); // Crew sees only their branch (or ALL)
+  // 2) Branch-aware template load (DEFINE fetchTemplates before using it)
+  const fetchTemplates = this.isAdmin()
+    ? this.formService.getFormTemplates()                               // Admin sees all
+    : this.formService.getVisibleTemplatesForBranch(this.currentBranch); // Crew sees only their branch (or ALL)
 
-fetchTemplates
-  .then((list: any[]) => {
-    this.forms = (list || []).map((x: any) => ({
-      formId: this.makeId(x, 'template'),
-      formName: x?.formName ?? x?.name ?? x?.title ?? 'Untitled (template)',
-      formPages: x?.formPages ?? [],
-      source: 'template' as const,
-      pdfUrl: x?.pdfUrl ?? null,
-      allowedBranches: x?.allowedBranches?.length ? x.allowedBranches : ['ALL'],
-    }));
-    this.splitLists(); // populates this.templates
-    // Extra safety in case of legacy docs
-    if (!this.isAdmin()) this.templates = this.templates.filter(this.canSeeTemplate);
-  })
-  .catch(err => {
-    console.error('load templates failed', err);
-    this.loadForms();   // local fallback (legacy)
-    this.splitLists();
-    if (!this.isAdmin()) this.templates = this.templates.filter(this.canSeeTemplate);
-  });}
+  fetchTemplates
+    .then((list: any[]) => {
+      this.forms = (list || []).map((x: any) => {
+        // 🔸 deep copy and rebuild cells from cellsFlat
+        const pages = deserializeFromFirestorePages(
+          JSON.parse(JSON.stringify(x?.formPages || []))
+        );
+
+        const sf: SavedForm = {
+          formId: this.makeId(x, 'template'),
+          formName: x?.formName ?? x?.name ?? x?.title ?? 'Untitled (template)',
+          formPages: pages,                 // ✅ deserialized
+          source: 'template' as const,
+          pdfUrl: x?.pdfUrl ?? null,
+          allowedBranches: x?.allowedBranches?.length ? x.allowedBranches : ['ALL'],
+        };
+
+        // Optional: normalize but do NOT rebuild grids if cells already exist
+        (sf.formPages || []).forEach(p =>
+          (p.fields || []).forEach((f: any) => {
+            this.normalizeFieldType(f);            // e.g. 'datagrid' → 'data-grid'
+            this.ensureGridMatrixDefaultsSafe(f);  // safe defaults
+          })
+        );
+
+        return sf;
+      });
+
+      this.splitLists();
+      if (!this.isAdmin()) this.templates = this.templates.filter(this.canSeeTemplate);
+
+      // 🔹 Lock the canvas width once forms are loaded
+      const el = document.getElementById('form-to-export');
+      if (el) {
+        this.setPdfContentWidthVar(el);
+      }
+    })
+    .catch(err => {
+      console.error('load templates failed', err);
+      this.loadForms();   // local fallback (legacy)
+      this.splitLists();
+      if (!this.isAdmin()) this.templates = this.templates.filter(this.canSeeTemplate);
+
+      // 🔹 Even in fallback, lock width
+      const el = document.getElementById('form-to-export');
+      if (el) {
+        this.setPdfContentWidthVar(el);
+      }
+    });
+}
+// ⬅️ Still inside the class
+private ensureGridMatrixDefaultsSafe(f: any) {
+  const t = String(f?.type || '').toLowerCase().replace(/[_\s]+/g, '-');
+  if (t !== 'data-grid') return;
+
+ const gm = (f.gridMatrix ??= {
+    rows: 1,
+    cols: 1,
+    cellH: 140,
+    cellW: 260,
+    gap: 12,
+    showBorders: true,
+    cells: [[{ items: [] }]],
+  } as GridMatrix);
+
+  gm.showBorders ??= true;
+  gm.gap        = typeof gm.gap   === 'number' ? gm.gap   : 12;
+  gm.cellH      = typeof gm.cellH === 'number' ? gm.cellH : 140;
+  gm.cellW      = typeof gm.cellW === 'number' ? gm.cellW : 260;
+
+  let cells2D: any[][] | undefined;
+
+  if (Array.isArray(gm.cells) && Array.isArray((gm.cells as any[])[0])) {
+    cells2D = gm.cells as any[][];
+  } else if (Array.isArray(gm.cells)) {
+    const flat = gm.cells as any[];
+    const R = Number.isFinite(gm.rows) && gm.rows! > 0 ? gm.rows! : Math.max(1, Math.ceil(Math.sqrt(flat.length || 1)));
+    const C = Number.isFinite(gm.cols) && gm.cols! > 0 ? gm.cols! : Math.max(1, Math.ceil((flat.length || 1) / R));
+    cells2D = Array.from({ length: R }, (_, r) =>
+      Array.from({ length: C }, (_, c) => {
+        const cell = flat[r * C + c] ?? { items: [] };
+        cell.items = Array.isArray(cell.items) ? cell.items : [];
+        return cell;
+      })
+    );
+  } else if (Array.isArray((gm as any).matrix) && Array.isArray((gm as any).matrix[0])) {
+    cells2D = (gm as any).matrix.map((row: any[]) =>
+      row.map((cell: any) => ({ items: Array.isArray(cell?.items) ? cell.items : [] }))
+    );
+  } else if ((gm as any).data?.rows?.length) {
+    cells2D = (gm as any).data.rows.map((row: any) =>
+      (row.cols || row.cells || []).map((cell: any) => ({ items: Array.isArray(cell?.items) ? cell.items : [] }))
+    );
+  }
+
+  const R = Number.isFinite(gm.rows) && gm.rows! > 0 ? gm.rows! : (cells2D?.length || 1);
+  const C = Number.isFinite(gm.cols) && gm.cols! > 0 ? gm.cols! : (cells2D?.[0]?.length || 1);
+
+  if (!cells2D) {
+    cells2D = Array.from({ length: R }, () => Array.from({ length: C }, () => ({ items: [] })));
+  }
+
+  for (let r = 0; r < R; r++) {
+    cells2D[r] ||= [];
+    for (let c = 0; c < C; c++) {
+      cells2D[r][c] ||= { items: [] };
+      cells2D[r][c].items = Array.isArray(cells2D[r][c].items) ? cells2D[r][c].items : [];
+    }
+  }
+
+  gm.rows = R;
+  gm.cols = C;
+  gm.cells = cells2D;
+}
 
   trackByFormId = (_: number, f: SavedForm) => f.formId;
   ngAfterViewInit(): void {
@@ -235,7 +421,10 @@ fetchTemplates
       this.attachAutoGrowListeners();
     });
   }
-  
+isGridField(f: any): boolean {
+  const t = (f?.type || '').toLowerCase();
+  return t === 'data-grid' || t === 'datagrid' || t === 'grid' || t === 'matrix';
+}
 
   ngOnDestroy(): void {
     this.textareasSub?.unsubscribe();
@@ -247,6 +436,74 @@ fetchTemplates
     ta.replaceWith(clone); // removes all listeners
   });
   }
+  // type guard so the template can narrow "field"
+
+
+// normalize any shape to GridCell[][]
+private ensure2DGrid(gm: GridMatrix): GridCell[][] {
+  const R = Math.max(1, gm?.rows ?? 1);
+  const C = Math.max(1, gm?.cols ?? 1);
+
+  gm.gap   = typeof gm.gap   === 'number' ? gm.gap   : 12;
+  gm.cellH = typeof gm.cellH === 'number' ? gm.cellH : 120;
+  gm.cellW = typeof gm.cellW === 'number' ? gm.cellW : 160;
+
+  const ensure2D = (arr: GridCell[][]): GridCell[][] => {
+    for (let r = 0; r < R; r++) {
+      if (!arr[r]) arr[r] = [];
+      for (let c = 0; c < C; c++) {
+        if (!arr[r][c]) arr[r][c] = { items: [] };
+        if (!arr[r][c].items) arr[r][c].items = [];
+      }
+    }
+    return arr;
+  };
+
+  if (Array.isArray(gm.cells) && Array.isArray((gm.cells as any)[0])) {
+    return ensure2D(gm.cells as GridCell[][]);
+  }
+  if (Array.isArray(gm.matrix) && Array.isArray((gm.matrix as any)[0])) {
+    gm.cells = gm.matrix;
+    return ensure2D(gm.matrix as GridCell[][]);
+  }
+  if (Array.isArray(gm.cells)) {
+    const flat = gm.cells as GridCell[];
+    const out: GridCell[][] = [];
+    let k = 0;
+    for (let r = 0; r < R; r++) {
+      out[r] = [];
+      for (let c = 0; c < C; c++) {
+        const cell = flat[k++] ?? { items: [] };
+        if (!cell.items) cell.items = [];
+        out[r][c] = cell;
+      }
+    }
+    gm.cells = out;
+    return ensure2D(out);
+  }
+  if (gm.data?.rows?.length) {
+    const out: GridCell[][] = [];
+    for (let r = 0; r < R; r++) {
+      const rowObj = gm.data.rows[r] || {};
+      const colsArr: GridCell[] = rowObj.cols || rowObj.cells || [];
+      out[r] = [];
+      for (let c = 0; c < C; c++) {
+        const cell = colsArr[c] ?? { items: [] };
+        if (!cell.items) cell.items = [];
+        out[r][c] = cell;
+      }
+    }
+    gm.cells = out;
+    return ensure2D(out);
+  }
+
+  const empty = Array.from({ length: R }, () =>
+    Array.from({ length: C }, () => ({ items: [] } as GridCell))
+  );
+  gm.cells = empty;
+  return empty;
+}
+
 // Signature image sources (base64 or URL) keyed by fieldId
 private sigSrcMap: Record<string, string> = {};
 // Keep observers to clean up later
@@ -285,29 +542,194 @@ private isAdmin(): boolean {
   return (localStorage.getItem('role') || '').toLowerCase() === 'admin';
    
 }
+private toGridItemType(raw: any): GridItem['type'] {
+  const t = String(raw ?? 'text').toLowerCase();
+  switch (t) {
+    case 'text':
+    case 'number':
+    case 'date':
+    case 'textarea':
+    case 'select':
+    case 'file':
+      return t;
+    case 'email':
+    case 'tel':
+      return 'text';
+    default:
+      return 'text';
+  }
+}
+
+
+fallbackCells(field: DataGridField): GridCell[][] {
+  const gm = (field?.gridMatrix ?? {}) as GridMatrix;
+
+  // sensible defaults
+  gm.gap   = typeof gm.gap   === 'number' ? gm.gap   : 12;
+  gm.cellH = typeof gm.cellH === 'number' ? gm.cellH : 120;
+  gm.cellW = typeof gm.cellW === 'number' ? gm.cellW : 160;
+
+  let twoD: GridCell[][] | null = null;
+
+  // 1) already 2-D
+  if (Array.isArray(gm.cells) && Array.isArray((gm.cells as any)[0])) {
+    twoD = gm.cells as GridCell[][];
+  } else if (Array.isArray(gm.matrix) && Array.isArray((gm.matrix as any)[0])) {
+    twoD = gm.matrix as GridCell[][];
+  }
+  // 2) flat → chunk into rows
+  else if (Array.isArray(gm.cells)) {
+    const flat = gm.cells as GridCell[];
+    const colsHint =
+      (Number.isFinite(gm.cols as any) && (gm.cols as any) > 0 ? gm.cols! : undefined) ??
+      (gm.data?.rows?.[0]?.cols?.length ?? gm.data?.rows?.[0]?.cells?.length) ??
+      1;
+
+    twoD = [];
+    for (let i = 0; i < flat.length; i++) {
+      const r = Math.floor(i / colsHint);
+      if (!twoD[r]) twoD[r] = [];
+      const cell = flat[i] ?? ({ items: [] } as GridCell);
+      if (!cell.items) cell.items = [];
+      twoD[r].push(cell);
+    }
+  }
+  // 3) object form: data.rows[].(cols|cells)[]
+  else if (gm.data?.rows?.length) {
+    twoD = gm.data.rows.map(rowObj => {
+      const arr = (rowObj?.cols ?? rowObj?.cells ?? []) as GridCell[];
+      return arr.map(c => {
+        const cell = c ?? ({ items: [] } as GridCell);
+        if (!cell.items) cell.items = [];
+        return cell;
+      });
+    });
+  }
+
+  // 4) nothing present → build empty grid from declared rows/cols or 1×1
+  if (!twoD || !twoD.length) {
+    const R = Math.max(1, gm.rows ?? 1);
+    const C = Math.max(1, gm.cols ?? 1);
+    twoD = Array.from({ length: R }, () =>
+      Array.from({ length: C }, () => ({ items: [] } as GridCell))
+    );
+  }
+
+  // fill holes, finalize dimensions
+  const R = twoD.length;
+  const C = Math.max(1, twoD[0]?.length ?? (gm.cols ?? 1));
+  for (let r = 0; r < R; r++) {
+    if (!twoD[r]) twoD[r] = [];
+    for (let c = 0; c < C; c++) {
+      if (!twoD[r][c]) twoD[r][c] = { items: [] };
+      if (!twoD[r][c].items) twoD[r][c].items = [];
+    }
+  }
+
+  // persist normalized shape so the rest of your code sees GridCell[][]
+  gm.rows = Math.max(1, R);
+  gm.cols = Math.max(1, C);
+  gm.cells = twoD;
+
+  return twoD;
+}
+
 
 // expand ['ALL'] to concrete branches
 private expandAllowed(ab?: Branch[]): Exclude<Branch, 'ALL'>[] {
   if (!ab || ab.length === 0) return this.ALL_BRANCHES;
   return ab.includes('ALL') ? this.ALL_BRANCHES : (ab as Exclude<Branch, 'ALL'>[]);
 }
+private normalizeField(f: FormField) {
+  f.position ||= { x: 0, y: 0 };
+  if (f.type === 'checkbox') {
+    if (typeof f._checkW  !== 'number') f._checkW  = f.inputWidth ?? 260;
+    if (typeof f._checkH  !== 'number') f._checkH  = 40;
+    if (typeof f._checkML !== 'number') f._checkML = 0;
+  }
+  // repeat for _email*, _date*, _branch* if you bind them
+}
+private ensureGridMatrixDefaults(f: FormField) {
+  // Narrow to a DataGridField; ignore non-grid fields
+  if (!this.isDG(f)) return;
 
+  // Ensure the gridMatrix object exists with sensible defaults
+  f.gridMode = f.gridMode || 'matrix';
+  f.gridMatrix = f.gridMatrix || {
+    rows: 1,
+    cols: 1,
+    cells: [[{ items: [] }]],
+    showBorders: true,
+    gap: 12,
+    cellH: 140,
+    cellW: 160, // width default helps downstream sizing
+  };
+
+  const gm = f.gridMatrix;
+  // Fill in any missing defaults without clobbering existing values
+  gm.showBorders = gm.showBorders ?? true;
+  gm.gap        = typeof gm.gap   === 'number' ? gm.gap   : 12;
+  gm.cellH      = typeof gm.cellH === 'number' ? gm.cellH : 140;
+  gm.cellW      = typeof gm.cellW === 'number' ? gm.cellW : 160;
+
+  // 🔑 Normalize any saved shape (flat / 2-D / object form) → strict 2-D
+  const cells2D = this.fallbackCells(f); // returns GridCell[][] and ALSO persists gm.cells/rows/cols in our earlier impl
+
+  // If your fallbackCells doesn't persist, uncomment the next three lines:
+  // gm.cells = cells2D;
+  // gm.rows  = Math.max(1, cells2D.length);
+  // gm.cols  = Math.max(1, cells2D[0]?.length || 1);
+}
 // can this template be seen by the current branch?
 private canSeeTemplate = (f: SavedForm): boolean => {
   const allowed = this.expandAllowed(f.allowedBranches as Branch[] | undefined);
   return this.currentBranch === 'ALL' || allowed.includes(this.currentBranch as any);
 };
-  private attachAutoGrowListeners() {
-    this.textareas.forEach((textareaEl) => {
-      const ta = textareaEl.nativeElement;
-      if ((ta as any).__ag__) return;
-      (ta as any).__ag__ = true;
-      this.autoGrow(ta);
-      if (ta.id !== 'description') {
-        ta.addEventListener('input', () => this.autoGrow(ta));
+private templateHasFillableFields(t: SavedForm, treatEmptyGridAsFillable = true): boolean {
+  const isFillable = (s: string) =>
+    this.FILLABLE_TYPES.has(s); // your existing Set (includes 'data-grid')
+
+  for (const p of (t.formPages ?? [])) {
+    for (const f of (p.fields ?? [])) {
+      const type = String(f?.type ?? '')
+        .toLowerCase()
+        .replace(/[_\s]+/g, '-');
+
+ if (type === 'data-grid') {
+  if (treatEmptyGridAsFillable) return true; // show templates that just have a grid
+
+  // Normalize to 2-D cells and scan items
+  if (this.isDG(f)) {
+    const cells2D = this.fallbackCells(f);
+    for (const row of cells2D) {
+      for (const cell of row) {
+        for (const it of (cell?.items ?? [])) {
+          const itType = String(it?.type ?? '').toLowerCase().replace(/[_\s]+/g, '-');
+          if (isFillable(itType)) return true;
+        }
       }
-    });
+    }
   }
+} else if (isFillable(type)) {
+  return true;
+}
+}}
+return false;
+}
+private attachAutoGrowListeners() {
+  // ✨ Respect fixed layout: no auto-grow
+  if (this.fixedLayout) return;
+
+  this.textareas.forEach((textareaEl) => {
+    const ta = textareaEl.nativeElement;
+    if ((ta as any).__ag__) return;
+    (ta as any).__ag__ = true;
+    this.autoGrow(ta);
+    if (ta.id !== 'description') {
+      ta.addEventListener('input', () => this.autoGrow(ta));
+    }
+  });
+}
   hasAnyChecked(field: { options?: { checked?: boolean }[] } | null | undefined): boolean {
   if (!field?.options?.length) return false;
   return field.options.some(o => !!o?.checked);
@@ -380,6 +802,307 @@ private async handleDashboardDownload(id: string) {
   // Use your existing method: downloads if pdfUrl exists; otherwise generates, uploads, then downloads
   await this.onClickDownloadIcon(form);
 }
+private anchorPageToTopLeft(page: FormPage, pad = 12): void {
+  const fs = page.fields || [];
+  if (!fs.length) return;
+
+  const minX = Math.min(...fs.map(f => (f.position?.x ?? 0)));
+  const minY = Math.min(...fs.map(f => (f.position?.y ?? 0)));
+
+  // how much empty space exists before the first field?
+  const shiftX = Math.max(0, minX - pad);
+  const shiftY = Math.max(0, minY - pad);
+
+  if (shiftX || shiftY) {
+    fs.forEach(f => {
+      if (!f.position) f.position = { x: 0, y: 0 };
+      f.position.x = Math.max(0, f.position.x - shiftX);
+      f.position.y = Math.max(0, f.position.y - shiftY);
+    });
+  }
+}
+/** Columns CSS; if you store fixed widths use them, else equal columns. */
+gridColsCss(field: any): string {
+  const gm = field.gridMatrix || {};
+  const cols = Math.max(1, gm.cols ?? (this.fallbackCells(field)[0]?.length || 1));
+  const cellW = this.gridCellWFromWrapper(field);
+  return `repeat(${cols}, ${cellW}px)`;
+}
+onCellDragOver(ev: DragEvent) {
+  ev.preventDefault();
+  ev.stopPropagation();         // <- block page-level drop
+  if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'copy';
+}
+ensureGridMatrix(field: DataGridField): GridMatrix {
+  field.gridMatrix ??= {} as any;
+  const gm = field.gridMatrix as any;
+  gm.rows ??= 2;
+  gm.cols ??= 2;
+  gm.cellW ??= 160;
+  gm.cellH ??= 90;
+  gm.gap  ??= 8;
+  gm.cells ??= Array.from({ length: gm.rows }, () =>
+    Array.from({ length: gm.cols }, () => ({ items: [] }))
+  );
+  return gm as GridMatrix;
+}
+
+
+
+gridItemBlockStyle(field: DataGridField) {
+  const pad = this.GRID_CELL_PAD_PX ?? 8;
+  // ignore pos/size; just fill the cell with padding
+  return {
+    flex: '1 1 auto',
+    width: '100%',
+    height: '100%',
+    padding: `${pad}px`,
+    boxSizing: 'border-box'
+  } as const;
+}
+onCellDrop(ev: DragEvent, field: DataGridField, r: number, c: number) {
+  ev.preventDefault();
+  ev.stopPropagation();
+
+  const gm = this.ensureGridMatrix(field);
+
+  let payload: any;
+  try { payload = JSON.parse(ev.dataTransfer?.getData('text/plain') || '{}'); } catch {}
+  const type  = this.toGridItemType?.(payload?.type) ?? (payload?.type || 'text');
+  const label = String(payload?.label ?? '');
+
+  const item: GridItem = {
+    id: 'gi_' + Math.random().toString(36).slice(2),
+    type, label, value: null, options: [],
+    pos:  { x: 0, y: 0 },     // not used in block mode
+    size: { w: 0, h: 0 },     // not used in block mode
+  };
+
+  const cells = this.ensure2DGrid(gm);
+  const nextRow  = [...cells[r]];
+  const nextCell = { ...(cells[r][c] ?? {}), items: [item] }; // replace
+  nextRow[c] = nextCell;
+
+  const nextCells = [...cells];
+  nextCells[r] = nextRow;
+
+  field.gridMatrix = { ...gm, cells: nextCells };
+  this.cdr.markForCheck();
+}
+private suppressNextPageDrop = false;
+
+private isOverGrid(ev: DragEvent): boolean {
+  const el = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
+  return !!el?.closest('.dg-cell, .data-grid-matrix');
+}
+
+onPageDragOver(ev: DragEvent) {
+  if (this.isOverGrid(ev)) return;          // let the cell handle it
+  if (!this.isBuilderMode) return;           // optional safety
+  ev.preventDefault();
+  ev.dataTransfer && (ev.dataTransfer.dropEffect = 'copy');
+}
+
+onPageDrop(ev: DragEvent) {
+  if (ev.defaultPrevented) return;           // a cell already handled it
+  if (this.isOverGrid(ev)) return;           // ignore drops over grid
+  if (!this.isBuilderMode) return;           // optional safety
+  ev.preventDefault();
+    ev.stopPropagation();
+
+  // ... your existing "add a normal field to the page" logic ...
+}
+
+private defaultSizeFor(type: GridItem['type'], cellW: number, cellH: number) {
+  switch (type) {
+    case 'text':
+    case 'number':
+    case 'date':
+    case 'select':
+      // full row by default (exact cell width)
+      return { w: cellW, h: 40 };
+    case 'textarea':
+      return { w: cellW, h: Math.min(120, cellH) };
+    case 'file':
+      return { w: cellW, h: 40 };
+    default:
+      return { w: Math.min(220, cellW), h: 40 };
+  }
+}
+pixelGridWidth(field: DataGridField): number {
+  const gm = field.gridMatrix || {};
+      
+  const cols = gm.cols ?? (this.fallbackCells(field)[0]?.length || 1);
+  const cellW = (gm as any).cellW ?? 280;
+  const gap   = gm.gap ?? 12;
+  return cols * cellW + (cols - 1) * gap;
+}
+
+onGridFile(e: Event, it: any) {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  const r = new FileReader();
+  r.onload = () => { it.value = r.result; };
+  r.readAsDataURL(file);
+}
+// Works regardless of the cell's actual pixel size.
+gridItemAbsoluteStyle(it: any, field: DataGridField) {
+  const pad = this.GRID_CELL_PAD_PX ?? 8;
+
+  // store something small / stable if you serialize
+  it.pos  = { x: pad, y: pad };
+  it.size = { w: 1, h: 1 };
+
+  return {
+    position: 'absolute',
+    inset: `${pad}px`,          // left/top/right/bottom = pad
+    boxSizing: 'border-box',
+    display: 'flex',
+    flexDirection: 'column',
+  };
+}
+  // NON-STRICT (fallback): allow free positioning but clamp inside cell
+
+
+  
+gridOuterPxWidth(f: FormField) {
+  const gm = f.gridMatrix!;
+  const w = (gm.cellW || 160) * gm.cols + (gm.gap || 12) * (gm.cols - 1) + 16; // + padding
+  return { width: `${w}px` };
+}
+async publishTemplate(): Promise<void> {
+  if (!this.selectedForm) return;
+
+  // 1) deep clone & normalize fields (incl. data-grid)
+  const pages: FormPage[] = JSON.parse(JSON.stringify(this.selectedForm.formPages || []));
+  for (const p of pages) {
+    for (const f of (p.fields || [])) {
+      this.normalizeFieldType(f);        // 'datagrid'/'grid' → 'data-grid'
+      this.ensureGridMatrixDefaults(f);  // rows/cols/cells/gap/borders
+
+      // sanitize selects & fill unset values inside grid cells
+    if (this.isDG(f)) {
+        const cells2D = this.fallbackCells(f); // ✅ always GridCell[][]
+        for (const row of cells2D) {
+          for (const cell of row) {
+            for (const it of (cell.items || [])) {
+              if (it.type === 'select' && Array.isArray(it.options)) {
+                it.options = it.options.map((o: any) => ({
+                  label: (o.label ?? String(o.value ?? '')).toString(),
+                  value: (o.value ?? o.label ?? '').toString(),
+                }));
+              }
+              if (it.value === undefined) it.value = null;
+            }
+          }
+        }
+      }
+
+      // basic geometry defaults
+      f.position ||= { x: 0, y: 0 };
+      if (typeof f.width  !== 'number') f.width  = (f.type === 'data-grid') ? 600 : 300;
+      if (typeof f.height !== 'number') {
+        f.height = f.type === 'signature' ? 150 :
+                   f.type === 'textarea'  ? 120 :
+                   f.type === 'data-grid' ? 200 : 48;
+      }
+    }
+  }
+
+  const name = (this.selectedForm.formName || 'Untitled Template').trim();
+  const allowedBranches: Branch[] = this.isAdmin() ? ['ALL'] : [this.currentBranch as Branch];
+
+  try {
+    // 2) create or update?
+    const isFirestoreId =
+      /^[A-Za-z0-9_-]{10,}$/.test(this.selectedForm.formId) &&
+      !this.selectedForm.formId.startsWith('new-');
+
+    if (isFirestoreId) {
+      await this.formService.updateFormTemplate(this.selectedForm.formId, {
+        formName: name,
+        formPages: pages,
+        allowedBranches,
+      });
+    } else {
+      const ref = await this.formService.saveFormTemplate(name, pages, allowedBranches);
+      this.selectedForm.formId = ref.id;
+    }
+
+    // 3) reload list and show it under “Forms to Fill”
+    await this.loadFromFirebase('templates');
+    this.viewMode = 'tofill';
+    this.showFormEditor = false;
+    this.snackBar.open('Template published. Check “Forms to Fill”.', 'Close', { duration: 2500 });
+  } catch (e) {
+    console.error(e);
+    this.snackBar.open('Failed to publish template.', 'Close', { duration: 3000 });
+  }
+}
+
+  
+private beginCapture(root: HTMLElement): () => void {
+  const edited: Array<{ el: HTMLElement; style: Partial<CSSStyleDeclaration> }> = [];
+
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+  let node = root as HTMLElement | null;
+
+  while (node) {
+    const prev: Partial<CSSStyleDeclaration> = {
+      overflow: node.style.overflow ?? '',
+      overflowY: node.style.overflowY ?? '',
+      height: node.style.height ?? '',
+      maxHeight: node.style.maxHeight ?? '',
+      transform: node.style.transform ?? '',
+      filter: node.style.filter ?? '',
+    };
+
+    node.style.overflow = 'visible';
+    node.style.overflowY = 'visible';
+    node.style.transform = 'none';
+    node.style.filter = 'none';
+
+    if (node.tagName === 'TEXTAREA') {
+      const ta = node as HTMLTextAreaElement;
+      ta.style.height = 'auto';
+      ta.style.height = `${ta.scrollHeight}px`;
+    }
+
+    edited.push({ el: node, style: prev });
+    node = walker.nextNode() as HTMLElement | null;
+  }
+
+  return () => {
+    for (const { el, style } of edited) {
+      el.style.overflow = style.overflow ?? '';
+      el.style.overflowY = style.overflowY ?? '';
+      el.style.height = style.height ?? '';
+      el.style.maxHeight = style.maxHeight ?? '';
+      el.style.transform = style.transform ?? '';
+      el.style.filter = style.filter ?? '';
+    }
+  };
+}
+private pageOrigins = new WeakMap<any, { ox: number; oy: number }>();
+
+/** Compute/calc origin from the upper-left field; cache it (no saving/mutation) */
+public preparePageOrigin(page: { fields?: Array<{ position?: { x?: number; y?: number } }> }): void {
+  const fs = page?.fields || [];
+  if (!fs.length) { this.pageOrigins.set(page, { ox: 0, oy: 0 }); return; }
+  const ox = Math.min(...fs.map(f => Math.max(0, Math.round(f.position?.x ?? 0))));
+  const oy = Math.min(...fs.map(f => Math.max(0, Math.round(f.position?.y ?? 0))));
+  this.pageOrigins.set(page, { ox, oy });
+}
+
+/** Read cached origin; default 0,0 */
+private originFor(page: any): { ox: number; oy: number } {
+  return this.pageOrigins.get(page) ?? { ox: 0, oy: 0 };
+}
+
+private anchorAllPages(pages: FormPage[], pad = 12): void {
+  (pages || []).forEach(p => this.anchorPageToTopLeft(p, pad));
+}
 
 
   asKey(id?: string) {
@@ -390,43 +1113,111 @@ private async handleDashboardDownload(id: string) {
   }
 
   public downloading = new Set<string>();
-  getFieldStyle(field: any) {
-    if (field?.id === 'description') {
-      return {
-        position: 'relative',
-        width: field?.width ? `${field.width}px` : '100%',
-        ...(field?.height ? { height: `${field.height}px` } : {}),
-        padding: '8px',
-        border: '1px solid #ccc',
-        background: '#fafafa',
-        boxSizing: 'border-box',
-        marginBottom: '1rem',
-      };
-    }
-    return {
-      position: 'absolute',
-      left: `${field?.position?.x || 0}px`,
-      top: `${field?.position?.y || 0}px`,
-      width: `${field?.width || 300}px`,
-      ...(field?.height ? { height: `${field.height}px` } : {}),
-      padding: '8px',
-      border: '1px solid #ccc',
-      background: '#fff',
-      boxSizing: 'border-box',
-    };
-  }
+public getFieldStyle(field: any) {
+  const x = Math.max(0, Math.round(field?.position?.x ?? 0));
+  const y = Math.max(0, Math.round(field?.position?.y ?? 0));
+  const w = Math.max(20, Math.round(field?.width  ?? 300));
+  const h = Math.max(20, Math.round(field?.height ?? 44));
 
- onAddTemplate(): void {
+  return {
+    position: 'absolute',
+    left: `${x}px`,
+    top: `${y}px`,
+    width: `${w}px`,
+    height: `${h}px`,
+    minHeight: `${h}px`,
+    boxSizing: 'border-box',
+    transform: 'none',
+    display: 'flex',
+    gap: `${field?.ui?.gapPx ?? 10}px`,
+  };
+}
+public gridCellWFromWrapper(f: any): number {
+  const gm   = f?.gridMatrix || {};
+  const cols = Math.max(1, gm.cols ?? (f?.gridMatrix?.cells?.[0]?.length || 1));
+  const gap  = Math.max(0, gm.gap ?? 12);
+  const wrapW = Math.max(40, Math.round(f?.width ?? 300));
+  return Math.max(40, Math.floor((wrapW - gap * (cols - 1)) / cols));
+}
+
+// Derive pixel cell height from wrapper height
+public gridCellHFromWrapper(f: any): number {
+  const gm   = f?.gridMatrix || {};
+  const rows = Math.max(1, gm.rows ?? (f?.gridMatrix?.cells?.length || 1));
+  const gap  = Math.max(0, gm.gap ?? 12);
+  const wrapH = Math.max(40, Math.round(f?.height ?? 240));
+  return Math.max(40, Math.floor((wrapH - gap * (rows - 1)) / rows));
+}
+
+
+labelStyle(field: any) {
+  return (field?.ui?.direction === 'row')
+    ? { flex: `0 0 ${field?.ui?.labelWidthPx ?? 120}px`, margin: 0 }
+    : { margin: '0 0 6px 0' };
+}
+gridItemStyle(item: any) {
+  const w = item?.fullWidth ? 100 : (item?.widthPct ?? null);
+  return {
+    width: w ? `${w}%` : null,
+    flex: w ? '0 0 auto' : '1 1 auto',
+    boxSizing: 'border-box',
+  };
+}
+
+
+controlStyle(field: { width?: number | null; height?: number | null }) {
+  const s: any = {};
+  if (field?.width  != null) s.width  = `${field.width}px`;
+  if (field?.height != null) s.height = `${field.height}px`;
+  return s;
+}
+onAddTemplate(): void {
+  const pageW = 760; // your working surface width; adjust if needed
+  const cardW = Math.min(440, pageW - 40); // default control width
+  const y1 = 16, y2 = y1 + 72; // stacked spacing
+
   const tpl: SavedForm = {
     formId: 'new-' + Math.random().toString(36).slice(2),
     formName: 'Untitled',
-    formPages: [{ fields: [] }],
+    formPages: [{
+      fields: [
+        {
+          id: 'date',
+          label: 'Date Field',
+          type: 'date',
+          value: '',                    // filled at open-time
+          width: cardW,
+          height: 56,
+          required: false,
+          position: { x: 16, y: y1 },
+        },
+        {
+          id: 'branch',
+          label: 'Branch Field',
+          type: 'branch',               // you already support this
+          value: '',                    // filled at open-time
+          width: cardW,
+          height: 56,
+          required: false,
+          position: { x: 16, y: y2 },
+          // if you render with a select, you can also embed the options here
+          options: [
+            { value: 'MACKAY', label: 'MACKAY' },
+            { value: 'YAT',    label: 'YAT' },
+            { value: 'NSW',    label: 'NSW' },
+          ],
+        },
+      ],
+    }],
     source: 'template',
     allowedBranches: this.isAdmin() ? ['ALL'] : [this.currentBranch as Exclude<Branch,'ALL'>],
+    // optional metadata
+    // createdAt: Date.now(),
   };
+
   this.forms.unshift(tpl);
   this.splitLists();
-  this.openForm(tpl);
+  this.openForm(tpl);        // editor opens with fixed layout (see B/C below)
 }
 
   /* ---------------- Dialog for Save/Load choice ---------------- */
@@ -513,6 +1304,91 @@ loadForms(): void {
     this.splitLists();
   }
 }
+// If your FormField union includes data-grid, narrow first:
+private clampGridItems(field: FormField): void {
+  if (!this.isDG(field)) return;                 // ✅ type guard → DataGridField
+  const gm = field.gridMatrix;
+  if (!gm) return;
+
+  // ensure grid defaults and normalized 2D cells
+  const cells2D = this.fallbackCells(field);     // ✅ now field is DataGridField
+  const pad   = 6;
+  const cellW = gm.cellW ?? 160;
+  const cellH = gm.cellH ?? 140;
+
+  for (const row of cells2D) {
+    for (const cell of row) {
+      for (const it of (cell.items || [])) {
+        // make sure we have pos/size objects
+        const size = it as any;
+        const pos  = it as any;
+
+        const w0 = size?.size?.w ?? 220;
+        const h0 = size?.size?.h ?? 60;
+
+        const maxX = Math.max(pad, cellW - w0 - pad);
+        const maxY = Math.max(pad, cellH - h0 - pad);
+
+        const x0 = pos?.pos?.x ?? pad;
+        const y0 = pos?.pos?.y ?? pad;
+
+        const x = Math.max(pad, Math.min(x0, maxX));
+        const y = Math.max(pad, Math.min(y0, maxY));
+
+        // write back, clamped
+        size.size = { w: Math.min(w0, cellW - pad * 2), h: h0 };
+        pos.pos   = { x, y };
+      }
+    }
+  }
+}
+private deepCleanForFirestore<T>(v: T): T {
+  const visit = (x: any): any => {
+    if (x === undefined) return null;                 // <-- key for Firestore
+    if (x === null || typeof x !== 'object') return x;
+    if (Array.isArray(x)) return x.map(visit);
+    const out: any = {};
+    for (const k of Object.keys(x)) {
+      const val = visit((x as any)[k]);
+      // keep nulls; drop only symbols / functions
+      if (typeof val !== 'function') out[k] = val;
+    }
+    return out;
+  };
+  return visit(v);
+}
+private normalizeFieldForSave(f: any) {
+  const t = String(f.type || '').toLowerCase().replace(/\s+/g, '-');
+  if (t === 'datagrid' || t === 'data-grid') f.type = 'data-grid';
+  // ensure positions/sizes exist
+  f.position ||= { x: 0, y: 0 };
+  if (typeof f.width  !== 'number')  f.width  = (f.type === 'data-grid') ? 600 : 300;
+  if (typeof f.height !== 'number')  f.height =
+      f.type === 'signature' ? 150 :
+      f.type === 'textarea'  ? 120 :
+      f.type === 'data-grid' ? 200 : 48;
+type SelectOpt = { label?: string; value?: string };
+  // for data-grid specifically: ensure a full mxn matrix and plain items
+  if (f.type === 'data-grid') {
+    this.ensureGridMatrixDefaults(f);         // you already have this
+    const gm = f.gridMatrix!;
+    // also sanitize select options that may have undefined values
+    for (const row of gm.cells) {
+      for (const cell of row) {
+        for (const it of (cell.items || [])) {
+           if (it.type === 'select' && Array.isArray(it.options)) {
+          const opts = it.options as SelectOpt[];
+          it.options = opts.map((o: SelectOpt): SelectOpt => ({
+            label: (o.label ?? String(o.value ?? '')).toString(),
+            value: (o.value ?? o.label ?? '').toString(),
+          }));
+        }
+          if (it.value === undefined) it.value = null; // avoid undefined
+        }
+      }
+    }
+  }
+}
 
   /* ---------------- Firebase loading ---------------- */
 
@@ -547,29 +1423,86 @@ loadFromFirebase(kind: 'filled' | 'templates' | 'both' = 'templates'): void {
     ? this.formService.getFormTemplates()
     : this.formService.getVisibleTemplatesForBranch(this.currentBranch);
 
- 
-  // ✅ Only one variable here
-  const listPromise =
-    kind === 'filled'
-      ? this.formService.getFilledForms()
-      : templatePromise;
+  const filledPromise   = this.formService.getFilledForms();
 
   this.snackBar.open(`Loading ${kind} from Firebase…`, undefined, { duration: 1200 });
 
-  listPromise
-    .then((list) => {
-      const normalized = (list || []).map((x: any) =>
-        toSaved(x, kind === 'filled' ? 'filled' : 'template')
-      );
+  const fetch =
+    kind === 'templates' ? templatePromise.then(list => ({ templates: list, filled: [] as any[] })) :
+    kind === 'filled'    ? filledPromise  .then(list => ({ templates: [] as any[], filled: list })) :
+                           Promise.all([templatePromise, filledPromise])
+                             .then(([t, f]) => ({ templates: t, filled: f }));
+
+  fetch
+    .then(({ templates, filled }) => {
+      // map + normalize
+      const tSaved = (templates || []).map((x: any) => {
+        const sf = toSaved(x, 'template');
+        this.normalizeTemplatePages(sf); 
+        
+  // 🛡️ Make sure grid fields are fully shaped before the list touches them
+  (sf.formPages || []).forEach(p =>
+    (p.fields || []).forEach((f: any) => {
+      this.normalizeFieldType(f);        // 'datagrid' -> 'data-grid'
+      this.ensureGridMatrixDefaults(f);
+      this.normalizeTemplatePages(sf);   // rows/cols/cells/gaps/borders
+    })
+  );
+
+        
+        // ✅ fixed layout captured up-front
+        return sf;
+      });
+
+   const fSaved = (filled || []).map((x: any) => {
+  const sf = toSaved(x, 'filled');
+  // ✅ only fill missing width/height so legacy items render predictably
+  (sf.formPages || []).forEach(p =>
+    (p.fields || []).forEach((f: any) => {
+      if (typeof f.width  !== 'number') f.width  = 300;
+      if (typeof f.height !== 'number') {
+        f.height = f.type === 'signature' ? 150
+                 : f.type === 'textarea'  ? 120
+                 : 48;
+      }
+    })
+  );
+  return sf;
+});
+
+      // branch-filter for non-admins (templates only)
+      const tFiltered = this.isAdmin() ? tSaved : tSaved.filter(this.canSeeTemplate);
+const toFill = tFiltered
+  .map(sf => {
+    (sf.formPages || []).forEach(p =>
+      (p.fields || []).forEach((f: any) => {
+        this.normalizeFieldType(f);
+        this.ensureGridMatrixDefaults(f);
+      })
+    );
+    return sf;
+  })
+  .filter(t => this.templateHasFillableFields(t)); // <- includes data-grid
+      // combine depending on kind
+  const combined =
+  kind === 'templates' ? toFill :
+  kind === 'filled'    ? fSaved :
+                         [...toFill, ...fSaved];
+
+      // sort & apply
       const nameOf = (x: SavedForm) => x.formName ?? '';
-      this.forms = normalized.sort((a, b) =>
+      this.forms = combined.sort((a, b) =>
         nameOf(a).localeCompare(nameOf(b), undefined, { sensitivity: 'base' })
       );
+
       this.splitLists();
-      if (!this.isAdmin() && kind !== 'filled') {
-        this.templates = this.templates.filter(this.canSeeTemplate);
-      }
-      this.snackBar.open(`Loaded ${normalized.length} ${kind}.`, 'Close', { duration: 2500 });
+
+      const counts = { templates: tFiltered.length, filled: fSaved.length };
+      const msg =
+        kind === 'templates' ? `Loaded ${counts.templates} templates.` :
+        kind === 'filled'    ? `Loaded ${counts.filled} filled forms.` :
+                               `Loaded ${counts.templates} templates & ${counts.filled} filled forms.`;
+      this.snackBar.open(msg, 'Close', { duration: 2500 });
     })
     .catch((err: any) => {
       console.error('Error loading from Firestore:', err);
@@ -580,12 +1513,31 @@ loadFormsFromFirebase(): void {
   const kind: 'filled' | 'templates' | 'both' =
     this.viewMode === 'filled' ? 'filled' :
     this.viewMode === 'tofill' ? 'templates' : 'both';
-      if (kind === 'templates') this.viewMode = 'tofill';
+
+  if (kind === 'templates') this.viewMode = 'tofill';
   if (kind === 'filled')    this.viewMode = 'filled';
 
   this.loadFromFirebase(kind);
-
 }
+onDateFocus(ev: FocusEvent): void {
+  // If locked, immediately blur so the native picker doesn’t pop while dragging
+  if (this.calendarLocked) {
+    (ev.target as HTMLInputElement)?.blur();
+  }
+}
+
+
+onDateMouseDown(ev: MouseEvent): void {
+  if (this.calendarLocked) {
+    // Block the native picker when the field is being dragged
+    ev.preventDefault();
+  } else {
+    // When we intentionally open the picker, don’t start dragging the card
+    ev.stopPropagation();
+  }
+}
+
+
 getTemplateName(f: SavedForm): string {
   if (!f?.sourceFormId) return 'Unknown Form';
   return this.templates.find(t => t.formId === f.sourceFormId)?.formName || 'Unknown Form';
@@ -606,28 +1558,61 @@ getTemplateName(f: SavedForm): string {
 
   /* ---------------- Opening for edit ---------------- */
 
-  getAdjustedHeight(fieldHeight?: number, min = 40, labelSpace = 22): number | null {
-    if (!fieldHeight) return null;
-    return Math.max(min, fieldHeight - labelSpace);
-  }
+getAdjustedHeight(
+  fieldHeight: number | null | undefined,
+  min = 40,
+  labelSpace = 22
+): number | null {
+  if (!fieldHeight) return null;
+  const wrapperPaddingV = 12; // .field-wrapper { padding: 6px 8px; }
+  return Math.max(min, fieldHeight - labelSpace - wrapperPaddingV);
+}
 
-  getSignatureCanvasHeight(fieldHeight?: number, min = 120, labelSpace = 22): number {
-    if (!fieldHeight) return min;
-    return Math.max(min, fieldHeight - labelSpace);
-  }
+ get isFillMode(): boolean {
+  // Editor opened from “Forms to Fill” or “Filled Forms”
+  return this.viewMode === 'tofill' || this.viewMode === 'filled';
+}
 
-  openForm(form: SavedForm): void {
-    const instance: FilledInstance = {
-      instanceId: form.source === 'filled' ? form.formId : null,
-      templateId: form.source === 'template' ? form.formId : undefined,
-      formName: form.formName || 'Untitled',
-      formPagesSnapshot: JSON.parse(JSON.stringify(form.formPages)),
-      data: {},
-      preview: null,
-      updatedAt: Date.now(),
-    };
-    this.beginEditing(instance);
+getSignatureCanvasHeight(fieldHeight: number | null | undefined, min = 120, labelSpace = 22): number {
+  if (fieldHeight == null) return min;                 // accept null/undefined
+  return Math.max(min, fieldHeight - labelSpace);
+}
+private normalizeCurrentForm(): void {
+  const sf = this.selectedForm;
+  if (!sf) return;
+
+  for (const page of sf.formPages ?? []) {
+    for (const field of page.fields ?? []) {
+      
+      this.ensureGridMatrixDefaultsSafe(field);  // 2-D cells, rows/cols, cellW/cellH
+      this.clampGridItems?.(field);              // optional; keep items inside each cell
+    }
   }
+}
+ openForm(form: SavedForm): void {
+  const instance: FilledInstance = {
+    instanceId: form.source === 'filled' ? form.formId : null,
+    templateId: form.source === 'template' ? form.formId : undefined,
+    formName: form.formName || 'Untitled',
+    formPagesSnapshot: JSON.parse(JSON.stringify(form.formPages)),
+    data: {},
+    preview: null,
+    updatedAt: Date.now(),
+  };
+
+  this.normalizeCurrentForm();
+  this.beginEditing(instance);
+
+  requestAnimationFrame(() => {
+    this.applyPositionsToLiveForm();
+
+    // 🔹 Lock the canvas width immediately after rendering
+    const el = document.getElementById('form-to-export');
+    if (el) {
+      this.setPdfContentWidthVar(el);
+    }
+  });
+}
 private freezePage(livePage: HTMLElement, clonePage: HTMLElement) {
   const hostRect = livePage.getBoundingClientRect();
   const liveFields = Array.from(livePage.querySelectorAll<HTMLElement>('.field-wrapper'));
@@ -666,21 +1651,137 @@ private freezePage(livePage: HTMLElement, clonePage: HTMLElement) {
     }
   }
 
-  private beginEditing(inst: FilledInstance) {
-    this.currentInstance = JSON.parse(JSON.stringify(inst));
-    this.selectedForm = {
-      formId: inst.instanceId ?? inst.templateId ?? 'temp',
-      formName: inst.formName,
-      formPages: inst.formPagesSnapshot,
-      source: inst.instanceId ? 'filled' : 'template',
-    };
-    this.filledDataName = inst.formName;
-    this.showFormEditor = true;
-    this.showNameInput = false;
-    this.nameError = false;
-    this.adjustFormContainerHeight();
-    setTimeout(() => this.initCanvases(), 0);
+private beginEditing(inst: FilledInstance) {
+  this.currentInstance = JSON.parse(JSON.stringify(inst));
+  this.selectedForm = {
+    formId: inst.instanceId ?? inst.templateId ?? 'temp',
+    formName: inst.formName,
+    formPages: inst.formPagesSnapshot,
+    source: inst.instanceId ? 'filled' : 'template',
+  };
+    this.selectedForm.formPages.forEach(p =>
+    p.fields.forEach(f =>{
+this.normalizeFieldType(f);  
+     this.ensureGridMatrixDefaults(f);
+    })
+  );
+ this.selectedForm.formPages.forEach(p =>
+    p.fields
+      .filter(f => ['data-grid', 'grid', 'matrix'].includes((f.type || '').toLowerCase()))
+      .forEach(f => this.clampGridItems(f))
+  );
+ this.hydrateAllGridsFromValues();  // <-- add this
+
+  // Filled experience (no drag/resize chrome)
+  this.isBuilderMode = false;
+  this.fillLayoutMode = 'exact';
+  this.filledDataName = inst.formName;
+  this.showFormEditor = true;
+  this.showNameInput = false;
+  this.nameError = false;
+  this.adjustFormContainerHeight();
+
+  setTimeout(() => {
+    this.initCanvases();
+    requestAnimationFrame(() => this.applyPositionsToLiveForm());
+  }, 0);
+}
+
+
+/** Compute a JSON-friendly value for saving (rows -> cols -> items -> value) */
+private computeGridValue(f: any) {
+  const gm = f?.gridMatrix;
+  if (!gm?.cells) return null;
+  return gm.cells.map((row: any[]) =>
+    row.map((cell: any) =>
+      (cell.items || []).map((it: any) => it?.value ?? null)
+    )
+  );
+}
+
+/** Called on ANY input change inside the grid to keep field.value in sync */
+onGridInputChange(field: any) {
+  this.ensureGridMatrixDefaults(field);
+  field.value = this.computeGridValue(field);
+}
+
+/** True if any cell has a non-empty value (for required) */
+gridHasAnyValue(field: DataGridField): boolean {
+  const cells2D = this.ensure2DGrid(field.gridMatrix);
+  for (const row of cells2D) {
+    for (const cell of row) {
+      for (const it of (cell.items || [])) {
+        if ((it as any)?.type === 'file') { if ((it as any).value) return true; continue; }
+        const v = (it as any)?.value;
+        if (typeof v === 'number') { if (!Number.isNaN(v)) return true; }
+        else if (typeof v === 'string') { if (v.trim().length) return true; }
+        else if (v != null) return true;
+      }
+    }
   }
+  return false;
+}
+
+
+/** Apply previously-saved field.value back into gm.cells[*][*].items[*].value */
+private hydrateGridValuesForField(f: any) {
+  if (f.type !== 'data-grid') return;
+  this.ensureGridMatrixDefaults(f);
+
+  const gm = f.gridMatrix;
+  const vals = f.value; // expected shape: [rows][cols][items] (same as computeGridValue)
+  if (!Array.isArray(vals)) return;
+
+  for (let r = 0; r < gm.rows; r++) {
+    for (let c = 0; c < gm.cols; c++) {
+      const cell = gm.cells?.[r]?.[c];
+      const cellVals = vals?.[r]?.[c];
+      if (!cell || !Array.isArray(cellVals)) continue;
+
+      for (let i = 0; i < cell.items.length; i++) {
+        const it = cell.items[i];
+        it.value = (i < cellVals.length) ? cellVals[i] : it.value ?? null;
+      }
+    }
+  }
+}
+
+/** Run this before collecting values to ensure grid fields set field.value */
+private syncGridValuesIntoFields() {
+  (this.selectedForm?.formPages || []).forEach(p =>
+    (p.fields || []).forEach((f: any) => {
+      if (f.type === 'data-grid') f.value = this.computeGridValue(f);
+    })
+  );
+}
+
+/** Run this after loading/opening a form so the grid controls show saved values */
+private hydrateAllGridsFromValues() {
+  (this.selectedForm?.formPages || []).forEach(p =>
+    (p.fields || []).forEach((f: any) => this.hydrateGridValuesForField(f))
+  );
+}
+private measureTightControlBox(wrapper: HTMLElement): { w: number; h: number } {
+  // what we consider the "real" control inside the wrapper
+  const tightSel =
+    '.date-input-shell, .fw-field, .mat-mdc-form-field, ' +
+    'textarea, select, input[type="text"], input[type="number"], input[type="email"], input[type="tel"], ' +
+    '.checkbox-group, .radio-group, canvas.signature-canvas, img.uploaded-img';
+
+  const ctrl = wrapper.querySelector<HTMLElement>(tightSel) || wrapper;
+  const r = ctrl.getBoundingClientRect();
+
+  // include label height (so the stored height matches what you see)
+  const label = wrapper.querySelector<HTMLElement>('.field-label');
+  const labelH = label ? Math.ceil(label.getBoundingClientRect().height) + 6 : 0;
+
+  return {
+    w: Math.max(20, Math.round(r.width)),
+    h: Math.max(20, Math.round(r.height + labelH)),
+  };
+}
+
+  
 
   private ensureProblemInit(field: any) {
     if (!field.problemItems) field.problemItems = [];
@@ -798,41 +1899,45 @@ private async uploadAllSignatures(kind: 'filled' | 'template', docId: string) {
 }
 
 private replaceControlsWithValues(root: HTMLElement) {
-  const toSpan = (el: HTMLElement, text: string) => {
+  const replaceHost = (el: HTMLElement, text: string) => {
+    const host = el.closest('.mat-mdc-form-field, .mat-form-field') as HTMLElement | null;
+    const target = host ?? el;                       // <- replace the wrapper, not just the input
+
     const span = document.createElement('span');
     span.className = 'print-value';
     span.textContent = text ?? '';
-    const cs = getComputedStyle(el);
-    span.style.display = 'inline-block';
-    span.style.whiteSpace = cs.whiteSpace || 'pre-wrap';
-    span.style.font = cs.font;
-    span.style.lineHeight = cs.lineHeight;
-    span.style.letterSpacing = cs.letterSpacing;
-    span.style.width = `${(el as HTMLElement).clientWidth}px`;
-    span.style.minHeight = `${(el as HTMLElement).clientHeight}px`;
-    span.style.padding = cs.padding || '6pt 8pt';
+
+    const r = target.getBoundingClientRect();
+    span.style.display = 'block';
+    span.style.width = `${Math.max(1, Math.round(r.width))}px`;
+    span.style.minHeight = `${Math.max(36, Math.round(r.height || 36))}px`;
+    span.style.boxSizing = 'border-box';
+    span.style.padding = '6pt 8pt';
     span.style.border = '0.5pt solid #E5E7EB';
     span.style.background = '#FAFAFA';
-    el.replaceWith(span);
+    span.style.borderRadius = '4px';
+    span.style.whiteSpace = 'pre-wrap';
+
+    target.replaceWith(span);
   };
 
-  // text-like
+  // text-like inputs
   root.querySelectorAll<HTMLInputElement>(
     'input[type="text"],input[type="number"],input[type="email"],input[type="tel"],input[type="date"]'
-  ).forEach(el => toSpan(el, el.value ?? ''));
+  ).forEach(el => replaceHost(el, el.value ?? ''));
 
   // textarea
   root.querySelectorAll<HTMLTextAreaElement>('textarea')
-    .forEach(el => toSpan(el, el.value ?? ''));
+      .forEach(el => replaceHost(el, el.value ?? ''));
 
-  // native <select>
+  // native select
   root.querySelectorAll<HTMLSelectElement>('select')
-    .forEach(el => {
-      const label = el.selectedOptions?.[0]?.text ?? el.value ?? '';
-      toSpan(el as any, label);
-    });
+      .forEach(el => {
+        const label = el.selectedOptions?.[0]?.text ?? el.value ?? '';
+        replaceHost(el, label);
+      });
 
-  // checkboxes → inline mark + label (no big box)
+  // plain checkboxes (non-Material)
   root.querySelectorAll<HTMLInputElement>('input[type="checkbox"]').forEach(el => {
     const span = document.createElement('span');
     const labelText = (el.parentElement?.textContent || '').trim();
@@ -841,7 +1946,7 @@ private replaceControlsWithValues(root: HTMLElement) {
     el.parentElement ? el.parentElement.replaceWith(span) : el.replaceWith(span);
   });
 
-  // radios → inline mark + label (replace the <label> wrapper)
+  // plain radios (non-Material)
   root.querySelectorAll<HTMLLabelElement>('label.radio-option').forEach(label => {
     const input = label.querySelector<HTMLInputElement>('input[type="radio"]');
     const text = (label.textContent || '').trim();
@@ -849,6 +1954,66 @@ private replaceControlsWithValues(root: HTMLElement) {
     span.textContent = `${input?.checked ? '◉' : '○'} ${text}`;
     span.style.display = 'inline-block';
     label.replaceWith(span);
+  });
+}
+private prettyValue(f: FormField): string {
+  if (!f) return '';
+  if (f.type === 'checkbox' && Array.isArray(f.options)) {
+    const chosen = Array.isArray(f.value)
+      ? f.value
+      : f.options.filter(o => !!o.checked).map(o => o.value);
+    return chosen
+      .map(v => f.options!.find(o => o.value === v)?.label ?? String(v))
+      .join(', ');
+  }
+  if (f.type === 'radio' && Array.isArray(f.options)) {
+    const opt = f.options.find(o => o.checked || o.value === f.value);
+    return opt?.label ?? (f.value ?? '');
+  }
+  if (f.type === 'date') return this.toDdMmYyyy(f.value) || '';
+  return (f.value ?? '').toString();
+}
+
+/** Replace the whole control area with a single full-width value block. */
+private renderValuesIntoWrappers(clone: HTMLElement) {
+  (this.selectedForm?.formPages || []).forEach(p => {
+    (p.fields || []).forEach((f: FormField) => {
+      const wrap = clone.querySelector<HTMLElement>(`.field-wrapper[data-id="${f.id}"]`);
+      if (!wrap) return;
+
+      // keep the label text if present
+      const labelEl = wrap.querySelector<HTMLElement>('.field-label');
+      const labelText = (labelEl?.textContent || f.label || '').trim();
+
+      // clear everything inside the wrapper
+      wrap.replaceChildren();
+
+      if (labelText) {
+        const lab = document.createElement('div');
+        lab.className = 'field-label';
+        lab.textContent = labelText;
+        wrap.appendChild(lab);
+      }
+
+      // signatures/photos are handled elsewhere – skip here
+      if (f.type === 'signature' || f.type === 'photo' || f.type === 'file') return;
+
+      const val = document.createElement('div');
+      val.className = 'print-value';
+      val.textContent = this.prettyValue(f);
+
+      val.style.display = 'block';
+      val.style.width = '100%';
+      val.style.boxSizing = 'border-box';
+      val.style.minHeight = (f.height ? Math.max(36, f.height - 22) : 36) + 'px';
+      val.style.padding = '6pt 8pt';
+      val.style.border = '0.5pt solid #E5E7EB';
+      val.style.background = '#FAFAFA';
+      val.style.borderRadius = '4px';
+      val.style.whiteSpace = 'pre-wrap';
+
+      wrap.appendChild(val);
+    });
   });
 }
 
@@ -1091,11 +2256,21 @@ this.selectedForm.formPages.forEach((p) => p.fields.forEach((f: any) => {
     f.value = f.options.filter((o: any) => !!o.checked).map((o: any) => o.value);
   }
 }));
-
+try {
+  this.updatePositionsFromDOM();
+} catch {}
+  this.syncGridValuesIntoFields();
   // 2) collect values
- const values: Record<string, any> = {};
+const values: Record<string, any> = {};
 this.selectedForm.formPages.forEach((p: FormPage) =>
-  p.fields.forEach((f: FormField) => (values[f.id] = f.value ?? null))
+  p.fields.forEach((f: FormField) => {
+    if (f.type === 'checkbox') {
+      // ensure array even if nothing selected
+      values[f.id] = Array.isArray(f.value) ? f.value : [];
+    } else {
+      values[f.id] = f.value ?? null;
+    }
+  })
 );
 
   // 3) tiny preview (non-blocking)
@@ -1286,7 +2461,12 @@ async deleteForm(form: SavedForm): Promise<void> {
   }
 }
   /* ---------------- Signature / Pointer helpers ---------------- */
-
+isInlineRow(field: any): boolean {
+  const t = (field?.type || 'text').toLowerCase();
+  // things that should stack vertically
+  const stackTypes = ['textarea', 'description', 'signature', 'file', 'photo'];
+  return !stackTypes.includes(t);
+}
 initCanvases(): void {
   this.ctxMap = {};
   this.drawingMap = {};
@@ -1313,7 +2493,7 @@ initCanvases(): void {
 
     // set CSS size
     const cssW = Math.max(1, (field?.width ?? canvas.clientWidth) || 300);
-    const cssH = Math.max(1, (this.getSignatureCanvasHeight(field?.height) ?? canvas.clientHeight) || 150);
+  const cssH = Math.max(1, this.getSignatureCanvasHeight(field?.height ?? undefined) || canvas.clientHeight || 150);
     canvas.style.width = cssW + 'px';
     canvas.style.height = cssH + 'px';
 
@@ -1375,34 +2555,49 @@ p.fields.forEach((f: FormField) => {
     return ref ? ref.nativeElement : null;
   }
 
-  startDrawing(event: PointerEvent, fieldId: string): void {
-    event.preventDefault();
-    this.drawingMap[fieldId] = true;
-    const pos = this.getPointerPos(event, fieldId);
-    this.lastPos[fieldId] = pos;
-    const ctx = this.ctxMap[fieldId];
-    if (!ctx) return;
-    ctx.beginPath();
-    ctx.moveTo(pos.x, pos.y);
-  }
+startDrawing(event: PointerEvent, fieldId: string): void {
+  event.preventDefault();
+  (event.target as HTMLElement)?.setPointerCapture?.(event.pointerId);
 
-  draw(event: PointerEvent, fieldId: string): void {
-    event.preventDefault();
-    if (!this.drawingMap[fieldId]) return;
-    const ctx = this.ctxMap[fieldId];
-    if (!ctx) return;
+  this.drawingMap[fieldId] = true;
 
-    const pos = this.getPointerPos(event, fieldId);
-    ctx.lineTo(pos.x, pos.y);
-    ctx.stroke();
-    this.lastPos[fieldId] = pos;
-  }
+  const pos = this.getPointerPos(event, fieldId);
+  this.lastPos[fieldId] = pos;
+
+  const ctx = this.ctxMap[fieldId];
+  if (!ctx) return;
+
+  // sensible defaults (only once if you want)
+  ctx.lineWidth = ctx.lineWidth || 2;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#000';
+
+  ctx.beginPath();
+  ctx.moveTo(pos.x, pos.y);
+}
+
+
+draw(event: PointerEvent, fieldId: string): void {
+  event.preventDefault();
+  if (!this.drawingMap[fieldId]) return;
+
+  const ctx = this.ctxMap[fieldId];
+  if (!ctx) return;
+
+  const pos = this.getPointerPos(event, fieldId);
+  ctx.lineTo(pos.x, pos.y);
+  ctx.stroke();
+  this.lastPos[fieldId] = pos;
+}
 
 stopDrawing(event: PointerEvent, fieldId: string): void {
   event.preventDefault();
   if (!this.drawingMap[fieldId]) return;
+
   const ctx = this.ctxMap[fieldId];
   if (!ctx) return;
+
   ctx.closePath();
   this.drawingMap[fieldId] = false;
 
@@ -1411,7 +2606,7 @@ stopDrawing(event: PointerEvent, fieldId: string): void {
   if (cnv && field) {
     const data = cnv.toDataURL('image/png');
     field.value = data;
-    this.sigSrcMap[fieldId] = data; // keep the redraw source fresh
+    this.sigSrcMap[fieldId] = data;
   }
 }
 
@@ -1426,12 +2621,21 @@ clearSignatureCanvas(fieldId: string): void {
   }
 }
 
-  getPointerPos(event: PointerEvent, fieldId: string): { x: number; y: number } {
-    const canvas = this.getCanvasById(fieldId);
-    if (!canvas) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
-    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
-  }
+
+getPointerPos(event: PointerEvent, fieldId: string): { x: number; y: number } {
+  const canvas = this.getCanvasById(fieldId);
+  if (!canvas) return { x: 0, y: 0 };
+
+  const rect = canvas.getBoundingClientRect();
+  // convert CSS pixels -> canvas pixels
+  const scaleX = canvas.width  / rect.width;
+  const scaleY = canvas.height / rect.height;
+
+  return {
+    x: (event.clientX - rect.left) * scaleX,
+    y: (event.clientY - rect.top)  * scaleY
+  };
+}
 
   /* ---------------- Layout / UI helpers ---------------- */
 
@@ -1482,6 +2686,7 @@ clearSignatureCanvas(fieldId: string): void {
 
   autoGrow(element: EventTarget | null) {
     if (!(element instanceof HTMLTextAreaElement)) return;
+      if (this.fixedLayout) return; 
     element.style.width = 'auto';
     element.style.height = 'auto';
 
@@ -1508,103 +2713,313 @@ clearSignatureCanvas(fieldId: string): void {
 
     this.containerHeight = maxY + 20;
   }
-
-  updatePositionsFromDOM(): void {
-    if (!this.selectedForm) return;
-    const container = document.getElementById('form-to-export');
-    if (!container) return;
-
-    this.selectedForm.formPages.forEach((page, pageIndex) => {
-      const pageEl = container.querySelectorAll('.page-container')[pageIndex];
-      if (!pageEl) return;
-
-      page.fields.forEach((field) => {
-        const fieldEl = (pageEl as HTMLElement).querySelector(
-          `.field-wrapper[data-id="${field.id}"]`
-        ) as HTMLElement;
-        if (!fieldEl) return;
-
-        const containerRect = (pageEl as HTMLElement).getBoundingClientRect();
-        const fieldRect = fieldEl.getBoundingClientRect();
-
-        field.position = {
-          x: fieldRect.left - containerRect.left,
-          y: fieldRect.top - containerRect.top,
-        };
-      });
-    });
+private normalizeFieldType(f: any) {
+  const t = String(f?.type || '').toLowerCase().replace(/[_\s]+/g, '-');
+  if (t === 'datagrid' || t === 'data-grid' || t === 'grid' || t === 'matrix') {
+    f.type = 'data-grid';
+  } else {
+    f.type = t;
   }
-  startFormFromTemplate(tpl: SavedForm) {
+}
+
+// add this helper
+workspacePad = 240; // big padding around the page so you can move it anywhere
+private panningPageIdx: number | null = null;
+private panStart = { x: 0, y: 0, offX: 0, offY: 0 };
+
+private normalizeTemplatePages(form: { formPages?: any[] }) {
+  (form.formPages || []).forEach((p: any) => {
+    // page offsets (for panning) – keep them defined
+    p.offsetX = p.offsetX ?? 0;
+    p.offsetY = p.offsetY ?? 0;
+
+    (p.fields || []).forEach((f: any) => {
+      // --- absolute geometry ---
+      f.position ??= { x: 0, y: 0 };
+
+      // width defaults
+      if (typeof f.width !== 'number') {
+        f.width = (f.type === 'data-grid') ? 600 : 300; // grid wider by default
+      }
+
+      // height defaults
+      if (typeof f.height !== 'number') {
+        f.height =
+          f.type === 'signature'   ? 150 :
+          f.type === 'textarea'    ? 120 :
+          f.type === 'description' ? 120 :
+          f.type === 'data-grid'   ? 200 : // provisional, refined below for matrix
+          48;
+      }
+
+      // NEW: inner layout defaults so filled view matches template
+      f.ui ??= {};
+      if (!f.ui.direction) {
+        const multiline = ['textarea','description','signature','file','photo']
+          .includes(String(f.type || '').toLowerCase());
+        f.ui.direction = multiline ? 'column' : 'row';
+      }
+      if (typeof f.ui.labelWidthPx !== 'number') f.ui.labelWidthPx = 120;
+      if (typeof f.ui.gapPx        !== 'number') f.ui.gapPx        = 10;
+    });
+  });
+}
+toNativeDate(v: any): string {
+  if (!v) return '';
+  if (v instanceof Date && !isNaN(v.getTime())) {
+    const y = v.getFullYear();
+    const m = String(v.getMonth()+1).padStart(2,'0');
+    const d = String(v.getDate()).padStart(2,'0');
+    return `${y}-${m}-${d}`;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  const p = this.parseDdMmYyyy(String(v));
+  return p ? `${p.y}-${String(p.m).padStart(2,'0')}-${String(p.d).padStart(2,'0')}` : '';
+}
+
+toDdMmYyyy(v: any): string {
+  if (!v) return '';
+  if (v instanceof Date && !isNaN(v.getTime())) {
+    const d = String(v.getDate()).padStart(2,'0');
+    const m = String(v.getMonth()+1).padStart(2,'0');
+    const y = v.getFullYear();
+    return `${d}/${m}/${y}`;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+    const [y,m,d] = v.split('-').map(Number);
+    return `${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}/${y}`;
+  }
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(v)) return v;
+  return '';
+}
+
+parseDdMmYyyy(s: string): {d:number,m:number,y:number} | null {
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return null;
+  const d = +m[1], mon = +m[2], y = +m[3];
+  if (mon < 1 || mon > 12) return null;
+  const days = new Date(y, mon, 0).getDate();
+  if (d < 1 || d > days) return null;
+  return { d, m: mon, y };
+}
+
+onDateInput(e: Event, field: any): void {
+  const s = (e.target as HTMLInputElement).value;
+  const parts = this.parseDdMmYyyy(s);
+  field.value = parts
+    ? `${parts.y}-${String(parts.m).padStart(2,'0')}-${String(parts.d).padStart(2,'0')}`
+    : s; // keep typing buffer
+}
+
+onDateBlur(e: Event, field: any): void {
+  const s = (e.target as HTMLInputElement).value.trim();
+  if (!s) { field.value = ''; return; }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(field.value as any)) return;
+  const parts = this.parseDdMmYyyy(s);
+  if (!parts) {
+    this.snackBar.open('Invalid date. Use DD/MM/YYYY', 'Close', { duration: 1800 });
+    field.value = '';
+  } else {
+    field.value = `${parts.y}-${String(parts.m).padStart(2,'0')}-${String(parts.d).padStart(2,'0')}`;
+  }
+}
+
+
+onNativeDateChange(e: Event, field: any): void {
+  const v = (e.target as HTMLInputElement).value; // 'YYYY-MM-DD'
+  field.value = v || '';
+}
+
+openNativePicker(native: HTMLInputElement): void {
+  const wasLocked = this.calendarLocked;
+  this.calendarLocked = false;
+  try {
+    if (typeof (native as any).showPicker === 'function') (native as any).showPicker();
+    else native.click();
+  } finally {
+    setTimeout(() => (this.calendarLocked = wasLocked), 0);
+  }
+}
+updatePositionsFromDOM(): void {
+  if (!this.selectedForm) return;
+  const container = document.getElementById('form-to-export');
+  if (!container) return;
+
+  this.selectedForm.formPages.forEach((page, pageIndex) => {
+    const pageEl = container.querySelectorAll('.page-container')[pageIndex] as HTMLElement | undefined;
+    if (!pageEl) return;
+
+    page.fields.forEach((field) => {
+      const fieldEl = pageEl.querySelector<HTMLElement>(
+        `.field-wrapper[data-id="${field.id}"]`
+      );
+      if (!fieldEl) return;
+
+      // position relative to the page
+      const hostRect = pageEl.getBoundingClientRect();
+      const r = fieldEl.getBoundingClientRect();
+      field.position = { x: r.left - hostRect.left, y: r.top - hostRect.top };
+
+      // ⬇️ NEW: store tight width/height based on inner control (not the big wrapper)
+      const { w, h } = this.measureTightControlBox(fieldEl);
+      field.width  = w;
+      field.height = h;
+    });
+  });
+}
+onPageMouseDown(e: MouseEvent, pageIndex: number) {
+  // don’t start panning if you clicked on a field
+  if ((e.target as HTMLElement).closest('.field-wrapper')) return;
+
+  this.panningPageIdx = pageIndex;
+  const page = this.selectedForm!.formPages[pageIndex];
+  this.panStart = {
+    x: e.clientX,
+    y: e.clientY,
+    offX: page.offsetX || 0,
+    offY: page.offsetY || 0,
+  };
+
+  document.addEventListener('mousemove', this.onPageMouseMove);
+  document.addEventListener('mouseup', this.onPageMouseUp);
+}
+
+onPageMouseMove = (e: MouseEvent) => {
+  if (this.panningPageIdx == null || !this.selectedForm) return;
+  const page = this.selectedForm.formPages[this.panningPageIdx];
+  page.offsetX = this.panStart.offX + (e.clientX - this.panStart.x);
+  page.offsetY = this.panStart.offY + (e.clientY - this.panStart.y);
+  this.cdr.markForCheck();
+};
+
+onPageMouseUp = () => {
+  document.removeEventListener('mousemove', this.onPageMouseMove);
+  document.removeEventListener('mouseup', this.onPageMouseUp);
+  this.panningPageIdx = null;
+};
+
+// Small helpers (optional)
+centerPage(pIndex: number) {
+  if (!this.selectedForm) return;
+  const page = this.selectedForm.formPages[pIndex];
+  page.offsetX = 0; page.offsetY = 0;
+}
+startFormFromTemplate(tpl: SavedForm) {
   const inst: FilledInstance = {
-    instanceId: null,                       // new instance
-    templateId: tpl.formId,                 // link to the template
+    instanceId: null,
+    templateId: tpl.formId,
     formName: tpl.formName || 'Untitled Form',
-    formPagesSnapshot: JSON.parse(JSON.stringify(tpl.formPages)),
+    formPagesSnapshot: JSON.parse(JSON.stringify(tpl.formPages || [])),
     data: {},
     preview: null,
     updatedAt: Date.now(),
   };
 
-  this.beginEditing(inst);  
-  this.restoreCheckboxesFromValue(); 
-                 // opens the editor with a fresh instance
-                // optional: switch to “Filled” tab/section
+  // ensure page coords start at (0,0)
+  this.normalizePagesToTopLeft(inst.formPagesSnapshot);
+  // this.anchorAllPages(inst.formPagesSnapshot); // <- only if you really use panning
+
+  this.beginEditing(inst);
+  this.restoreCheckboxesFromValue();
+
+  // Lay out to saved geometry after the view is in the DOM
+  requestAnimationFrame(() => {
+    this.applyPositionsToLiveForm();
+    // do one more tick to catch late material sizing
+    requestAnimationFrame(() => this.applyPositionsToLiveForm());
+  });
+}
+private normalizePagesToTopLeft(pages: FormPage[]) {
+  for (const p of (pages || [])) {
+    const fs = p.fields || [];
+    if (!fs.length) continue;
+
+    let minX = Infinity, minY = Infinity;
+    for (const f of fs) {
+      const x = Math.round(f?.position?.x ?? 0);
+      const y = Math.round(f?.position?.y ?? 0);
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+    }
+    if (!isFinite(minX)) minX = 0;
+    if (!isFinite(minY)) minY = 0;
+
+    for (const f of fs) {
+      f.position = f.position || { x: 0, y: 0 };
+      f.position.x = Math.max(0, Math.round((f.position.x || 0) - minX));
+      f.position.y = Math.max(0, Math.round((f.position.y || 0) - minY));
+    }
+  }
+}
+private get fixedLayout(): boolean {
+  // Both template editing and filled modes should respect saved x/y/w/h
+  return !!this.selectedForm && (this.selectedForm.source === 'template' || this.selectedForm.source === 'filled');
+}
+applyPositionsToLiveForm(): void {
+  if (!this.selectedForm) return;
+  const root = document.getElementById('form-to-export');
+  if (!root) return;
+
+  const pages = Array.from(root.querySelectorAll<HTMLElement>('.page-container'));
+  if (!pages.length) return;
+
+  this.selectedForm.formPages.forEach((page, pageIndex) => {
+    const pageEl = pages[pageIndex];
+    if (!pageEl) return;
+
+    const host =
+      (pageEl.querySelector('.page-surface') as HTMLElement) ||
+      (pageEl.querySelector('.form-page-container') as HTMLElement) ||
+      pageEl;
+
+    // fixed positioning context
+    if (!host.style.position) host.style.position = 'relative';
+
+    page.fields.forEach((field) => {
+      const sel = `.field-wrapper[data-id="${field.id}"]`;
+      const fieldEl =
+        (host.querySelector(sel) as HTMLElement) ||
+        (pageEl.querySelector(sel) as HTMLElement);
+      if (!fieldEl) return;
+
+      const x = Math.max(0, Math.round(field.position?.x ?? 0));
+      const y = Math.max(0, Math.round(field.position?.y ?? 0));
+      const w = Math.max(20, Math.round(field.width ?? 300));
+      const hasH = field.height != null;
+      const h = hasH ? Math.max(20, Math.round(field.height as number)) : undefined;
+
+      fieldEl.style.position = 'absolute';
+      fieldEl.style.left = `${x}px`;
+      fieldEl.style.top = `${y}px`;
+      fieldEl.style.width = `${w}px`;
+    if (hasH) {
+  fieldEl.style.height = `${h}px`;
+  fieldEl.style.minHeight = `${h}px`;   // ✅ ensures consistent box sizing
+} else {
+  fieldEl.style.removeProperty('height');
+  fieldEl.style.removeProperty('min-height');
+}
+    });
+  });
 }
 
-
-  applyPositionsToLiveForm(): void {
-    if (!this.selectedForm) return;
-    const root = document.getElementById('form-to-export');
-    if (!root) return;
-
-    const pages = Array.from(root.querySelectorAll<HTMLElement>('.page-container'));
-    if (!pages.length) return;
-
-    this.selectedForm.formPages.forEach((page, pageIndex) => {
-      const pageEl = pages[pageIndex];
-      if (!pageEl) return;
-
-      const host =
-        (pageEl.querySelector('.page-surface') as HTMLElement) ||
-        (pageEl.querySelector('.form-page-container') as HTMLElement) ||
-        pageEl;
-
-      if (!host.style.position) host.style.position = 'relative';
-      const hostW = Math.max(1, Math.round(host.clientWidth || host.scrollWidth || 794));
-
-      page.fields.forEach((field) => {
-        const sel = `.field-wrapper[data-id="${field.id}"]`;
-        const fieldEl = (host.querySelector(sel) as HTMLElement) || (pageEl.querySelector(sel) as HTMLElement);
-        if (!fieldEl) return;
-
-        const w = Math.max(20, Math.round(field.width ?? 300));
-        const h = field.height ? Math.max(20, Math.round(field.height)) : null;
-
-        const isDesc =
-          field.id === 'description' || field.type === 'description' || (field as any).isDescription;
-        if (isDesc) {
-          fieldEl.style.position = 'relative';
-          fieldEl.style.left = '';
-          fieldEl.style.top = '';
-          fieldEl.style.width = field.width ? `${w}px` : `${hostW}px`;
-          fieldEl.style.minHeight = h ? `${h}px` : '140px';
-          fieldEl.style.removeProperty('height');
-        } else {
-          const x = Math.max(0, Math.round(field.position?.x ?? 0));
-          const y = Math.max(0, Math.round(field.position?.y ?? 0));
-          fieldEl.style.position = 'absolute';
-          fieldEl.style.left = `${x}px`;
-          fieldEl.style.top = `${y}px`;
-          fieldEl.style.width = `${w}px`;
-          if (h) fieldEl.style.height = `${h}px`;
-          else fieldEl.style.removeProperty('height');
-        }
-      });
-    });
-  }
-
   /* ---------------- Fast download helpers ---------------- */
+private normalizePageOrigin(page: FormPage) {
+  if (!page?.fields?.length) return;
 
+  const xs = page.fields.map(f => Math.max(0, Math.round(f?.position?.x ?? 0)));
+  const ys = page.fields.map(f => Math.max(0, Math.round(f?.position?.y ?? 0)));
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
+
+  // If everything is offset from the top/left, pull it back to the edge.
+  if (isFinite(minX) && minX > 0) {
+    page.fields.forEach(f => { if (f.position) f.position.x -= minX; });
+  }
+  if (isFinite(minY) && minY > 0) {
+    page.fields.forEach(f => { if (f.position) f.position.y -= minY; });
+  }
+}
   private startDirectDownload(url: string, filename = 'form.pdf') {
     const a = document.createElement('a');
     a.href = url;
@@ -1690,7 +3105,56 @@ clearSignatureCanvas(fieldId: string): void {
       this.cdr.detectChanges();
     }
   }
+  private setPageHeightsForPdf(): void {
+  const A4H = 1123;               // px @ ~96dpi (matches CSS)
+  const PADDING = 24;
 
+  (this.selectedForm?.formPages || []).forEach((p, i) => {
+    const bottom = Math.max(
+      0,
+      ...((p.fields || []).map(f =>
+        (f?.position?.y || 0) + (Number(f?.height) || 0)
+      ))
+    );
+    const min = Math.ceil(bottom + PADDING * 2);
+    // Let tall pages spill to multiple A4 pages (html2pdf will paginate)
+    const host = document.querySelectorAll<HTMLElement>('.page-surface')[i];
+    if (host) host.style.minHeight = Math.max(A4H, min) + 'px';
+  });
+}
+private expandForPdf(root: HTMLElement): () => void {
+  const edited: Array<{el: HTMLElement, style: Partial<CSSStyleDeclaration>}> = [];
+
+  // Any element that can crop content
+  root.querySelectorAll<HTMLElement>('textarea, [style*="overflow"], .mdc-text-field, .mat-mdc-form-field, .field-wrapper')
+    .forEach(el => {
+      const prev: Partial<CSSStyleDeclaration> = {
+        overflow: el.style.overflow,
+        overflowY: el.style.overflowY,
+        height: el.style.height,
+      };
+
+      // unlock overflow
+      el.style.overflow = 'visible';
+      el.style.overflowY = 'visible';
+
+      // for textareas: grow to fit content
+      if (el.tagName === 'TEXTAREA') {
+        const ta = el as HTMLTextAreaElement;
+        ta.style.height = 'auto';
+        ta.style.height = `${ta.scrollHeight}px`;
+      }
+
+      edited.push({ el, style: prev });
+    });
+
+  // return undo
+  return () => edited.forEach(({el, style}) => {
+    if (style.overflow !== undefined) el.style.overflow = style.overflow!;
+    if (style.overflowY !== undefined) el.style.overflowY = style.overflowY!;
+    if (style.height !== undefined) el.style.height = style.height!;
+  });
+}
   /** Tight-crop generator (used from editor). */
   private async generatePdfBlobByPages(form: SavedForm): Promise<Blob> {
     try {
@@ -1726,7 +3190,7 @@ clearSignatureCanvas(fieldId: string): void {
         })
       );
       this.freezePositionsFromLive(surface, clone);
-      this.replaceControlsWithValues(clone);
+   this.renderValuesIntoWrappers(clone);
       this.injectPdfCleanupCss(clone);
       this.swapPhotosIntoClone(clone);
 
@@ -1940,7 +3404,7 @@ clearSignatureCanvas(fieldId: string): void {
       );
 
       this.freezePositionsFromLive(surface, clone);
-      this.replaceControlsWithValues(clone);
+   this.renderValuesIntoWrappers(clone);
       this.injectPdfCleanupCss(clone);
       this.swapPhotosIntoClone(clone);
 
@@ -2043,7 +3507,28 @@ clearSignatureCanvas(fieldId: string): void {
   private openUrlInNewTab(url: string) {
   window.open(url, '_blank', 'noopener,noreferrer');
 }
+private fitCloneToA4Width(host: HTMLElement, shell: HTMLElement, A4Wpx: number, marginMm = this.PDF_MARGIN_MM) {
+  const marginPx = Math.round(marginMm * this.pxPerMm);
+  const avail = A4Wpx - marginPx * 2;
 
+  const hostRect = host.getBoundingClientRect();
+  let maxRight = hostRect.left;
+
+  host.querySelectorAll<HTMLElement>('.field-wrapper').forEach(el => {
+    const r = el.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) maxRight = Math.max(maxRight, r.right);
+  });
+
+  const used = Math.ceil(maxRight - hostRect.left);
+  if (used > avail && used > 0) {
+    const scale = avail / used;
+    host.style.transform = `scale(${scale})`;
+    host.style.transformOrigin = 'top left';
+    // ensure shell is tall enough after scaling
+    const scaledH = Math.ceil(host.scrollHeight * scale);
+    shell.style.minHeight = Math.max(parseInt(shell.style.minHeight || '0', 10) || 0, scaledH) + 'px';
+  }
+}
 private openBlobInNewTab(blob: Blob) {
   const url = URL.createObjectURL(blob);
   this.openUrlInNewTab(url);
@@ -2070,8 +3555,10 @@ private freezePageLayout(livePage: HTMLElement, clonePage: HTMLElement) {
 }
 async downloadFilledFormAsPDF() {
   const live = document.getElementById('form-to-export') as HTMLElement | null;
+     
   if (!live) { this.snackBar.open('Form surface not found.', 'Close', { duration: 2500 }); return; }
-
+document.body.classList.add('for-pdf');
+this.setPdfContentWidthVar(live);
   try { this.applyPositionsToLiveForm?.(); } catch {}
   try { this.syncInkAndPhotosIntoValues?.(); } catch {}
 
@@ -2094,7 +3581,7 @@ async downloadFilledFormAsPDF() {
     // fallback: freeze against the whole surface
     this.freezePositionsFromLive(live, clone);
   }
-
+  this.setPdfContentWidthVar(live);  
   // NEW: make each page sized like A4 so offsets are relative to a page
   (clonePages.length ? clonePages : [clone]).forEach(p => {
     p.style.position   = 'relative';
@@ -2103,12 +3590,10 @@ async downloadFilledFormAsPDF() {
     p.style.background = '#fff';
     p.style.overflow   = 'visible';
   });
-
+  this.setPdfContentWidthVar(clone); 
   // Now do the swaps (canvases → img, inputs → text, photos → img)
  this.swapSignaturesInto(clone);
-this.flattenMatSelects(clone);           // <-- add
-this.flattenMatRadiosAndChecks(clone);   // <-- add
-this.replaceControlsWithValues(clone);
+this.renderValuesIntoWrappers(clone);
 this.swapPhotosIntoClone(clone);
 this.injectPdfCleanupCss(clone); // ensures .print-value fills the control width
 
@@ -2137,7 +3622,11 @@ this.injectPdfCleanupCss(clone); // ensures .print-value fills the control width
   shell.appendChild(clone);
   sandbox.appendChild(shell);
   document.body.appendChild(sandbox);
-
+const host =
+  (clone.querySelector('.page-surface') as HTMLElement) ||
+  (clone.querySelector('.form-page-container') as HTMLElement) ||
+  clone;
+this.fitCloneToA4Width(host, shell, A4W, this.PDF_MARGIN_MM);
   try {
     await new Promise(r => requestAnimationFrame(r));
     await new Promise(r => requestAnimationFrame(r));
@@ -2167,47 +3656,214 @@ this.injectPdfCleanupCss(clone); // ensures .print-value fills the control width
     console.error('PDF preview failed:', e);
     this.snackBar.open('Failed to open PDF.', 'Close', { duration: 3000 });
   } finally {
+    document.body.classList.remove('for-pdf');
     sandbox.remove();
   }
 }
 
 openFilledForm(filled: any) {
-  this.selectedForm = {
-    formId: filled.id ?? filled.formId,   
-    formName: filled.formName,
-    formPages: JSON.parse(JSON.stringify(filled.formPagesSnapshot)),
-     source: 'filled', 
-     sourceFormId: filled.sourceFormId ?? filled.templateId ?? null,
+  const inst: FilledInstance = {
+    instanceId: filled.id ?? filled.formId,
+    templateId: filled.sourceFormId ?? filled.templateId ?? undefined,
+    formName: filled.formName || 'Untitled',
+    formPagesSnapshot: JSON.parse(JSON.stringify(
+      filled.formPagesSnapshot || filled.formPages || []
+    )),
+    data: filled.data || {},
+    preview: filled.preview ?? filled.pdfUrl ?? null,
+    updatedAt: Date.now(),
   };
-this.restoreCheckboxesFromValue()
-  // ✅ restore signature images
- this.selectedForm.formPages.forEach((page: any) => {
-    page.fields.forEach((field: any) => {
-      if (field.type !== 'signature') return;
-      const cnv = this.getCanvasById(field.id);
-      const ctx = cnv?.getContext('2d');
-      if (!cnv || !ctx) return;
+    this.normalizeGridForOpen(inst.formPagesSnapshot);
+   this.normalizeTemplatePages({ formPages: inst.formPagesSnapshot } as any);
 
-      const src = field.value || field.signatureUrl;
-      if (!src) return;
+  // ⭐ pull everything back to (0,0) so there's no top/left gap
+  inst.formPagesSnapshot.forEach(p => this.normalizePageOrigin(p));
 
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => ctx.drawImage(img, 0, 0, cnv.width, cnv.height);
-      img.src = src;
-    });
-  });
+  this.beginEditing(inst);         // <-- ensures canvases init & UI set
+  this.restoreCheckboxesFromValue();
+   // ensure template is applied before positioning
+  if ((this as any).cdRef?.detectChanges) {
+    (this as any).cdRef.detectChanges();
+  }
+ 
+    // 👇 force the saved layout back onto the DOM
+  requestAnimationFrame(() => this.applyPositionsToLiveForm());
+      // 5) now that the DOM exists, hydrate grid UI from values
+    this.hydrateAllGridsFromValues();
+
+  // defer signature replay until canvases exist
+  setTimeout(() => this.initCanvases(), 0);
+}
+
+/** Ensure data-grid fields have a usable gridMatrix when opening a filled form */
+private normalizeGridForOpen(pages: any[]) {
+  for (const page of pages || []) {
+    for (const f of page.fields || []) {
+      if (f.type !== 'data-grid') continue;
+
+      // CASE A: already matrix — just ensure defaults
+      if (f.gridMatrix) {
+        f.gridMode = f.gridMode || 'matrix';
+        const gm = f.gridMatrix;
+        gm.rows = Array.isArray(gm.cells) ? gm.cells.length : (gm.rows ?? 1);
+        gm.cols = Array.isArray(gm.cells?.[0]) ? gm.cells[0].length : (gm.cols ?? 1);
+        gm.cellH = gm.cellH ?? 140;
+        gm.gap   = gm.gap   ?? 12;
+        gm.showBorders = !!gm.showBorders;
+        // ensure each cell has items array
+        for (let r = 0; r < gm.rows; r++) {
+          gm.cells[r] = gm.cells[r] || Array.from({ length: gm.cols }, () => ({ items: [] }));
+          for (let c = 0; c < gm.cols; c++) {
+            gm.cells[r][c] = gm.cells[r][c] || { items: [] };
+            gm.cells[r][c].items = gm.cells[r][c].items || [];
+          }
+        }
+        continue;
+      }
+
+      // CASE B: table mode saved (gridConfig / columns / rows) → render as matrix
+      if (f.gridConfig && Array.isArray(f.gridConfig.columns)) {
+        const cols = Math.max(1, f.gridConfig.columns.length);
+        const rows = Math.max(1, (f.rows?.length || 1));
+        f.gridMode = 'matrix';
+        f.gridMatrix = {
+          rows,
+          cols,
+          cellH: 140,
+          gap: 12,
+          showBorders: false,
+          // put each former column as a single tile in row 0 by default
+          cells: Array.from({ length: rows }, (_, r) =>
+            Array.from({ length: cols }, (_, c) => ({
+              items: [
+                {
+                  id: f.gridConfig.columns[c].id || `col_${c}`,
+                  type: f.gridConfig.columns[c].fieldDef?.type || 'text',
+                  label: f.gridConfig.columns[c].label || `Column ${c + 1}`,
+                },
+              ],
+            }))
+          ),
+        };
+        continue;
+      }
+
+      // CASE C: minimal fallback — ensure an empty 1x1 matrix so it renders
+      f.gridMode = 'matrix';
+      f.gridMatrix = {
+        rows: 1,
+        cols: 1,
+        cellH: 140,
+        gap: 12,
+        showBorders: false,
+        cells: [[{ items: [] }]],
+      };
+    }
+  }
+}
+
+private hydrateDataGrids(pages: any[]) {
+  for (const page of pages || []) {
+    for (const f of page.fields || []) {
+      if (f?.type !== 'data-grid' && f?.type !== 'datagrid' && f?.type !== 'grid' && f?.type !== 'matrix') continue;
+
+      // A) Already matrix → ensure sane defaults and arrays
+      if (f.gridMatrix) {
+        f.gridMode = f.gridMode || 'matrix';
+        const gm = f.gridMatrix;
+        gm.rows = gm.rows ?? (Array.isArray(gm.cells) ? gm.cells.length : 1);
+        gm.cols = gm.cols ?? (Array.isArray(gm.cells?.[0]) ? gm.cells[0].length : 1);
+        gm.cellH = gm.cellH ?? 140;
+        gm.gap = gm.gap ?? 12;
+        gm.showBorders = !!gm.showBorders;
+
+        // ensure gm.cells[r][c].items exists
+        for (let r = 0; r < (gm.rows || 1); r++) {
+          gm.cells[r] = gm.cells[r] || Array.from({ length: gm.cols || 1 }, () => ({ items: [] }));
+          for (let c = 0; c < (gm.cols || 1); c++) {
+            gm.cells[r][c] = gm.cells[r][c] || { items: [] };
+            gm.cells[r][c].items = gm.cells[r][c].items || [];
+          }
+        }
+        continue;
+      }
+
+      // B) Table-mode saved (columns/rows) → build a 1-row matrix
+      if (f.gridConfig?.columns?.length) {
+        const cols = f.gridConfig.columns;
+        f.gridMode = 'matrix';
+        f.gridMatrix = {
+          rows: 1,
+          cols: cols.length,
+          cellH: 140,
+          gap: 12,
+          showBorders: false,
+          cells: [
+            cols.map((col: any, i: number) => ({
+              items: [{
+                id: col.id || `col_${i}`,
+                type: col.fieldDef?.type || 'text',
+                label: col.label || `Column ${i + 1}`,
+                value: ''
+              }]
+            }))
+          ]
+        };
+        continue;
+      }
+
+      // C) Last-resort 1×1
+      f.gridMode = 'matrix';
+      f.gridMatrix = {
+        rows: 1, cols: 1, cellH: 140, gap: 12, showBorders: false,
+        cells: [[{ items: [] }]]
+      };
+    }
+  }
 }
 
 
-  savePDFPreview() {
-    this.showNameInput = true;
-  }
+
+ async savePDFPreview() {
+  const surface = document.getElementById('form-to-export') as HTMLElement;
+  if (!surface) return;
+
+  // ensure live DOM is at the exact saved positions
+  this.applyPositionsToLiveForm();
+  this.setPdfContentWidthVar(surface);  
+  // enter export mode
+  document.body.classList.add('for-pdf');
+
+  // unlock clipping & grow textareas
+  const undo = this.beginCapture(surface);
+
+  // give layout a tick to settle
+  await new Promise(r => requestAnimationFrame(r));
+
+  const opt = {
+    margin: this.PDF_MARGIN_MM,                              // 👈 match the CSS var
+    filename: `${this.selectedForm?.formName || 'form'}.pdf`,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: {
+      scale: Math.min(2, Math.max(1, window.devicePixelRatio || 1)),
+      useCORS: true,
+      backgroundColor: '#fff',
+      ignoreElements: (el: Element) => el.hasAttribute('data-nonprint'),
+      windowWidth: surface.scrollWidth                      // 👈 don’t clamp
+    },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+  };
+
+  await (html2pdf as any)().set(opt).from(surface).save();
+  undo();
+  document.body.classList.remove('for-pdf');
+}
   cancelSave(): void {
     this.showNameInput = false;
     this.nameError = false;
     this.filledDataName = '';
   }
+  
 
   private waitForElement(selector: string, timeoutMs = 2500): Promise<void> {
     const start = performance.now();
@@ -2262,6 +3918,7 @@ this.restoreCheckboxesFromValue()
 
     pdf.save(`${filename}.pdf`);
   }
+  
 
   private async exportFormToPDF(form: SavedForm) {
     const prevSelected = this.selectedForm;
@@ -2292,11 +3949,13 @@ this.restoreCheckboxesFromValue()
       console.error('Main generator failed, using fallback', e);
       await this.liveSnapshotFallback(form.formName || 'form');
     } finally {
+      document.body.classList.remove('for-pdf');    
       this.selectedForm = prevSelected;
       this.showFormEditor = prevShowEditor;
       this.cdr.detectChanges();
     }
   }
+  
 
   private async settleLayoutForPdf() {
     this.applyPositionsToLiveForm?.();
@@ -2485,9 +4144,9 @@ private flattenMatRadiosAndChecks(root: HTMLElement) {
       alert('Form container not found!');
       return;
     }
-
+  this.setPdfContentWidthVar(container);  
     const clone = container.cloneNode(true) as HTMLElement;
-
+  this.setPdfContentWidthVar(container);  
     clone.style.position = 'fixed';
     clone.style.top = '0';
     clone.style.left = '0';
@@ -2500,7 +4159,7 @@ private flattenMatRadiosAndChecks(root: HTMLElement) {
      this.swapSignaturesInto(clone);
 this.flattenMatSelects(clone);           // <-- add
 this.flattenMatRadiosAndChecks(clone);   // <-- add
-this.replaceControlsWithValues(clone);
+  this.renderValuesIntoWrappers(clone);
 this.swapPhotosIntoClone(clone);
 this.injectPdfCleanupCss(clone);
         const liveRoot =
@@ -2532,7 +4191,7 @@ this.injectPdfCleanupCss(clone);
       const worker = (html2pdf as any)()
         .from(root)
         .set({
-          margin: 0,
+           margin: this.PDF_MARGIN_MM,  
           filename: `${filename}.pdf`,
           image: { type: 'jpeg', quality: 0.98 },
           html2canvas: {
@@ -2573,6 +4232,7 @@ this.injectPdfCleanupCss(clone);
       clone.remove();
     }
   }
+  
 
   private captureInlineStyles(root: HTMLElement): () => void {
     const entries: Array<{ el: HTMLElement; css: string | null }> = [];
@@ -2588,124 +4248,160 @@ this.injectPdfCleanupCss(clone);
     };
   }
 
-  private async exportFormToPDF_LIVE(form: SavedForm) {
-    const prevSelected = this.selectedForm;
-    const prevShow = this.showFormEditor;
 
-    this.openForm(form);
-    this.cdr.detectChanges();
-    await new Promise((r) => setTimeout(r, 200));
+private readonly A4_W_MM = 210;
+private readonly PDF_MARGIN_MM = 10;       // 10mm margin on each side
+private readonly pxPerMm = 96 / 25.4;      // CSS px @ 96dpi
+
+private setPdfContentWidthVar(surface: HTMLElement) {
+  // width available INSIDE the margins
+  const contentPx = Math.floor((this.A4_W_MM - 2 * this.PDF_MARGIN_MM) * this.pxPerMm);
+  // ~717px with 10mm margins; safer than 794px
+  surface.style.setProperty('--pdf-content-width', `${contentPx}px`);
+}
+
+private async exportFormToPDF_LIVE(form: SavedForm) {
+  const prevSelected = this.selectedForm;
+  const prevShow = this.showFormEditor;
+
+  this.openForm(form);
+  this.cdr.detectChanges();
+  await new Promise((r) => setTimeout(r, 200));
+  await new Promise((r) => requestAnimationFrame(r));
+  await new Promise((r) => setTimeout(r, 0));
+  this.cdr.detectChanges();
+
+  const liveRoot = document.getElementById('form-to-export');
+  if (!liveRoot) {
+    this.snackBar.open('form-to-export not found', 'Close', { duration: 2500 });
+    return;
+  }
+
+  document.body.classList.add('for-pdf');
+  this.setPdfContentWidthVar(liveRoot);      // set --pdf-content-width on the live DOM once
+  const restoreLive = this.captureInlineStyles(liveRoot);
+
+  try {
+    try { this.applyPositionsToLiveForm?.(); } catch {}
+    try { await (document as any).fonts?.ready; } catch {}
+
+    const clone = liveRoot.cloneNode(true) as HTMLElement;
+
+    // ✅ Force the clone to the exact inner A4 content width
+    const contentPx =
+      parseInt(getComputedStyle(liveRoot).getPropertyValue('--pdf-content-width')) ||
+      Math.floor((this.A4_W_MM - 2 * this.PDF_MARGIN_MM) * this.pxPerMm);
+
+    clone.style.width = contentPx + 'px';
+    clone.style.maxWidth = contentPx + 'px';
+    clone.style.minWidth = contentPx + 'px';
+    clone.style.background = '#fff';
+
+    // Replace controls with values & swap media
+    this.swapSignaturesInto(clone);
+    this.flattenMatSelects(clone);
+    this.flattenMatRadiosAndChecks(clone);
+    this.renderValuesIntoWrappers(clone);
+    this.swapPhotosIntoClone(clone);
+    this.injectPdfCleanupCss(clone);
+
+    // A4 metrics
+    const mmToPx = (mm: number) => Math.round(mm * (96 / 25.4));
+    const A4W = mmToPx(210);
+    const A4H = mmToPx(297);
+
+    // Sandbox shell the size of a physical A4 page (visual)
+    const sandbox = document.createElement('div');
+    sandbox.style.position = 'fixed';
+    sandbox.style.inset = '0';
+    sandbox.style.zIndex = '9999';
+    sandbox.style.pointerEvents = 'none';
+    sandbox.style.background = 'transparent';
+    sandbox.style.opacity = '0.01';
+    sandbox.style.userSelect = 'none';
+
+    const shell = document.createElement('div');
+    shell.style.position = 'fixed';
+    shell.style.top = '0';
+    shell.style.left = '0';
+    shell.style.width = A4W + 'px';
+    shell.style.minHeight = A4H + 'px';
+    shell.style.background = '#fff';
+    shell.style.overflow = 'visible';
+
+    // 👇 keep the fixed width we just set; don't overwrite with 100%
+    clone.style.position = 'relative';
+    clone.style.minHeight = A4H + 'px';
+
+    shell.appendChild(clone);
+    sandbox.appendChild(shell);
+    document.body.appendChild(sandbox);
+
+    const host =
+      (clone.querySelector('.page-surface') as HTMLElement) ||
+      (clone.querySelector('.form-page-container') as HTMLElement) ||
+      clone;
+
+    // Fit horizontally if user content was wider than A4 inner width
+    this.fitCloneToA4Width(host, shell, A4W, this.PDF_MARGIN_MM);
+
+    // Let layout settle
     await new Promise((r) => requestAnimationFrame(r));
-    await new Promise((r) => setTimeout(r, 0));
-    this.cdr.detectChanges();
+    await new Promise((r) => requestAnimationFrame(r));
 
-    const liveRoot = document.getElementById('form-to-export');
-    const target =
-      (liveRoot!.querySelector('.page-surface') as HTMLElement) ||
-      (liveRoot!.querySelector('.form-page-container') as HTMLElement) ||
-      liveRoot!;
-
-    if (!liveRoot) {
-      this.snackBar.open('form-to-export not found', 'Close', { duration: 2500 });
+    const rect = shell.getBoundingClientRect();
+    if (rect.width < 20 || rect.height < 20 || !clone.querySelector('.field-wrapper')) {
+      sandbox.remove();
+      this.snackBar.open('Nothing measurable to render.', 'Close', { duration: 2500 });
       return;
     }
 
-    const restoreLive = this.captureInlineStyles(liveRoot);
+    // ✅ FULL capture area (no viewport clipping)
+    const fullW = shell.scrollWidth;
+    const fullH = Math.max(shell.scrollHeight, A4H);
 
+    const canvas = await html2canvas(shell, {
+      scale: SNAPSHOT_SCALE,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      scrollX: 0,
+      scrollY: 0,
+      width: fullW,
+      height: fullH,
+      windowWidth: fullW,
+      windowHeight: fullH,
+    });
+
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pW = pdf.internal.pageSize.getWidth();
+    const pH = pdf.internal.pageSize.getHeight();
+    this.addCanvasAsMultipage(pdf, canvas, pW, pH, true, 8);
+
+    const filename = (form.formName || 'form').trim() || 'form';
+    const blob: Blob = pdf.output('blob');
+    pdf.save(`${filename}.pdf`);
+
+    // Best-effort upload
     try {
-      try {
-        this.applyPositionsToLiveForm?.();
-      } catch {}
-      try {
-        await (document as any).fonts?.ready;
-      } catch {}
-
-      const clone = liveRoot.cloneNode(true) as HTMLElement;
-
-  this.swapSignaturesInto(clone);
-this.flattenMatSelects(clone);           // <-- add
-this.flattenMatRadiosAndChecks(clone);   // <-- add
-this.replaceControlsWithValues(clone);
-this.swapPhotosIntoClone(clone);
-this.injectPdfCleanupCss(clone);
-
-      const mmToPx = (mm: number) => mm * (96 / 25.4);
-      const A4W = Math.round(mmToPx(210));
-      const A4H = Math.round(mmToPx(297));
-
-      const sandbox = document.createElement('div');
-      sandbox.style.position = 'fixed';
-      sandbox.style.inset = '0';
-      sandbox.style.zIndex = '9999';
-      sandbox.style.pointerEvents = 'none';
-      sandbox.style.background = 'transparent';
-      sandbox.style.opacity = '0.01';
-      sandbox.style.userSelect = 'none';
-
-      const shell = document.createElement('div');
-      shell.style.position = 'fixed';
-      shell.style.top = '0';
-      shell.style.left = '0';
-      shell.style.width = A4W + 'px';
-      shell.style.minHeight = A4H + 'px';
-      shell.style.background = '#fff';
-      shell.style.overflow = 'visible';
-
-      clone.style.position = 'relative';
-      clone.style.width = '100%';
-      clone.style.minHeight = A4H + 'px';
-      clone.style.background = '#fff';
-
-      shell.appendChild(clone);
-      sandbox.appendChild(shell);
-      document.body.appendChild(sandbox);
-
-      await new Promise((r) => requestAnimationFrame(r));
-      await new Promise((r) => requestAnimationFrame(r));
-
-      const rect = shell.getBoundingClientRect();
-      if (rect.width < 20 || rect.height < 20 || !clone.querySelector('.field-wrapper')) {
-        sandbox.remove();
-        this.snackBar.open('Nothing measurable to render.', 'Close', { duration: 2500 });
-        return;
-      }
-
-      const canvas = await html2canvas(shell, {
-        scale: SNAPSHOT_SCALE,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        scrollX: 0,
-        scrollY: 0,
-      });
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pW = pdf.internal.pageSize.getWidth();
-      const pH = pdf.internal.pageSize.getHeight();
-
-      this.addCanvasAsMultipage(pdf, canvas, pW, pH, true, 8);
-
-      const filename = (form.formName || 'form').trim() || 'form';
-      const blob: Blob = pdf.output('blob');
-      pdf.save(`${filename}.pdf`);
-
-      try {
-        const kind: 'filled' | 'template' = form.source === 'filled' ? 'filled' : 'template';
-        const url = await this.formService.uploadPdfBlob(kind, form.formId, blob, filename);
-        await this.formService.attachPdfUrl(kind, form.formId, url);
-        const idx = this.forms.findIndex((f) => f.formId === form.formId);
-        if (idx >= 0) this.forms[idx] = { ...this.forms[idx], pdfUrl: url };
-      } catch (e) {
-        console.warn('Upload failed; local save done:', e);
-      }
-
-      sandbox.remove();
-    } finally {
-      restoreLive();
-      this.selectedForm = prevSelected;
-      this.showFormEditor = prevShow;
-      this.cdr.detectChanges();
+      const kind: 'filled' | 'template' = form.source === 'filled' ? 'filled' : 'template';
+      const url = await this.formService.uploadPdfBlob(kind, form.formId, blob, filename);
+      await this.formService.attachPdfUrl(kind, form.formId, url);
+      const idx = this.forms.findIndex((f) => f.formId === form.formId);
+      if (idx >= 0) this.forms[idx] = { ...this.forms[idx], pdfUrl: url };
+    } catch (e) {
+      console.warn('Upload failed; local save done:', e);
     }
+
+    sandbox.remove();
+  } finally {
+    document.body.classList.remove('for-pdf');
+    restoreLive();
+    this.selectedForm = prevSelected;
+    this.showFormEditor = prevShow;
+    this.cdr.detectChanges();
   }
+}
 
   private debugShowCloneOnce() {
     const container = document.getElementById('form-to-export');
@@ -2814,14 +4510,14 @@ const h = Math.round(f.height ?? (wrap.clientHeight ?? 150));
     );
 
     // render values, not native controls (prevents tiny inputs)
-    this.replaceControlsWithValues(clone);
+this.renderValuesIntoWrappers(clone);
     // strip UI-only chrome
     this.injectPdfCleanupCss(clone);
 
     (html2pdf as any)()
       .from(clone)
       .set({
-        margin: 10,
+         margin: this.PDF_MARGIN_MM, 
         filename: `${filename}.pdf`,
         html2canvas: { scale: SNAPSHOT_SCALE, useCORS: true, backgroundColor: '#ffffff' },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
@@ -2833,42 +4529,127 @@ const h = Math.round(f.height ?? (wrap.clientHeight ?? 150));
       });
   });
 }
-  saveForm(form: SavedForm) {
-    const idx = this.forms.findIndex((f) => f.formId === form.formId);
-    if (idx !== -1) this.forms[idx] = JSON.parse(JSON.stringify(form));
+private sanitizeGridForTemplateSave(f: any): void {
+  if (f.type !== 'data-grid') return;
 
-    this.openChoice('save').then(async (choice) => {
-      if (!choice) return;
+  this.ensureGridMatrixDefaults(f);
+  const gm = f.gridMatrix!;
+  // ensure numeric, sane dimensions
+  gm.rows = Math.max(1, Number(gm.rows) || (gm.cells?.length || 1));
+  gm.cols = Math.max(1, Number(gm.cols) || (gm.cells?.[0]?.length || 1));
+  gm.cellH ??= 140;
+  gm.gap ??= 12;
+  gm.showBorders = gm.showBorders !== false;
 
-      const saveLocal = () => {
-        localStorage.setItem('savedFormPages', JSON.stringify(this.forms));
-        this.snackBar.open(`Template "${form.formName}" saved locally!`, 'Close', { duration: 2000 });
-      };
-
-    const saveFirebase = () => {
-  const allowed = (form.allowedBranches?.length
-    ? form.allowedBranches
-    : [this.isAdmin() ? 'ALL' : (this.currentBranch as Exclude<Branch,'ALL'>)]);
-  return this.formService.saveFormTemplate(
-    form.formName || 'Untitled',
-    form.formPages,
-    allowed as Branch[]
-  ).then(() =>
-    this.snackBar.open('Template saved to Firestore!', 'Close', { duration: 2000 })
-  );
-};
-
-      try {
-        if (choice === 'local') saveLocal();
-        else if (choice === 'firebase') await saveFirebase();
-        else if (choice === 'both') {
-          saveLocal();
-          await saveFirebase();
-        }
-      } catch (e) {
-        console.error(e);
-        this.snackBar.open('Failed to save template.', 'Close', { duration: 3000 });
-      }
-    });
+  const cells: GridCell[][] = [];
+  for (let r = 0; r < gm.rows; r++) {
+    cells[r] = [];
+    for (let c = 0; c < gm.cols; c++) {
+      const src = gm.cells?.[r]?.[c] || { items: [] };
+      const items = (src.items || []).map((it: any) => {
+        // explicit select option typing fixes "implicit any"
+        type Opt = { label?: string; value?: string };
+        const opts = Array.isArray(it.options) ? (it.options as Opt[]) : undefined;
+        return {
+          id: it.id || `g_${r}_${c}_${Math.random().toString(36).slice(2,7)}`,
+          type: it.type || 'text',
+          label: it.label ?? '',
+          value: null,                               // templates must not carry filled data
+          options: opts?.map((o: Opt) => ({
+            label: (o.label ?? String(o.value ?? '')).toString(),
+            value: (o.value ?? o.label ?? '').toString(),
+          })),
+        };
+      });
+      cells[r][c] = { items };
+    }
   }
+  gm.cells = cells;
+
+  // don’t keep computed matrix values on templates
+  delete (f as any).value;
 }
+
+private normalizePagesForTemplateSave(pages: FormPage[]): FormPage[] {
+  const clone: FormPage[] = JSON.parse(JSON.stringify(pages || []));
+  clone.forEach(p => {
+    p.fields = (p.fields || []).map((f: any) => {
+      // keep your layout defaults
+      if (!f.position) f.position = { x: 0, y: 0 };
+      if (typeof f.width  !== 'number')  f.width  = f.type === 'data-grid' ? 600 : 300;
+      if (typeof f.height !== 'number')  f.height =
+        f.type === 'signature' ? 150 :
+        f.type === 'textarea'  ? 120 :
+        f.type === 'data-grid' ? 200 : 48;
+
+      f.ui ??= {};
+      f.ui.direction   ||= (['textarea','description','signature','file','photo'].includes(String(f.type||'').toLowerCase()) ? 'column' : 'row');
+      f.ui.labelWidthPx = typeof f.ui.labelWidthPx === 'number' ? f.ui.labelWidthPx : 120;
+      f.ui.gapPx        = typeof f.ui.gapPx        === 'number' ? f.ui.gapPx        : 10;
+
+      if (f.type === 'data-grid') this.sanitizeGridForTemplateSave(f);
+      return f;
+    });
+  });
+  return clone;
+}
+saveForm(form: SavedForm) {
+  // 1) capture geometry
+  try { this.updatePositionsFromDOM(); } catch {}
+  this.normalizeTemplatePages(form);
+
+  // 2) normalize/sanitize fields (esp. data-grid)
+  for (const p of form.formPages || []) {
+    for (const f of p.fields || []) this.normalizeFieldForSave(f);
+  }
+
+  // 3) Firestore-safe data (no undefined anywhere)
+  const cleanedPages = this.deepCleanForFirestore(form.formPages);
+
+  // keep current memory copy tidy
+  const idx = this.forms.findIndex((f) => f.formId === form.formId);
+  if (idx !== -1) {
+    const clone = JSON.parse(JSON.stringify({ ...form, formPages: cleanedPages }));
+    this.forms[idx] = clone;
+  }
+
+  this.openChoice('save').then(async (choice) => {
+    if (!choice) return;
+
+    const saveLocal = () => {
+      localStorage.setItem('savedFormPages', JSON.stringify(this.forms));
+      this.snackBar.open(`Template "${form.formName}" saved locally!`, 'Close', { duration: 2000 });
+    };
+
+    const saveFirebase = async () => {
+      const allowed = (form.allowedBranches?.length
+        ? form.allowedBranches
+        : [this.isAdmin() ? 'ALL' : (this.currentBranch as Exclude<Branch,'ALL'>)]);
+
+      await this.formService.saveFormTemplate(
+        form.formName || 'Untitled',
+        cleanedPages,                               // ✅ sanitized pages
+        allowed as Branch[]
+      );
+
+      this.snackBar.open('Template saved to Firestore!', 'Close', { duration: 2000 });
+
+      // ✅ force-refresh the Templates list so it appears in “Forms to fill”
+      this.loadFromFirebase('templates');
+    };
+
+    try {
+      if (choice === 'local') {
+        saveLocal();
+      } else if (choice === 'firebase') {
+        await saveFirebase();
+      } else if (choice === 'both') {
+        saveLocal();
+        await saveFirebase();
+      }
+    } catch (e) {
+      console.error(e);
+      this.snackBar.open('Failed to save template.', 'Close', { duration: 3000 });
+    }
+  });
+}}

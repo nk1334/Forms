@@ -33,9 +33,9 @@
   border: 1px solid #e5e7eb;
   border-radius: 12px;
   box-shadow: 0 6px 24px rgba(0,0,0,.08);
-  padding: 16px;
+  padding: 0;
   box-sizing: border-box;
-  overflow: auto;
+  overflow: visible;
   z-index: 1;
 }
 
@@ -80,24 +80,40 @@
   padding: 0; box-sizing: border-box; overflow: visible;
   z-index: 0;
 }
-
-/* A4 sizing when exporting */
+/* ---- export-only tweaks ---- */
+/* use this instead of a fixed 794px in export mode */
 .for-pdf #form-to-export{
-  position: relative;
-  width: 794px;        /* 210mm @ 96dpi */
-  min-height: 1123px;  /* 297mm */
-  background: #fff;
-  overflow: visible;
+  width: var(--pdf-content-width);
+  margin: 0 auto;                /* even margins left/right */
+  overflow: visible !important;
+  background:#fff;
 }
+.for-pdf #form-to-export,
+.for-pdf #form-to-export .page-surface,
+.for-pdf #form-to-export .form-page-container {
+  box-sizing: border-box !important;
+  max-width: var(--pdf-content-width) !important;
+  width: 100%;
+}
+.for-pdf .page-surface{ padding:12mm !important; }
+.for-pdf .field-wrapper{ overflow:visible !important; }
 
-/* Hide non-print chrome in export mode */
-#form-to-export .page-container [data-nonprint]{ display: none !important; }
+/* kill controls & chrome in PDF */
 .for-pdf [data-nonprint],
-.for-pdf .editor-toolbar,
-.for-pdf .export-pdf-icons{ display: none !important; }
+.for-pdf .date-calendar-btn{ display:none !important; }
 
-/* IMPORTANT for html2canvas stability */
-.for-pdf *{ transform: none !important; filter: none !important; }
+/* turn off min-widths so fields don't shove neighbors */
+.for-pdf input,
+.for-pdf .date-input,
+.for-pdf .mat-mdc-input-element,
+.for-pdf .mat-mdc-select-trigger{ min-width:0 !important; }
+
+/* let long text render instead of clipping */
+.for-pdf textarea{ overflow:visible !important; resize:none !important; }
+
+/* html2canvas stability */
+.for-pdf *{ transform:none !important; filter:none !important; }
+
 #form-to-export{ overflow: visible !important; background:#fff; }
 #form-to-export *, .page-surface, .field-wrapper, .mat-card, textarea{
   break-inside: avoid; page-break-inside: avoid;
@@ -107,6 +123,32 @@
 .form-page-container{
   position: relative; width: 100%; height: 100%;
 }
+.for-pdf .mdc-notched-outline,
+.for-pdf .mdc-line-ripple,
+.for-pdf .mat-mdc-form-field-subscript-wrapper { display: none !important; }
+
+.for-pdf .mat-mdc-text-field-wrapper,
+.for-pdf .mat-mdc-form-field,
+.for-pdf .mat-mdc-form-field-infix {
+  display: block !important;
+  width: 100% !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+/* What replaces the controls */
+.for-pdf .print-value {
+  display: block !important;
+  width: 100% !important;
+  min-height: 36px;
+  box-sizing: border-box;
+  padding: 6pt 8pt;
+  border: 0.5pt solid #E5E7EB;
+  background: #FAFAFA;
+  border-radius: 4px;
+  white-space: pre-wrap;
+}
 .field-wrapper{
   position: absolute !important;
   box-sizing: border-box;
@@ -115,7 +157,7 @@
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   box-shadow: 0 1px 2px rgba(0,0,0,.04);
-  overflow: auto; /* lets inner controls scroll if smaller than content */
+  overflow: visible; /* lets inner controls scroll if smaller than content */
 }
 .field-label {
   font-size: 14px;
@@ -185,7 +227,11 @@
   grid-column: 1 / -1; /* make description full width */
   min-height: 35mm;
 }
-.page-surface { padding: 12mm !important; }
+/* Keep big padding only in export mode */
+.for-pdf .page-surface { padding: 12mm !important; }
+
+/* Small offset so the .page-header sitting above doesn't overlap */
+.page-surface { margin-top: 10px; }   /* 8–12px is fine */
 .mat-form-field, .mat-form-field * { box-shadow:none!important; outline:0!important; }
 .mat-form-field-underline, .mat-form-field-ripple,
 .mat-form-field-suffix, .mat-form-field-prefix { display:none!important; }
@@ -274,7 +320,14 @@ button.active { box-shadow: 0 0 0 2px var(--mat-primary-200) inset; }
   gap: .75rem;
   
 }
-
+/* keep inputs from collapsing too narrow */
+.field-wrapper input[type="text"],
+.field-wrapper .date-input,
+.field-wrapper .mat-mdc-input-element,
+.field-wrapper .mat-mdc-select-trigger {
+  min-width: 180px;   /* adjust to taste (200–220px for dates if you prefer) */
+}
+.field-wrapper .date-input { min-width: 220px; }
 /* Base style */
 .form-tabs {
   display: flex;
@@ -350,3 +403,435 @@ button.active { box-shadow: 0 0 0 2px var(--mat-primary-200) inset; }
 /* optional: spinner for [class.spin] used on the PDF icon */
 .mat-icon.spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+/* Make Material form-field fill the wrapper height and remove extra paddings */
+
+
+.fw-control{ display:block; height:100%; }
+
+.field-wrapper .mat-mdc-form-field{ display:block; width:100%; height:100%; }
+.field-wrapper .mat-mdc-text-field-wrapper{
+  height:100%;
+  align-items: stretch;          /* stretch infix vertically */
+}
+.field-wrapper .mat-mdc-form-field-infix{
+  display:flex;
+  align-items:center;
+  height:100%;
+  width:100%;
+  box-sizing:border-box;
+  padding: 8px 12px;             /* compact, matches your wrapper padding */
+}
+.field-wrapper .mat-mdc-input-element,
+.field-wrapper textarea.mat-mdc-input-element{
+  width:100%;
+  height:100%;
+  box-sizing:border-box;
+}
+
+/* Selects should also fill */
+.field-wrapper .mat-mdc-select{ width:100%; }
+.field-wrapper .mat-mdc-select-trigger{ width:100%; }
+
+/* Keep page/surface non-scrolling so absolute xy stays true */
+.page-surface{ overflow: visible !important; }
+.date-input-shell{
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+.page-header{
+  position: absolute;
+  top: -24px;     /* place above the page surface */
+  left: 0;
+  background: #fff;
+  padding: 2px 8px;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.06);
+  z-index: 10;
+}
+
+/* visible dd/mm/yyyy input fills the width */
+.date-input{
+  flex: 1 1 auto;
+  width: 100%;
+  height: 36px;
+  padding: 6px 32px 6px 8px;  /* leave room for the calendar button */
+  box-sizing: border-box;
+}
+
+/* small calendar button pinned to the right, not affecting layout */
+.date-calendar-btn{
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #cfd8dc;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+
+/* keep the native date control invisible but present */
+.native-date-hidden{
+  position: absolute !important;
+  inset: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* avoid scrollbars inside the wrapper in fill mode */
+.field-wrapper{
+  overflow: visible;  /* if you only want scrollbars in builder mode */
+}
+.fw-field { width: 100%; display: block; }
+
+/* shrink internal paddings so it matches your builder look */
+.fw-field .mdc-notched-outline__leading,
+.fw-field .mdc-notched-outline__trailing { border-color: #cfd8dc; }
+
+.date-input {
+  height: 36px;               /* same height as your other inputs */
+  box-sizing: border-box;
+}
+
+
+.field-wrapper.inline-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.field-wrapper.inline-row > .field-label {
+  margin: 0 8px 0 0;
+  white-space: nowrap;
+}
+
+.field-wrapper.inline-row > .fw-control,
+.field-wrapper.inline-row > .radio-group,
+.field-wrapper.inline-row > .checkbox-group {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Vertical stack for multiline/complex fields */
+.field-wrapper.stack {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.field-wrapper.stack > .field-label {
+  margin: 0 0 6px 0;
+}
+
+.field-wrapper.stack > .fw-control {
+  width: 100%;
+}
+
+/* Date input still positions its calendar button correctly */
+.date-input-shell { position: relative; }
+.date-input { width: 100%; box-sizing: border-box; padding-right: 34px; }
+.date-calendar-btn {
+  position: absolute;
+  right: 6px; top: 50%;
+  transform: translateY(-50%);
+  width: 24px; height: 24px; padding: 0; min-width: 24px;
+}
+.field-wrapper .mat-mdc-form-field { margin: 0 !important; }
+.form-export-surface { padding: 0 !important; border: 0; }
+.editor-card .mat-mdc-card-content { padding: 0 !important; }
+.page-container { position: relative; }
+.form-page-container { position: relative; width:100%; height:100%; margin:0; padding:0; }
+.page-surface { margin-top: 0; padding: 0; }
+.page-header { position:absolute; top:-24px; left:0; } /* header sits outside; doesn't push content */
+.field-wrapper { overflow: visible; } 
+for-pdf #form-to-export {
+  width: var(--pdf-content-width) !important;   /* set in TS */
+  margin: 0 auto !important;
+  overflow: visible !important;
+}
+
+.for-pdf #form-to-export .page-surface,
+.for-pdf #form-to-export .form-page-container {
+  width: 100% !important;
+  max-width: none !important;
+  padding: 12mm !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
+}
+
+/* Field cards never overflow the content area */
+.for-pdf .field-wrapper {
+  max-width: 100% !important;
+  overflow: visible !important;
+}
+
+/* Values fill the control width in the PDF */
+.for-pdf .print-value {
+  display: block !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+.dg { display: grid; width: 100%; }
+.dg-cell { padding: 8px; }
+.dg.bordered .dg-cell { border: 1px solid #e5e7eb; border-radius: 6px; }
+.dg-items { display: flex; flex-direction: column; gap: 6px; }
+.dg-label { font-size: 12px; font-weight: 600; color: #111; }
+.dg-input, .dg-select, .dg-textarea {
+  width: 100%; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px;
+  background: #fff; outline: none;
+}
+.dg-textarea { min-height: 80px; resize: vertical; }
+data-grid-matrix {
+  width: 100%;
+}
+.data-grid-matrix{ width:100%; }
+
+/* grid */
+.data-grid-matrix .dg-grid{
+  display:grid;
+  gap:12px;
+  align-items:stretch;
+  grid-auto-rows:120px;            /* fallback row height */
+}
+
+/* cells */
+.data-grid-matrix .dg-cell{
+  position:relative;
+  background:#fff;
+  border:1px solid #e5e7eb;
+  border-radius:8px;
+  padding:0;                       /* item provides the inner pad */
+  min-height:120px;
+  box-sizing:border-box;
+}
+.data-grid-matrix .dg-cell.bordered{ border-style:solid; }
+.data-grid-matrix .dg-cell.is-empty{ border-color:transparent; } /* optional */
+
+/* items */
+.data-grid-matrix .dg-item{ display:flex; flex-direction:column; gap:6px; }
+.data-grid-matrix .dg-item > *{ margin:0 !important; }
+.data-grid-matrix .dg-item .mat-form-field{ width:100% !important; }
+.data-grid-matrix .dg-item .mat-form-field-wrapper{ padding:0 !important; }
+.data-grid-matrix .dg-empty{ display:none; } /* hide “—” */
+
+/* ---------- Tight mode: remove header gap completely ---------- */
+.data-grid-matrix.tight{
+  --dg-head-h:26px;                /* adjust if your header is taller */
+  position:relative;
+  padding-top:0 !important;
+}
+.data-grid-matrix.tight .dg-header{
+  position:absolute;
+  top:0; left:0; right:0;
+  height:var(--dg-head-h);
+  display:flex;
+  align-items:center;
+  margin:0 !important;
+  padding:0 !important;
+  line-height:1.1;
+}
+.data-grid-matrix.tight .dg-header + .dg-grid{
+  margin-top:var(--dg-head-h) !important;   /* grid sits right under header */
+}
+
+/* ---------- Fill mode: item fills its cell ---------- */
+.data-grid-matrix.fill-mode .dg-cell{ overflow:hidden; }
+.data-grid-matrix.fill-mode .dg-cell .dg-item{
+  position:absolute;
+  inset:0 !important;              /* use 8px for inner cushion if desired */
+  box-sizing:border-box;
+  width:auto !important;
+  height:auto !important;
+  left:auto !important;            /* neutralize any inline x/y from TS */
+  top:auto !important;
+}
+
+/* neutralize stray wrapper tweaks */
+.field-wrapper .data-grid-matrix.tight{ margin-top:0 !important; }
+/* Keep the label visible; simply collapse the gap under it */
+.data-grid-matrix.tight .dg-header{
+  position: relative !important;   /* not absolute */
+  z-index: 1;                      /* sits above grid if needed */
+  margin: 0 !important;            /* no space below the label */
+  padding: 0 !important;
+}
+
+.data-grid-matrix.tight {
+  position: relative;          /* anchor the absolute header */
+  padding-top: 2px;            /* tiny breathing room; set 0 if you want flush */
+}
+
+.data-grid-matrix.tight .dg-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1.1;
+}
+
+/* Make sure the grid starts at the very top (no extra margin) */
+.data-grid-matrix.tight .dg-grid {
+  margin-top: 0 !important;
+}
+
+/* In case any first child tries to push down the cell */
+.data-grid-matrix.tight .dg-cell > * { margin-top: 0 !important; }
+
+.signature-canvas { pointer-events: auto; }   /* make sure the canvas can receive input */
+.sig-field { pointer-events: auto; }   
+.field-wrapper {
+  position: absolute !important;
+  box-sizing: border-box;
+}
+
+/* Grid fills its wrapper and can shrink */
+.dg-grid {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+/* Allow grid children to shrink within tracks (prevents overflow) */
+.dg-grid > * {
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Optional: if you don’t want scrollbars in the grid wrapper */
+.field-wrapper.data-grid {
+  overflow: hidden; /* or 'auto' if you want scroll */
+}  
+page-frame,
+.page-sheet,
+.page-equalizer,
+.form-export-surface,
+.page-container,
+.page-surface {
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box;
+}
+
+.page-surface { position: relative; } /* positioning context for children */
+.field-wrapper { position: absolute !important; box-sizing: border-box; }
+
+/* Grid fills wrapper, no overflow */
+.dg-grid { width: 100%; height: 100%; box-sizing: border-box; }
+.dg-grid > * { min-width: 0; min-height: 0; }
+.field-wrapper.data-grid { overflow: hidden; } /* optional: hide scrollbars */
+.field-wrapper.fill-mode{
+  border:none !important;
+  background:transparent !important;
+  box-shadow:none !important;
+  padding:0 !important;
+}
+.field-wrapper.fill-mode .row-handle,
+.field-wrapper.fill-mode .rh,
+.field-wrapper.fill-mode .delete-button,
+.field-wrapper.fill-mode .inline-drag,
+.field-wrapper.fill-mode .edge-grip,
+.field-wrapper.fill-mode .corner-grip {
+  display:none !important;
+}
+field-wrapper.fill-mode{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  margin-bottom:14px;     /* nice rhythm between fields */
+}
+
+/* consistent label */
+.field-wrapper.fill-mode .field-label{
+  margin:0;
+  font-weight:600;
+  font-size:14px;
+  line-height:1.2;
+}
+
+/* material fields should fill the saved box */
+.field-wrapper.fill-mode .fw-control,
+.field-wrapper.fill-mode .mat-mdc-form-field{
+  width:100%;
+  height:100%;
+}
+
+/* radios/checkboxes in a neat row under the label */
+.field-wrapper.fill-mode .radio-group,
+.field-wrapper.fill-mode .checkbox-group{
+  display:flex;
+  flex-direction:row;
+  align-items:center;
+  gap:18px;
+  padding-left:2px;
+}
+.field-wrapper.fill-mode .radio-group .radio-option{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  min-width:80px;
+}
+
+.field-wrapper.fill-mode::after { display: none !important; }
+
+/* Outer description box */
+.desc-field-box {
+  width: 100%;
+  border: 2px solid #cfd3d7;
+  border-radius: 8px;
+  padding: 20px 12px 12px;
+  background: #fafafa;
+  position: relative;
+  margin: 8px 0;
+}
+
+/* Label embedded in the border */
+.desc-label{
+  position: absolute;
+  top: -10px;
+  left: 12px;
+  background: #fafafa;
+  padding: 0 6px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #333;
+}
+
+/* Content */
+.desc-body{ display:flex; flex-direction:column; gap:10px; }
+.desc-row{ display:flex; align-items:flex-start; gap:8px; }
+.desc-no{ margin-top: 8px; font-weight:600; }
+
+/* Textarea fills and aligns with the outer box */
+.desc-input {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 72px;
+  box-sizing: border-box;
+  border: none;          /* remove inner border */
+  outline: none;         /* no double outline */
+  padding: 6px 8px;
+  background: transparent; /* blend into outer box */
+  resize: none;          /* no grip corner */
+}
+
+/* Generic textarea elsewhere (non-description) */
+.textarea-resizable-both{
+  width: 100%;
+  min-height: 60px;
+  box-sizing: border-box;
+  resize: none;
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}

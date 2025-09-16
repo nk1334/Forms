@@ -1308,27 +1308,7 @@ textarea.form-input {
 
 
 /* the textarea itself */
-.desc-input {
-  /* CRITICAL: disable flex growth so manual width sticks */
-  flex: 0 0 auto;
-  display: block;
-  width: auto;
-  box-sizing: border-box;
 
-  /* allow both directions resizing */
-  resize: both;
-  overflow: auto;
-
-  /* your limits */
-  min-width: 240px;
-  /* leave room for number + gaps + delete button (~90px total) */
-  max-width: calc(100% - 90px);
-
-
-  padding: 4px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-}
 .email-inline-row{
   display: grid;
   grid-template-columns: 24px max-content minmax(80px, max-content) 32px;
@@ -1533,29 +1513,10 @@ textarea.form-input {
 .form-row.desc-box .rh{ display: none !important; }
 .form-row textarea:not(.desc-input) { flex-grow: 1; }
 /* make sure the row doesn't clip the resize handle */
-.form-row.desc-box {
-  display: flex !important;
-  align-items: flex-start;
-  gap: 8px;
-  position: static !important;
-  overflow: visible !important;
-  background: transparent !important;
-  border: 0 !important;
-  box-shadow: none !important;
-}
+
 .form-row.desc-box .desc-wrap { flex: 1 1 auto; position: relative; }
 .form-row.desc-box .desc-input { width: 100%; box-sizing: border-box; resize: both; }
-.form-row.desc-box .desc-close {
-  position: relative !important;
-  top: auto !important;
-  right: auto !important;
-  left: auto !important;
-  bottom: auto !important;
-  width: 36px;
-  height: 36px;
-  margin-left: 8px;
-  z-index: 2;
-}
+
 /* inside edges */
 .form-row > .rh{ position:absolute; z-index:5; pointer-events:auto; }
 .form-row > .rh-n { top:    2px !important; left:50%; transform:translateX(-50%); cursor:ns-resize; }
@@ -1577,7 +1538,7 @@ textarea.form-input {
 
 /* keep desc rows special (no outer handles there) */
 .form-row.desc-box .rh{ display:none !important; }
-.desc-wrap > .desc-close { position: static !important; }
+
 /* Remove any global clamps that fight growth */
 .form-row textarea { max-width: none !important; }
 
@@ -1604,7 +1565,7 @@ textarea.form-input {
   min-height: 36px !important;
   height: 36px !important;       /* fixed start height */
   max-height: 120px;              /* optional cap */
-  resize: vertical;               /* still let user stretch vertically */
+  resize: both;              /* still let user stretch vertically */
   line-height: 1.3;
   padding: 6px 8px;
   overflow: auto;
@@ -2003,7 +1964,7 @@ textarea.form-input {
 
 /* disable any outer/card handles for this row */
 .email-inline-row.no-outer-handles .rh,
-.email-inline-row.no-outer-handles .rh-*, 
+.email-inline-row.no-outer-handles [class^="rh-"],
 .email-inline-row.no-outer-handles .resize-handle,
 .email-inline-row.no-outer-handles .corner-handle { display: none !important; }
 .email-inline-row .email-input-shell{
@@ -2237,4 +2198,682 @@ textarea.form-input {
 .btn-pill.mat-mdc-button-base{ border-radius:9999px!important; }
 .btn-green.mat-mdc-raised-button{
   background:#16a34a!important; color:#fff!important;
+}
+.desc-row {
+  display: grid;
+  grid-template-columns: 1.4ch 1fr;
+  align-items: start;
+  gap: 8px;
+}
+
+.desc-no { text-align: right; line-height: 28px; }
+
+/* Wrapper anchors the absolute delete button */
+.desc-wrap {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+/* The textarea itself */
+.desc-input {
+  display: inline-block !important;  /* ✅ allows horizontal resize to be visible */
+  width: auto !important;            /* ✅ let browser calculate, don’t force */
+  min-width: 180px;                  /* safe starting width */
+  max-width: none !important;        /* don’t clamp */
+  min-height: 40px;
+  resize: both !important;           /* ✅ horizontal + vertical resize */
+  box-sizing: border-box;
+  padding: 6px 32px 6px 10px;        /* keep your padding */
+  overflow: auto;                    /* scroll if content overflows */
+  vertical-align: top;               /* aligns nicely with number/delete button */
+}
+
+/* The delete button INSIDE the box */
+.desc-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #d32f2f;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 2;               /* above the textarea */
+  pointer-events: auto;     /* clickable even in draggable card */
+}
+.desc-close:hover { color: #b71c1c; background: rgba(211,47,47,.08); }
+.desc-inline-delete.inside {
+  position: absolute;    /* wherever you place it in the header */
+  right: 6px;
+  top: 6px;
+  z-index: 10;
+  pointer-events: auto;
+}
+.inner-controls, .desc-inline-row, .form-row button {
+  pointer-events: auto;
+}
+.form-builder-wrapper .desc-list .desc-row .desc-wrap {
+  display: inline-block !important;   /* shrink-wraps to the textarea */
+  width: auto !important;
+  max-width: none !important;
+  overflow: visible !important;
+}
+
+
+.form-builder-wrapper .desc-list .desc-row .desc-input {
+  max-width: none !important;   /* overrides the inline 100% */
+  width: auto !important;
+  resize: both !important;
+  display: inline-block !important; /* lets width changes be visible */
+}
+
+/* The second column should size to content, not clamp to 1fr */
+.form-builder-wrapper .desc-list .desc-row {
+  grid-template-columns: 1.4ch max-content !important; /* number | box */
+}
+
+/* Make sure nothing clips the resize handles */
+.form-builder-wrapper .form-row.desc-box {
+  position: static !important;
+  overflow: visible !important;
+}
+/* Let the card expand */
+.form-row.desc-box,
+.form-row.description-field {
+  overflow: visible !important;
+}
+
+/* Kill any leftover 100% width / vertical-only resize */
+.form-row.desc-box .desc-input,
+.form-row.description-field .desc-input {
+  display: inline-block !important;
+  width: auto !important;
+  max-width: none !important;
+  min-width: 150px;
+  min-height: 40px;
+  resize: both !important;   /* ← horizontal + vertical */
+  overflow: auto;
+}
+
+/* If anything else still sets textareas in desc rows: */
+.form-row.desc-box textarea,
+.form-row.description-field textarea {
+  width: auto !important;
+  max-width: none !important;
+  resize: both !important;
+}
+
+/* Ensure the grid lets column 2 grow to the textarea’s intrinsic width */
+.desc-row { 
+  display: grid !important;
+  grid-template-columns: 1.4ch max-content !important;  /* number | box */
+  align-items: start;
+  gap: 8px;
+}
+
+/* Nuke the global overflow clamp just for safety */
+
+.form-row.desc-box,
+.form-row.description-field {
+  overflow: visible !important;
+  max-width: none !important;  /* allow horizontal growth */
+  width: auto !important;
+}
+.checkbox-field { padding-right: 6px; }
+/* Let the textarea own its size */
+.form-row.desc-box .desc-input,
+.form-row.description-field .desc-input {
+  display: inline-block !important;
+  width: auto !important;
+  max-width: none !important;
+  min-width: 150px !important;
+  min-height: 40px !important;
+  resize: both !important;
+  overflow: auto !important;
+  box-sizing: border-box !important;
+}
+.add-pill {
+  display:inline-block;
+  padding:6px 12px;
+  border:1px dashed #4caf50;   /* green border */
+  border-radius:999px;
+  font-weight:600;
+  background:#e8f5e9;          /* light green background */
+  color:#2e7d32;               /* dark green text */
+  cursor:pointer;
+  transition:all .2s ease;
+}
+
+.add-pill:hover {
+  background:#c8e6c9;          /* darker on hover */
+  border-color:#2e7d32;
+  color:#1b5e20;
+}
+
+/* Field container: keep content inside the box */
+.checkbox-field{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  box-sizing:border-box;
+  overflow:hidden;            /* ✅ keeps the top-right “×” inside */
+}
+
+/* Header: [drag+label] | centered Add | right-side delete */
+.checkbox-header{
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  align-items:center;
+  column-gap:12px;
+  padding:4px 6px 0 0;        /* tiny right padding so × never hugs border */
+}
+
+.checkbox-header .left{
+  display:flex; align-items:center; gap:8px;
+}
+
+/* Center the Add button in the header row */
+.checkbox-header .add-pill{ justify-self:center; }
+
+/* Delete (whole field) button */
+.checkbox-header .row-del{
+  all:unset;
+  cursor:pointer;
+  color:#d32f2f;
+  font-size:18px;
+  line-height:1;
+}
+
+/* Options wrap nicely */
+.checkbox-options-row{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  column-gap:12px;
+  row-gap:8px;
+  min-width:0;               /* prevents flex children from stretching container */
+}
+
+/* Option chip */
+.opt-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:4px 8px;
+  border:1px solid #e0e0e0;
+  border-radius:12px;
+  background:#fff;
+}
+
+/* Option delete (×) */
+.opt-chip button{
+  all:unset;
+  cursor:pointer;
+  color:#d32f2f;
+  line-height:1;
+}
+.resizable-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  background: #fff;
+
+  resize: both;         /* 👈 allow horizontal + vertical resize */
+  overflow: auto;       /* scrollbars if content overflows */
+  min-width: 80px;
+  min-height: 32px;     /* so it doesn't collapse vertically */
+  max-width: 400px;     /* optional */
+  max-height: 120px;    /* optional */
+}
+
+/* Label can grow with height */
+.resizable-label {
+  display: inline-block;
+  min-width: 40px;
+  min-height: 20px;
+  max-width: 100%;
+  max-height: 100%;
+  outline: none;
+  white-space: normal;   /* 👈 allow wrapping when taller */
+  overflow: auto;
+}
+checkbox-header{
+  position: relative;
+  z-index: 1;
+  padding: 4px 8px 0 4px;
+}
+
+/* Make the drag-handle visible and easy to grab */
+.drag-handle{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:24px; height:24px;
+  font-size:18px; line-height:1;
+  cursor:move; user-select:none; color:#444;
+  border-radius:4px;
+}
+.drag-handle:hover{ background:#f2f2f2; }
+
+/* Ensure the field never lets buttons spill out */
+.checkbox-field{ overflow:hidden; }
+
+/* Option chips layout (your current inline styles are fine too) */
+.checkbox-options-row{
+  display:flex; flex-wrap:wrap; align-items:center;
+  column-gap:12px; row-gap:8px; min-width:0;
+}
+
+/* (Optional) nicer “Add option” look */
+.add-pill{
+  background:#fff;
+  border:1px dashed #7fb47a;
+  color:#2e7d32;
+  border-radius:999px;
+  padding:6px 12px;
+  font-weight:600; cursor:pointer;
+}
+.data-grid-matrix .dg-grid {
+  display: grid;
+  gap: 12px;                /* space between cells */
+  grid-auto-rows: minmax(100px, auto);
+}
+
+.data-grid-matrix .dg-cell {
+  min-height: 120px;
+}
+
+.data-grid-matrix .dg-cell-drop {
+  height: 100%;
+}
+.dg-cell.bordered { outline: 1px dashed #bdbdbd; }
+.data-grid-matrix { display:flex; flex-direction:column; gap:10px; }
+.dg-toolbar { display:flex; align-items:center; gap:10px; }
+.dg-toolbar .spacer { flex:1 1 auto; }
+
+.dg-grid { display:grid;
+    gap: var(--gap, 12px);
+  }
+
+.dg-cell { position:relative; }
+
+.dg-cell-drop{
+  /* the “marked” box to fill */
+  min-height: var(--cellH, 140px);
+  padding: 10px;
+  border: 1px dashed #d9dee6;        /* keep dashed for the mark */
+  border-radius: 12px;
+  background: #fff;
+  display: flex;                      /* so child can stretch */
+}
+.dg-cell-drop.has-content { border-style: solid; border-color: #e8eaee; }
+
+.dg-placeholder {
+  position:relative;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  width:100%;
+  height:100%;
+  padding:18px;
+  color:#556371;
+  background:#f6f7f8;
+  border:1px dashed #c9d1d9;
+  border-radius:10px;
+  box-sizing:border-box;
+}
+.dg-placeholder .kebab {
+  position:absolute;
+  top:50%;
+  right:10px;
+  transform:translateY(-50%);
+  opacity:.85;
+}
+
+.dg-item { cursor:grab; }
+.dg-item-card {
+  background:#fff;
+  border:1px solid #e2e8f0;
+  border-radius:8px;
+  padding:10px 12px;
+  margin:6px 0;
+  box-shadow:0 1px 0 rgba(0,0,0,.03);
+}
+.dg-item-card .title { font-weight:600; }
+.dg-item-card .sub { font-size:12px; color:#6b7280; }
+
+.cdk-drop-list.cdk-drop-list-dragging .dg-placeholder {
+  border-color:#90caf9;
+  background:#f1f8ff;
+}
+
+
+.dg-item-card .title { font-weight: 600; }
+.dg-item-card .sub { font-size: 12px; color: #666; }
+
+.dg-cell .empty { color: #666; font-size: 13px; opacity: .85; }
+.dg-cell-menu { position: absolute; top: 2px; right: 2px; }
+
+.add-pill:hover{ background:#f1faf0; }
+/* Never let PDF tweaks impact dialog overlays */
+.cdk-overlay-container .mat-mdc-form-field,
+.cdk-overlay-container .mat-mdc-text-field-wrapper,
+.cdk-overlay-container .mat-mdc-form-field-infix,
+.cdk-overlay-container .mdc-notched-outline,
+.cdk-overlay-container .mat-mdc-form-field-subscript-wrapper {
+  all: revert;
+}
+/* --- CLEAN, BORDERLESS GRID --- */
+
+/* kill the dashed outline entirely */
+.dg-cell.bordered { outline: none !important; }
+
+/* cells should not enforce a height */
+.data-grid-matrix .dg-cell { position: relative; min-height: 120px; }
+.data-grid-matrix .dg-cell-drop {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 100px;
+  display: block;
+  padding: 0;
+}
+.dg-empty {
+  width: 100%; height: 100%;
+  display:flex; align-items:center; justify-content:center;
+  background:#f6f7f8; border:1px dashed #cfd6dc; border-radius:10px;
+  color:#556371; padding:16px; box-sizing:border-box;
+}
+
+.dg-tile {
+  width: 100%; height: 100%;
+  box-sizing: border-box;
+  background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:12px;
+  display:flex; flex-direction:column; justify-content:center;
+}
+
+.tile-input, .tile-textarea { width:100%; box-sizing:border-box; }
+.cdk-drag-preview { pointer-events: none; } /* smoother drag */
+
+/* hide the “Drag and Drop a form component” placeholder */
+.dg-placeholder { display: none !important; }
+
+/* let content define the size */
+.dg-item { cursor: grab; display: block; }
+.dg-item-card {
+  width: auto;
+  height: auto;
+  padding: 0;                 /* remove card padding so native field size wins */
+  border: 0;                  /* no frame around dropped content */
+  box-shadow: none;
+  background: transparent;
+}
+
+/* optional: a *very* subtle cue only while dragging over an empty cell */
+.cdk-drop-list.cdk-drop-list-dragging .dg-cell-drop:empty {
+  outline: 1px dashed rgba(0,0,0,.12);
+  border-radius: 8px;
+  min-height: 40px;           /* tiny target so it's still droppable */
+}
+.data-grid-matrix { width: 100%; }
+
+.dg-toolbar {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  .spacer { flex: 1; }
+}
+
+.dg-grid {
+  display: grid;
+}
+
+.dg-cell { /* outer cell (optional border toggle) */
+  &.bordered { outline: 1px dashed #e0e0e0; outline-offset: -4px; border-radius: 8px; }
+}
+
+
+.dg-cell-drop {
+  background: #fff;
+  border: 2px dashed #cfd8dc;       /* dotted/dashed look */
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  min-height: 100px;
+  transition: box-shadow .12s ease;
+}
+.dg-cell-drop.cdk-drop-list-dragging, .dg-cell-drop:hover {
+  box-shadow: 0 0 0 2px rgba(33,150,243,.15) inset;
+}
+
+/* empty placeholder */
+.dg-empty .pill {
+  padding: 12px 16px;
+  border-radius: 9999px;
+  border: none;
+  background: #18a0a6;
+  color: #fff;
+  opacity: .92;
+  cursor: default;
+}
+
+.tile-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.tile-title { font-size: 12px; font-weight: 600; color: #455a64; }
+.tile-body { font-size: 12px; color: #263238; }
+.tile-input, .tile-textarea { width: 100%; box-sizing: border-box; }
+
+/* nice “over any cell” cue */
+.cdk-drag-preview { z-index: 10000; }
+.page-surface.fill-mode {
+  .field-wrapper {
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+    width: 100% !important;
+    margin: 0 0 12px 0 !important;
+    transform: none !important;
+  }
+
+  /* if you ever bind cdkDrag on field-wrapper, disable the cursor/drag look */
+  .field-wrapper[cdkdrag] {
+    cursor: default;
+  }
+}
+/* Keep one handle in the same place for every field */
+.row-handle {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 24px;
+  height: 24px;
+  line-height: 24px;
+  border: 0;
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px #d0d0d0;
+  cursor: move;
+  z-index: 5;
+}
+.inline-resize-wrap { min-width: 0; }
+
+/* keep the date input inside its column, don’t overflow into the label column */
+.date-input-shell { max-width: 100%; }
+
+/* if anything still overlaps, keep the text on top */
+.editable-label { position: relative; z-index: 2; }
+/* hide the inline handle in the date row so the grid is truly 2-column */
+.date-inline-drag { display: none !important; }
+
+/* make sure the control can shrink inside its grid cell */
+.inline-resize-wrap { min-width: 0; }
+.date-input-shell { max-width: 100%; }
+
+/* keep the label on top just in case */
+.editable-label { position: relative; z-index: 2; }
+/* inner signature box is the thing we resize */
+.sig-resize {
+  position: relative;
+  resize: both;          /* native resize handle */
+  overflow: hidden;      /* required for resize */
+  min-width: 180px;
+  min-height: 80px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+
+/* optional dashed guide while resizing */
+.sig-resize:focus-within,
+.sig-resize:active {
+  outline: 2px dashed #1e88e5;
+  outline-offset: 4px;
+}
+
+/* canvas always fills the shell; bitmap size handled in TS */
+.sig-resize > canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
+/* make sure the clear button sits above the canvas */
+.signature-pad-container .clear-sign-btn {
+  pointer-events: auto;
+  z-index: 5;
+}
+.title-input-shell {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;         /* keeps grips inside */
+  border-radius: 6px;
+}
+.title-input-shell .editable-div {
+  width: 100%;
+  height: 100%;
+  padding: 6px 10px;
+  box-sizing: border-box;
+}
+
+.corner-grip.inner,
+.edge-grip.inner {
+  position: absolute;
+  width: 10px; height: 10px;
+  background: #fff;
+  border: 1px solid #9e9e9e;
+  z-index: 3;
+  pointer-events: auto;
+}
+
+/* corners (exactly where you marked) */
+.corner-grip.inner.nw { left:4px;  top:4px;    cursor:nwse-resize; }
+.corner-grip.inner.ne { right:4px; top:4px;    cursor:nesw-resize; }
+.corner-grip.inner.sw { left:4px;  bottom:4px; cursor:nesw-resize; }
+.corner-grip.inner.se { right:4px; bottom:4px; cursor:nwse-resize; }
+
+/* optional side grips */
+.edge-grip.inner.left  { left:2px;  top:50%; transform:translateY(-50%); width:6px; cursor:ew-resize; }
+.edge-grip.inner.right { right:2px; top:50%; transform:translateY(-50%); width:6px; cursor:ew-resize; }
+
+.sig-input-shell { position: relative; display: inline-block; }
+.sig-input-shell canvas { display: block; width: 100%; height: 100%; }
+.sig-input-shell:focus, .sig-input-shell:focus-within,
+.editable-label:focus { outline: none; }
+
+.grip { position:absolute; width:10px; height:10px; border:1px solid #888; background:#fff; }
+.grip-se { right:2px;  bottom:2px;  cursor:nwse-resize; }
+.grip-sw { left:2px;   bottom:2px;  cursor:nesw-resize; }
+.grip-e  { right:2px;  top:50%; transform:translateY(-50%); width:6px; height:20px; cursor:ew-resize; }
+.grip-w  { left:2px;   top:50%; transform:translateY(-50%); width:6px; height:20px; cursor:ew-resize; }
+.dg-grid {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  grid-template-columns: repeat(auto-fill, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  gap: 12px;
+}
+.dg-grid > * {
+  min-width: 0;
+  min-height: 0;
+}
+/* ✅ Final override: free resize only for description textareas */
+.form-builder-wrapper .form-row.desc-box textarea.desc-input,
+.form-builder-wrapper .form-row.description-field textarea.desc-input {
+  all: unset;                  /* reset EVERYTHING first */
+  resize: both !important;     /* allow horizontal + vertical resize */
+  min-width: 120px;
+  min-height: 60px;
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  display: inline-block;
+  box-sizing: border-box;
+  padding: 6px 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.4;
+  overflow: auto;
+  background: #fff;
+  color: #333;
+}
+
+.desc-box .desc-input {
+  flex: 0 0 auto !important;
+  display: inline-block !important;
+  resize: both !important;
+  overflow: auto !important;
+  min-width: 80px;
+  min-height: 40px;
+  max-width: none;
+  max-height: none;
+}
+.desc-box {
+  flex: 0 0 auto !important;
+  align-items: flex-start;
+}
+
+.desc-row{ display:flex !important; align-items:flex-start !important; gap:8px !important; }
+.desc-no{ flex:0 0 auto !important; line-height:28px !important; }
+.form-row.no-outer-handles > .row-handle,
+.form-row.no-outer-handles > .field-header {
+  display: none !important;
+}
+/* force tel label to be in-flow, not absolute */
+.tel-inline-row .editable-label {
+  position: static !important;
+  display: inline-block;
+  margin: 0;
+  white-space: nowrap;
+}
+
+/* keep the tel row truly single-line */
+.tel-inline-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  width: 100%;
+}
+.grid-item-shell { position: relative; }
+
+.drag-handle {
+  position: absolute; left: 6px; top: 6px;
+  width: 18px; height: 18px; border: 1px solid rgba(0,0,0,.2);
+  border-radius: 3px; cursor: grab; user-select: none;
+  display: grid; place-items: center; background: #fff;
+}
+
+.span-grip {
+  position: absolute; right: -6px; bottom: 50%;
+  transform: translateY(50%);
+  width: 10px; height: 10px; border: 1px solid #999;
+  background: #fff; border-radius: 2px; cursor: ew-resize;
 }

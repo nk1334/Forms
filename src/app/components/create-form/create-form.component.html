@@ -4,6 +4,7 @@
   <span class="spacer"></span>
 </mat-toolbar>
 
+
 <!-- ===== LIST VIEW ===== -->
 <div *ngIf="!showFormEditor" class="templates-container page">
 
@@ -175,7 +176,7 @@
     </ng-container>
 
     <ng-container *ngIf="showNameInput">
-      <mat-form-field appearance="outline">
+    <mat-form-field appearance="outline" [floatLabel]="'auto'">
         <mat-label>Enter form name</mat-label>
         <input matInput [(ngModel)]="filledDataName" [ngModelOptions]="{ standalone: true }" required />
         <mat-error *ngIf="nameError">Please enter a valid name.</mat-error>
@@ -188,8 +189,8 @@
     </ng-container>
   </div>
 
-  <!-- Dialog template -->
-  <ng-template #saveLoadChoiceTpl let-data>
+
+      <ng-template #saveLoadChoiceTpl let-data>
     <h2 mat-dialog-title>{{ data?.mode === 'save' ? 'Choose Save Location' : 'Load From' }}</h2>
     <mat-dialog-content>
       <p *ngIf="data?.mode === 'save'">Where do you want to save?</p>
@@ -202,180 +203,348 @@
       <button mat-button *ngIf="data?.mode === 'save'" [mat-dialog-close]="'both'">Both</button>
     </mat-dialog-actions>
   </ng-template>
+<div class="editor-scroll">
+  <mat-card class="editor-card">
+    <mat-card-content>
 
-  <!-- FORM CANVAS -->
-  <div class="editor-scroll">
-    <mat-card class="editor-card">
-      <mat-card-content>
+      <canvas #pdfCanvas style="display:none"></canvas>
 
-        <canvas #pdfCanvas style="display:none"></canvas>
+      <!-- A4 wrapper -->
+      <div class="page-frame">
+        <div id="pageFill" class="page-sheet">
+          <div class="page-equalizer">
 
-        <div id="form-to-export" class="form-export-surface">
-          <form id="dynamicForm" #formRef="ngForm" novalidate>
+            <!-- your actual form lives inside the sheet -->
+            <div id="form-to-export" class="form-export-surface" [style.padding.px]="0">
+              <form id="dynamicForm" novalidate>
 
-            <div *ngFor="let page of selectedForm.formPages; let p = index" class="page-container">
-              <div class="page-header">
-                <span class="page-title">Page {{ p + 1 }}</span>
-              </div>
+                <div *ngFor="let page of selectedForm.formPages; let p = index" class="page-container">
+                  <div class="page-header">
+                    <span class="page-title">Page {{ p + 1 }}</span>
+                  </div>
 
-              <div class="page-surface" style="position: relative" [style.minHeight.px]="getPageHeight(page)">
-                <div class="form-page-container">
+                  <div class="page-surface sheet-surface"
+     style="position: relative"
+     (dragover)="showFormEditor && onPageDragOver($event)"
+     (drop)="showFormEditor && onPageDrop($event)"
+     (mousedown)="onPageMouseDown($event, p)">
 
-                  <!-- FIELD -->
-                  <div *ngFor="let field of page.fields"
-                       class="field-wrapper"
-                       [attr.data-id]="field.id"
-                       [ngStyle]="getFieldStyle(field)"
-                       (mousedown)="onWrapperMouseDown($event, field)">
+  <div class="form-page-container">
+    <!-- FIELDS -->
+    <div *ngFor="let field of page.fields"
+         class="field-wrapper"
+         [class.fill-mode]="true"
+         [class.dir-row]="(field.ui?.direction || 'row') === 'row'"
+         [class.dir-col]="(field.ui?.direction || 'row') === 'column'"
+         [class.inline-row]="isInlineRow(field)"
+         [class.stack]="!isInlineRow(field)"
+         [class.desc-resize]="isDescriptionField(field)"
+         [attr.data-id]="field.id"
+         [ngStyle]="getFieldStyle(field)"
+         (mousedown)="onWrapperMouseDown($event, field)">
+                        <!-- Label (skip for grid types) -->
+                        <label class="field-label"
+                               *ngIf="!(field.type==='data-grid' || field.type==='datagrid' || field.type==='grid' || field.type==='matrix' || isDescriptionField(field))"
+                               [attr.for]="field.id"
+                               [attr.id]="field.id + '__label'">
+                          {{ field.label }} <span *ngIf="field.required" class="req">*</span>
+                        </label>
 
-                    <label class="field-label" [attr.for]="field.id" [attr.id]="field.id + '__label'">
-                      {{ field.label }} <span *ngIf="field.required" class="req">*</span>
-                    </label>
+                        <!-- Data Grid / Matrix -->
+                        <ng-container *ngIf="isDG(field)">
+                          <div class="data-grid-matrix fill-mode tight"
+                               role="group"
+                               [attr.aria-labelledby]="$any(field).id + '__label'"
+                               [ngStyle]="controlStyle($any(field))"
+                               [style.width.%]="100"
+                               [style.height.px]="$any(field).height">
 
-                    <!-- Text-like -->
-                    <ng-container
-                      *ngIf="field.type === 'text' || field.type === 'email' || field.type === 'number' || field.type === 'tel' || field.type === 'date' || !field.type">
-                      <input [type]="field.type || 'text'"
-                             [(ngModel)]="field.value"
-                             [name]="field.id" [id]="field.id"
-                             [required]="!!field.required"
-                             #inputRef="ngModel" style="width:100%" />
-                      <mat-error *ngIf="inputRef.invalid && (inputRef.dirty || inputRef.touched)">
-                        This field is required.
-                      </mat-error>
-                    </ng-container>
-     <ng-container *ngIf="field.type === 'checkbox'">
-  <div class="checkbox-group"
-       role="group"
-       [attr.aria-labelledby]="field.id + '__label'">
+                            <div class="dg-header">
+                              <strong [attr.id]="$any(field).id + '__label'">
+                                {{ $any(field).label || 'Data Grid' }}
+                              </strong>
+                              <span *ngIf="$any(field).required" aria-hidden="true" style="color:#d32f2f;">*</span>
+                            </div>
 
-    <mat-checkbox
-      *ngFor="let opt of (field.options || []); let i = index"
-      [(ngModel)]="opt.checked"
-      [ngModelOptions]="{ standalone: true }"
-      [attr.id]="field.id + '_chk_' + i"
-      (ngModelChange)="onCheckboxToggle(field)">
-      {{ opt.label }}
-    </mat-checkbox>
-  </div>
+                            <div class="dg-grid"
+                                 [style.display]="'grid'"
+                                 [style.gridTemplateColumns]="gridColsCss($any(field))"
+                                 [style.gridAutoRows.px]="$any(field).gridMatrix?.cellH || 140"
+                                 [style.gap.px]="$any(field).gridMatrix?.gap || 12"
+                                    [style.width.%]="100"
+                                   [style.height.%]="100"
+                                 [style.boxSizing]="'border-box'">
+                              <ng-container *ngFor="let row of $any(field).gridMatrix?.cells; let r = index; trackBy: trackByIndex">
+                                <ng-container *ngFor="let cell of row; let c = index; trackBy: trackByIndex">
+                                  <div class="dg-cell"
+                                  [class.is-empty]="!(cell?.items && cell.items.length)"
+                                       (dragover)="onCellDragOver($event)"
+                                       (drop)="onCellDrop($event, $any(field), r, c)"
+                                       [class.is-empty]="!(cell?.items && cell.items.length)"
+                                       [class.bordered]="$any(field).gridMatrix?.showBorders">
 
-  <!-- no arrow functions in templates -->
-  <div *ngIf="field.required && !hasAnyChecked(field)"
-       style="color:#d32f2f; font-size:12px;">
-    * Required: select at least one option.
-  </div>
+                                    <ng-container *ngIf="(cell?.items?.length || 0) > 0; else emptyCell">
+                                      <div class="dg-item"
+                                           *ngFor="let it of cell.items; trackBy: trackByIndex"
+                                           [ngStyle]="gridItemAbsoluteStyle(it, $any(field))">
+
+                                        <div *ngIf="it.label" style="font-size:12px;color:#555;margin-bottom:4px;">{{ it.label }}</div>
+
+                                        <ng-container [ngSwitch]="(it.type || 'text')">
+                                          <textarea *ngSwitchCase="'textarea'" [(ngModel)]="it.value" [ngModelOptions]="{standalone:true}"
+                                                    rows="4" style="width:100%;height:100%;box-sizing:border-box;resize:none;"></textarea>
+
+                                          <input *ngSwitchCase="'number'" type="number" [(ngModel)]="it.value" [ngModelOptions]="{standalone:true}"
+                                                 style="width:100%;height:100%;box-sizing:border-box;" />
+
+                                          <input *ngSwitchCase="'date'" type="date" [(ngModel)]="it.value" [ngModelOptions]="{standalone:true}"
+                                                 style="width:100%;height:100%;box-sizing:border-box;" />
+
+                                          <select *ngSwitchCase="'select'" [(ngModel)]="it.value" [ngModelOptions]="{standalone:true}"
+                                                  style="width:100%;height:100%;box-sizing:border-box;">
+                                            <option *ngFor="let opt of (it.options || [])" [value]="opt?.value ?? opt">
+                                              {{ opt?.label || opt }}
+                                            </option>
+                                          </select>
+
+                                          <input *ngSwitchCase="'file'" type="file" (change)="onGridFile($event, it)" style="width:100%;" />
+
+                                          <input *ngSwitchDefault type="text" [(ngModel)]="it.value" [ngModelOptions]="{standalone:true}"
+                                                 style="width:100%;height:100%;box-sizing:border-box;" />
+                                        </ng-container>
+                                      </div>
+                                    </ng-container>
+
+                                    <ng-template #emptyCell>
+                                      <div class="dg-empty" style="color:#999;text-align:center;padding:12px;">—</div>
+                                    </ng-template>
+                                  </div>
+                                </ng-container>
+                              </ng-container>
+                            </div>
+
+                            <div class="req-msg"
+                                 *ngIf="$any(field).required && !gridHasAnyValue($any(field))"
+                                 style="color:#d32f2f; font-size:12px; margin-top:6px;">
+                              * Required: please enter at least one value.
+                            </div>
+                          </div>
+                        </ng-container>
+
+                        <!-- Date -->
+                        <ng-container *ngIf="field.type === 'date'">
+                          <div class="fw-control" [style.height.px]="getAdjustedHeight(field.height)">
+                            <mat-form-field appearance="outline" class="fw-field">
+                              <input matInput
+                                     class="date-input"
+                                     type="text"
+                                     inputmode="numeric"
+                                     placeholder="dd / mm / yyyy"
+                                     [(ngModel)]="field.value"
+                                     [name]="field.id"
+                                     [required]="!!field.required"
+                                     [attr.aria-labelledby]="field.id + '__label'"
+                                     (input)="onDateInput($event, field)"
+                                     (blur)="onDateBlur($event, field)"
+                                     (focus)="onDateFocus($event)"
+                                     (mousedown)="onDateMouseDown($event)"
+                                     #dateModel="ngModel">
+
+                              <button mat-icon-button
+                                      matSuffix
+                                      type="button"
+                                      (mousedown)="$event.stopPropagation()"
+                                      (click)="openNativePicker(nativeDate)"
+                                      aria-label="Open calendar">
+                                <mat-icon>event</mat-icon>
+                              </button>
+
+                              <input #nativeDate
+                                     type="date"
+                                     class="native-date-hidden"
+                                     [value]="toNativeDate(field.value)"
+                                     (change)="onNativeDateChange($event, field)">
+
+                              <mat-error *ngIf="field.required && dateModel.invalid">
+                                This field is required.
+                              </mat-error>
+                            </mat-form-field>
+                          </div>
+                        </ng-container>
+
+                        <!-- Text / Email / Number / Tel -->
+                        <ng-container *ngIf="field.type === 'text' || field.type === 'email' || field.type === 'number' || field.type === 'tel' || !field.type">
+                          <div class="fw-control" [style.height.px]="getAdjustedHeight(field.height)">
+                            <mat-form-field appearance="outline" class="fw-field">
+                              <input matInput
+                                     [type]="field.type || 'text'"
+                                     [(ngModel)]="field.value"
+                                     [name]="field.id"
+                                     [id]="field.id"
+                                     [required]="!!field.required"
+                                     [placeholder]="field.placeholder || ''"
+                                     #inputRef="ngModel" />
+                              <mat-error *ngIf="inputRef.invalid && (inputRef.dirty || inputRef.touched)">
+                                This field is required.
+                              </mat-error>
+                            </mat-form-field>
+                          </div>
+                        </ng-container>
+
+                        <!-- Checkbox -->
+                        <ng-container *ngIf="field.type === 'checkbox'">
+                          <div class="checkbox-group"
+                               role="group"
+                               [attr.aria-labelledby]="field.id + '__label'">
+                            <mat-checkbox
+                              *ngFor="let opt of (field.options || []); let i = index"
+                              [(ngModel)]="opt.checked"
+                              [ngModelOptions]="{ standalone: true }"
+                              [attr.id]="field.id + '_chk_' + i"
+                              (ngModelChange)="onCheckboxToggle(field)">
+                              {{ opt.label }}
+                            </mat-checkbox>
+                          </div>
+                          <div *ngIf="field.required && !hasAnyChecked(field)"
+                               style="color:#d32f2f; font-size:12px;">
+                            * Required: select at least one option.
+                          </div>
+                        </ng-container>
+
+                        <!-- Project Title -->
+                        <ng-container *ngIf="field.type === 'project-title'">
+                          <input type="text" [(ngModel)]="field.value" [name]="field.id" [id]="field.id"
+                                 placeholder="Enter project name" required class="w-100" />
+                        </ng-container>
+
+                        <!-- Textarea / Description -->
+<ng-container *ngIf="field.type === 'textarea' || field.type === 'description'">
+  <ng-container *ngIf="isDescriptionField(field); else normalTextarea">
+
+    <div class="desc-field-box">
+      <div class="desc-label">{{ field.label }} <span *ngIf="field.required" class="req">*</span></div>
+
+      <div class="desc-body">
+        <div *ngFor="let item of (field.problemItems || []); let i = index" class="desc-row">
+          <span class="desc-no">{{ item.no }}.</span>
+
+          <textarea class="desc-input"
+                    [ngModel]="item.text"
+                    (ngModelChange)="updateProblemText(field, i, $event)"
+                    [ngModelOptions]="{ standalone: true }"
+                    placeholder="Write problem description...">
+          </textarea>
+
+          <button *ngIf="isBuilderMode"
+                  mat-icon-button type="button"
+                  (click)="removeProblemItem(field, i)"
+                  aria-label="Remove">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </ng-container>
+
+  <ng-template #normalTextarea>
+    <textarea [(ngModel)]="field.value"
+              [name]="field.id"
+              [id]="field.id"
+              class="textarea-resizable-both"
+              [placeholder]="field.placeholder || ''">
+    </textarea>
+  </ng-template>
 </ng-container>
 
-                    <!-- Project Title -->
-                    <ng-container *ngIf="field.type === 'project-title'">
-                      <input type="text" [(ngModel)]="field.value" [name]="field.id" [id]="field.id"
-                             placeholder="Enter project name" required class="w-100" />
-                    </ng-container>
-
-                    <!-- Textarea / Description -->
-                    <ng-container *ngIf="field.type === 'textarea' || field.type === 'description'">
-                      <ng-container *ngIf="isDescriptionField(field); else normalTextarea">
-                        <div style="display:flex; justify-content:flex-end; margin-bottom:6px;">
-                          <button mat-stroked-button color="primary" type="button" (click)="addProblemItem(field)">
-                            Add problem
-                          </button>
-                        </div>
-
-                        <div style="display:flex; flex-direction:column; gap:6px;">
-                          <div *ngFor="let item of (field.problemItems || []); let i = index"
-                               style="display:flex; align-items:center; gap:8px;">
-                            <span style="width:24px; text-align:right;">{{ item.no }}.</span>
-
-                            <textarea class="desc-input"
-                                      [ngModel]="item.text"
-                                      (ngModelChange)="updateProblemText(field, i, $event)"
-                                      [ngModelOptions]="{ standalone: true }"
-                                      placeholder="Write problem description..."
-                                      style="flex:0 0 auto; display:block; min-width:140px; min-height:60px; max-width:none; max-height:none; padding:4px; border:1px solid #ccc; border-radius:4px; resize:both; overflow:auto;"></textarea>
-
-                            <button mat-icon-button type="button" (click)="removeProblemItem(field, i)" aria-label="Remove">
-                              <mat-icon>close</mat-icon>
-                            </button>
+                        <!-- Select (branch) -->
+                        <ng-container *ngIf="field.type === 'branch' && field.options">
+                          <div class="fw-control" [style.height.px]="getAdjustedHeight(field.height)">
+                            <mat-form-field appearance="outline" class="fw-field">
+                              <mat-label>Select</mat-label>
+                              <mat-select [(ngModel)]="field.value"
+                                          [name]="field.id"
+                                          [id]="field.id"
+                                          [required]="!!field.required"
+                                          #selectRef="ngModel">
+                                <mat-option [value]="''">-- Select --</mat-option>
+                                <mat-option *ngFor="let opt of field.options" [value]="opt.value">
+                                  {{ opt.label }}
+                                </mat-option>
+                              </mat-select>
+                              <mat-error *ngIf="selectRef.invalid && (selectRef.dirty || selectRef.touched)">
+                                This field is required.
+                              </mat-error>
+                            </mat-form-field>
                           </div>
-                        </div>
-                      </ng-container>
+                        </ng-container>
 
-                      <ng-template #normalTextarea>
-                        <textarea [(ngModel)]="field.value" [name]="field.id" [id]="field.id"
-                                  class="textarea-resizable-both"
-                                  [placeholder]="field.placeholder || ''"
-                                  style="min-height:60px; resize:both; overflow:auto;"></textarea>
-                      </ng-template>
-                    </ng-container>
-
-                    <!-- Select -->
-                    <ng-container *ngIf="field.type === 'branch' && field.options">
-                      <mat-form-field appearance="fill" class="w-100">
-                        <mat-label>Select</mat-label>
-                        <mat-select [(ngModel)]="field.value" [name]="field.id" [id]="field.id"
-                                    [required]="!!field.required" #selectRef="ngModel">
-                          <mat-option [value]="''">-- Select --</mat-option>
-                          <mat-option *ngFor="let opt of field.options" [value]="opt.value">
+                        <!-- Radio -->
+                        <div *ngIf="field.type === 'radio' && field.options"
+                             class="radio-group"
+                             role="radiogroup"
+                             [attr.aria-labelledby]="field.id + '__label'">
+                          <label *ngFor="let opt of field.options; let i = index"
+                                 class="radio-option"
+                                 [attr.for]="field.id + '_opt_' + i">
+                            <input type="radio"
+                                   [id]="field.id + '_opt_' + i"
+                                   [name]="field.id"
+                                   [value]="opt.value"
+                                   [(ngModel)]="field.value"
+                                   [required]="!!field.required">
                             {{ opt.label }}
-                          </mat-option>
-                        </mat-select>
-                        <mat-error *ngIf="selectRef.invalid && (selectRef.dirty || selectRef.touched)">
-                          This field is required.
-                        </mat-error>
-                      </mat-form-field>
-                    </ng-container>
+                          </label>
+                        </div>
 
-                    <!-- Radio -->
-                    <div *ngIf="field.type === 'radio' && field.options"
-                         class="radio-group"
-                         role="radiogroup"
-                         [attr.aria-labelledby]="field.id + '__label'">
-                      <label *ngFor="let opt of field.options; let i = index"
-                             class="radio-option"
-                             [attr.for]="field.id + '_opt_' + i">
-                        <input type="radio"
-                               [id]="field.id + '_opt_' + i"
-                               [name]="field.id"
-                               [value]="opt.value"
-                               [(ngModel)]="field.value"
-                               [required]="!!field.required">
-                        {{ opt.label }}
-                      </label>
-                    </div>
+                        <!-- File -->
+                        <ng-container *ngIf="field.type === 'file'">
+                          <input type="file" accept="image/*" (change)="onFileSelected($event, field)" />
+                          <img *ngIf="field.value" [src]="field.value" alt="Uploaded photo" class="uploaded-img" />
+                        </ng-container>
 
-                    <!-- File -->
-                    <ng-container *ngIf="field.type === 'file'">
-                      <input type="file" accept="image/*" (change)="onFileSelected($event, field)" />
-                      <img *ngIf="field.value" [src]="field.value" alt="Uploaded photo" class="uploaded-img" />
-                    </ng-container>
+                   <div *ngIf="field.type === 'signature'"
+     (pointerdown)="$event.stopPropagation()" 
+     (mousedown)="$event.stopPropagation()">
 
-                    <!-- Signature -->
-                    <div *ngIf="field.type === 'signature'">
-                      <canvas #canvas
-                              [attr.data-id]="field.id"
-                              width="400" height="150"
-                              class="signature-canvas"
-                              (pointerdown)="startDrawing($event, field.id)"
-                              (pointermove)="draw($event, field.id)"
-                              (pointerup)="stopDrawing($event, field.id)"
-                              (pointerleave)="stopDrawing($event, field.id)">
-                      </canvas>
+  <canvas #canvas
+          class="signature-canvas"
+          [attr.data-id]="field.id"
 
-                      <button mat-stroked-button type="button" data-nonprint (click)="clearSignatureCanvas(field.id)">
-                        Clear Signature
-                      </button>
-                    </div>
+     
+          [style.width.px]="field.width || 300"
+          [style.height.px]="getSignatureCanvasHeight(field.height)"
 
-                  </div>
-                  <!-- /FIELD -->
+    
+          [attr.width]="field.width || 300"
+          [attr.height]="getSignatureCanvasHeight(field.height)"
 
-                </div>
-              </div>
-            </div>
+          [style.touchAction]="'none'"                
+          (pointerdown)="startDrawing($event, field.id); $event.stopPropagation()"
+          (pointermove)="draw($event, field.id)"
+          (pointerup)="stopDrawing($event, field.id)"
+          (pointerleave)="stopDrawing($event, field.id)">
+  </canvas>
 
-          </form>
-        </div>
-      </mat-card-content>
-    </mat-card>
-  </div>
+  <button mat-stroked-button type="button" data-nonprint (click)="clearSignatureCanvas(field.id)">
+    Clear Signature
+  </button>
 </div>
+                      </div>
+                      <!-- /FIELD LOOP -->
+
+                    </div> <!-- /.form-page-container -->
+                  </div>   <!-- /.page-surface -->
+                </div>     <!-- /.page-container -->
+
+              </form>
+            </div> <!-- /#form-to-export -->
+
+          </div> <!-- /.page-equalizer -->
+        </div>   <!-- /#pageFill -->
+      </div>     <!-- /.page-frame -->
+
+    </mat-card-content>
+  </mat-card>
+</div>
+ 

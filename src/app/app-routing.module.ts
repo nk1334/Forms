@@ -40,8 +40,12 @@ const routes: Routes = [
     canActivate: [authGuard],
  
   },
-
-
+  {
+    path: 'forms/fill',
+    component: CreateFormComponent,
+    // canActivate: [authGuard], // optional if you want fill to require auth
+  },
+ { path: 'forms/:id', component: CreateFormComponent },  
   // Default redirect
   { path: '', redirectTo: 'login', pathMatch: 'full' },
 

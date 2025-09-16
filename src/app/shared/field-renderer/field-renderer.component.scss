@@ -1,0 +1,96 @@
+fw-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  box-sizing: border-box;
+  overflow: hidden; // prevent spilling outside saved box
+  background: #fff;
+
+  /* mimic template frame look */
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 2px;
+
+  /* no outer drag or resize chrome in fill mode */
+  &.fill {
+    border: none;
+    padding: 0;
+  }
+}
+
+/* ===== Angular Material form-field alignment ===== */
+.fw-field {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+
+  .mat-form-field-wrapper {
+    padding-bottom: 0; // tighter alignment
+  }
+
+  .mat-form-field-flex {
+    height: 100%;
+    align-items: center;
+  }
+
+  input.mat-input-element {
+    height: 100%;
+    box-sizing: border-box;
+  }
+}
+
+/* ===== Textarea ===== */
+.textarea-resizable-both {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  resize: none;      // disable user resize in fill mode
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+/* ===== Radio group ===== */
+.radio-group {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 6px;
+  box-sizing: border-box;
+}
+
+.radio-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+
+  input[type='radio'] {
+    margin: 0;
+  }
+}
+
+/* ===== Signature ===== */
+.signature-canvas {
+  border: 1px solid #bbb;
+  border-radius: 6px;
+  background: #fff;
+  cursor: crosshair;
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
+/* ===== Select / mat-select overrides ===== */
+::ng-deep .mat-form-field-appearance-outline .mat-form-field-outline {
+  color: #bbb;
+}
+
+::ng-deep .mat-select-trigger {
+  height: 100%;
+  display: flex;
+  align-items: center;
+}

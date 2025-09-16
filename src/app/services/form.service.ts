@@ -57,6 +57,13 @@ export class FormService {
     const v = String(b || '').toUpperCase();
     return (v === 'NSW' || v === 'YAT' || v === 'MACKAY' || v === 'ALL') ? (v as Branch) : 'NSW';
   }
+  private normBranches(brs?: Branch[]): Branch[] {
+  const arr = Array.isArray(brs) && brs.length ? brs : ['ALL'];
+  const uniq = new Set(arr.map(b => this.normBranch(b)));
+  // If it includes 'ALL', make it exactly ['ALL'] for consistency
+  return uniq.has('ALL') ? ['ALL'] : Array.from(uniq);
+}
+
   async uploadPdfBlob(
     kind: 'filled' | 'template',
     id: string,
@@ -156,82 +163,79 @@ export class FormService {
   // ========================= TEMPLATES ===============================
 
   /** Create a template (layout only) in the master collection */
-  async saveFormTemplate(
-    formName: string,
-    formPages: any[],
-    allowedBranches: Branch[] = ['ALL']
-  ) {
-    const colRef = collection(this.afs, TEMPLATES);
-    return addDoc(colRef, {
-      formName,
-      formPages,
-      allowedBranches: allowedBranches?.length ? allowedBranches : ['ALL'],
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-
-  }
+async saveFormTemplate(formName: string, formPages: any[], allowedBranches: Branch[] = ['ALL']) {
+  const colRef = collection(this.afs, TEMPLATES);
+  // ensure plain JSON
+  const pages = JSON.parse(JSON.stringify(formPages || []));
+  return addDoc(colRef, {
+    formName,
+    formPages: pages,
+    allowedBranches: this.normBranches(allowedBranches),
+    source: 'template',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}
 
   /** Create master + fan-out copies into branches in a single operation */
-  async saveFormTemplateToBranches(
-    formName: string,
-    formPages: any[],
-    branches: Branch[] = ALL_CONCRETE_BRANCHES,
-    allowedBranches: Branch[] = ['ALL']
-  ) {
-    // 1) create in master to get id
-    const baseRef = collection(this.afs, TEMPLATES);
-    const created = await addDoc(baseRef, {
+async saveFormTemplateToBranches(formName: string, formPages: any[], branches: Branch[] = ALL_CONCRETE_BRANCHES, allowedBranches: Branch[] = ['ALL']) {
+  const baseRef = collection(this.afs, TEMPLATES);
+  const pages = JSON.parse(JSON.stringify(formPages || []));
+  const normAllowed = this.normBranches(allowedBranches);
+  const created = await addDoc(baseRef, {
+    formName,
+    formPages: pages,
+    allowedBranches: normAllowed,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  const templateId = created.id;
+
+  const batch = writeBatch(this.afs);
+  for (const branchId of branches.map(b => this.normBranch(b))) {
+    const branchDocRef = doc(this.afs, `${BRANCHES_COLL}/${branchId}/templates/${templateId}`);
+    batch.set(branchDocRef, {
+      formId: templateId,
       formName,
-      formPages,
-      allowedBranches,
+      formPages: pages,
+      branchId,
+      allowedBranches: normAllowed,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
-
-    const templateId = created.id;
-
-    // 2) fan out in one batch
-    const batch = writeBatch(this.afs);
-    for (const branchId of branches) {
-      const branchDocRef = doc(this.afs, `${BRANCHES_COLL}/${branchId}/templates/${templateId}`);
-      batch.set(branchDocRef, {
-        formId: templateId,
-        formName,
-        formPages,
-        branchId,
-        allowedBranches,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-    }
-    await batch.commit();
-
-    return templateId;
   }
-
+  await batch.commit();
+  return templateId;
+}
   /** Update master template fields (and updatedAt) */
-  async updateFormTemplate(
-    templateId: string,
-    data: { formName?: string; formPages?: any[]; allowedBranches?: Branch[] }
-  ) {
-    const ref = doc(this.afs, TEMPLATES, templateId);
-    await updateDoc(ref, { ...data, updatedAt: serverTimestamp() });
-  }
+async updateFormTemplate(templateId: string, data: { formName?: string; formPages?: any[]; allowedBranches?: Branch[] }) {
+  const ref = doc(this.afs, TEMPLATES, templateId);
+  const payload: any = { updatedAt: serverTimestamp() };
+  if (data.formName !== undefined) payload.formName = data.formName;
+  if (data.formPages !== undefined) payload.formPages = JSON.parse(JSON.stringify(data.formPages));
+  if (data.allowedBranches !== undefined) payload.allowedBranches = this.normBranches(data.allowedBranches);
+  await updateDoc(ref, payload);
+}
 
   /** Update branch copies to stay in sync with master */
-  async updateTemplateInBranches(
-    templateId: string,
-    data: { formName?: string; formPages?: any[]; allowedBranches?: Branch[] },
-    branches: Branch[] = ALL_CONCRETE_BRANCHES
-  ): Promise<void> {
-    const batch = writeBatch(this.afs);
-    for (const b of branches) {
-      const ref = doc(this.afs, `${BRANCHES_COLL}/${b}/templates/${templateId}`);
-      batch.set(ref, { ...data, branchId: b, updatedAt: serverTimestamp() }, { merge: true });
-    }
-    await batch.commit();
+
+async updateTemplateInBranches(templateId: string, data: { formName?: string; formPages?: any[]; allowedBranches?: Branch[] }, branches: Branch[] = ALL_CONCRETE_BRANCHES) {
+  const batch = writeBatch(this.afs);
+  const normAllowed = data.allowedBranches ? this.normBranches(data.allowedBranches) : undefined;
+  const pages = data.formPages ? JSON.parse(JSON.stringify(data.formPages)) : undefined;
+
+  for (const b of branches.map(x => this.normBranch(x))) {
+    const ref = doc(this.afs, `${BRANCHES_COLL}/${b}/templates/${templateId}`);
+    batch.set(ref, {
+      ...(data.formName !== undefined ? { formName: data.formName } : {}),
+      ...(pages !== undefined ? { formPages: pages } : {}),
+      ...(normAllowed !== undefined ? { allowedBranches: normAllowed } : {}),
+      branchId: b,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
   }
+  await batch.commit();
+}
 
   /** Delete master template only (keep if some callers still rely on it) */
   async deleteFormTemplate(id: string): Promise<void> {
@@ -362,37 +366,47 @@ getVisibleTemplatesForBranch$(branch: Branch): Observable<SavedForm[]> {
       };
     });
   }
+async getVisibleTemplatesForBranch(branch: Branch): Promise<SavedForm[]> {
+  if (branch === 'ALL') return this.getFormTemplates();
 
+  const colRef = collection(this.afs, TEMPLATES);
+  const qv = query(
+    colRef,
+    where('allowedBranches', 'array-contains-any', ['ALL', branch])
+    // no orderBy for the same reason
+  );
+
+  const snap = await getDocs(qv);
+  const out = snap.docs.map((d) => {
+    const data: any = d.data();
+    return {
+      formId: d.id,
+      firebaseId: d.id,
+      formName: data.formName ?? data.templateName ?? '(Untitled)',
+      formPages:
+        data.formPages
+        ?? data.formPagesSnapshot
+        ?? (data.fields ? [{ fields: data.fields }] : []),
+      pdfUrl: data.pdfUrl ?? null,
+      source: data.source ?? 'template',
+      allowedBranches:
+        Array.isArray(data.allowedBranches) && data.allowedBranches.length
+          ? data.allowedBranches
+          : ['ALL'],
+      createdAt: data.createdAt ?? null,
+    } as SavedForm;
+  });
+
+  // sort on client
+  out.sort((a: any, b: any) =>
+    (b as any).createdAt?.seconds - (a as any).createdAt?.seconds
+    || (a.formName ?? '').localeCompare(b.formName ?? '')
+  );
+
+  return out;
+}
   /** List master templates visible to a branch (ALL or that branch) */
-  async getVisibleTemplatesForBranch(branch: Branch): Promise<SavedForm[]> {
-    if (branch === 'ALL') {
-      return this.getFormTemplates();
-    }
-
-    const colRef = collection(this.afs, TEMPLATES);
-    const qv = query(
-      colRef,
-      where('allowedBranches', 'array-contains-any', ['ALL', branch])
-    );
-
-    const snap = await getDocs(qv);
-    return snap.docs.map((d) => {
-      const data: any = d.data();
-      return {
-        formId: d.id,
-        firebaseId: d.id,
-        formName: data.formName ?? '(Untitled)',
-        formPages: data.formPages ?? [],
-        pdfUrl: data.pdfUrl ?? null,
-        source: 'template',
-        allowedBranches:
-          Array.isArray(data.allowedBranches) && data.allowedBranches.length
-            ? data.allowedBranches
-            : ['ALL'],
-      } as SavedForm;
-    });
-  }
-
+  
   // ======================= FILLED FORMS ==============================
 
   /** Create a FILLED instance (layout + values) */
