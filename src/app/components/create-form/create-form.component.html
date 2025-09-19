@@ -169,10 +169,10 @@
   <!-- Inline naming / save bar -->
   <div class="form-action-toolbar">
     <ng-container *ngIf="!showNameInput">
-      <button mat-raised-button color="primary" type="button" (click)="savePDFPreview()">
-        <mat-icon>save</mat-icon>
-        Save
-      </button>
+  <button mat-raised-button color="primary" type="button" (click)="showNameInput = true">
+  <mat-icon>save</mat-icon>
+  Save
+</button>
     </ng-container>
 
     <ng-container *ngIf="showNameInput">
@@ -227,7 +227,7 @@
      style="position: relative"
      (dragover)="showFormEditor && onPageDragOver($event)"
      (drop)="showFormEditor && onPageDrop($event)"
-     (mousedown)="onPageMouseDown($event, p)">
+    (mousedown)="isFillMode ? $event.stopPropagation() : onPageMouseDown($event, p)">
 
   <div class="form-page-container">
     <!-- FIELDS -->
@@ -241,7 +241,7 @@
          [class.desc-resize]="isDescriptionField(field)"
          [attr.data-id]="field.id"
          [ngStyle]="getFieldStyle(field)"
-         (mousedown)="onWrapperMouseDown($event, field)">
+         (mousedown)="isFillMode ? $event.stopPropagation() : onWrapperMouseDown($event, field)">
                         <!-- Label (skip for grid types) -->
                         <label class="field-label"
                                *ngIf="!(field.type==='data-grid' || field.type==='datagrid' || field.type==='grid' || field.type==='matrix' || isDescriptionField(field))"
@@ -374,22 +374,42 @@
 
                         <!-- Text / Email / Number / Tel -->
                         <ng-container *ngIf="field.type === 'text' || field.type === 'email' || field.type === 'number' || field.type === 'tel' || !field.type">
-                          <div class="fw-control" [style.height.px]="getAdjustedHeight(field.height)">
-                            <mat-form-field appearance="outline" class="fw-field">
-                              <input matInput
-                                     [type]="field.type || 'text'"
-                                     [(ngModel)]="field.value"
-                                     [name]="field.id"
-                                     [id]="field.id"
-                                     [required]="!!field.required"
-                                     [placeholder]="field.placeholder || ''"
-                                     #inputRef="ngModel" />
-                              <mat-error *ngIf="inputRef.invalid && (inputRef.dirty || inputRef.touched)">
-                                This field is required.
-                              </mat-error>
-                            </mat-form-field>
-                          </div>
-                        </ng-container>
+                        <div class="fw-control " [style.height.px]="getAdjustedHeight(field.height)">
+                           
+                 <mat-form-field appearance="outline" class="fw-field">
+
+      <!-- Only TEXT becomes a textarea with scroll/autogrow -->
+      <ng-container [ngSwitch]="field.type || 'text'">
+
+        <!-- TEXT -->
+         <textarea *ngSwitchCase="'text'"
+                  matInput
+                  class="text-scroll"
+                  rows="1"
+                  [(ngModel)]="field.value"
+                  [name]="field.id"
+                  [id]="field.id"
+                  [required]="!!field.required"
+                  [placeholder]="field.placeholder || ''">
+        </textarea>
+
+        <!-- EMAIL / NUMBER / TEL / fallback stay single-line inputs -->
+        <input *ngSwitchDefault
+               matInput
+               [type]="field.type || 'text'"
+               [(ngModel)]="field.value"
+               [name]="field.id"
+               [id]="field.id"
+               [required]="!!field.required"
+               [placeholder]="field.placeholder || ''" />
+      </ng-container>
+
+      <mat-error *ngIf="!!field.required && (!field.value || field.value === '')">
+        This field is required.
+      </mat-error>
+    </mat-form-field>
+  </div>
+</ng-container>
 
                         <!-- Checkbox -->
                         <ng-container *ngIf="field.type === 'checkbox'">
@@ -498,38 +518,37 @@
                         </div>
 
                         <!-- File -->
-                        <ng-container *ngIf="field.type === 'file'">
-                          <input type="file" accept="image/*" (change)="onFileSelected($event, field)" />
-                          <img *ngIf="field.value" [src]="field.value" alt="Uploaded photo" class="uploaded-img" />
-                        </ng-container>
+                    <ng-container *ngIf="field.type === 'file'">
+  
+  <input type="file" accept="image/*" (change)="onFileSelected($event, field)" />
+  
+  <input type="file" [id]="field.id" accept="image/*" (change)="onFileSelected($event, field)" />
 
-                   <div *ngIf="field.type === 'signature'"
-     (pointerdown)="$event.stopPropagation()" 
-     (mousedown)="$event.stopPropagation()">
+  <img *ngIf="field.value" [src]="field.value" alt="Uploaded photo" class="uploaded-img" />
+</ng-container>
 
-  <canvas #canvas
-          class="signature-canvas"
-          [attr.data-id]="field.id"
-
-     
-          [style.width.px]="field.width || 300"
-          [style.height.px]="getSignatureCanvasHeight(field.height)"
-
+<div *ngIf="field.type === 'signature'" class="signature-field">
+  <div class="signature-wrap">
+    <canvas 
+      class="sig-canvas"
+      [attr.data-id]="field.id"
+      [style.width.%]="100"
+      [style.height.px]="field.height || 140"
+      
+      style="touch-action: none;" 
+      
+      (pointerdown)="startDrawing($event, field.id)"
+      (pointermove)="draw($event, field.id)"
+      (pointerup)="stopDrawing($event, field.id)"
+      (pointerleave)="stopDrawing($event, field.id)">
+    </canvas>
     
-          [attr.width]="field.width || 300"
-          [attr.height]="getSignatureCanvasHeight(field.height)"
-
-          [style.touchAction]="'none'"                
-          (pointerdown)="startDrawing($event, field.id); $event.stopPropagation()"
-          (pointermove)="draw($event, field.id)"
-          (pointerup)="stopDrawing($event, field.id)"
-          (pointerleave)="stopDrawing($event, field.id)">
-  </canvas>
-
-  <button mat-stroked-button type="button" data-nonprint (click)="clearSignatureCanvas(field.id)">
-    Clear Signature
-  </button>
+    <button mat-icon-button type="button" class="sig-clear" (click)="clearSignatureCanvas(field.id)">
+      <mat-icon>clear</mat-icon>
+    </button>
+  </div>
 </div>
+   
                       </div>
                       <!-- /FIELD LOOP -->
 

@@ -1,0 +1,121 @@
+.gform-field { display:flex; flex-direction:column; gap:6px; }
+.inner-controls { display:flex; flex-direction:column; gap:6px; }
+.editable-label { font-weight:600; outline:0; }
+.gform-label { font-weight:600; font-size:14px; }
+
+.inline-resize-wrap { position:relative; display:block; }
+
+.input-shell.text-input-shell {
+  position:relative;
+  display:inline-block;
+}
+
+.resizable-input,
+.text-input {
+  width:100%;
+  height:100%;
+  box-sizing:border-box;
+  padding:8px 10px;
+}
+
+/* delete button inside shell */
+.inline-delete.inside {
+  position:absolute;
+  top:4px; right:4px;
+  background:transparent; border:none;
+  cursor:pointer; color:#d32f2f; font-size:16px;
+}
+
+/* ---------- grips (inner take precedence) ---------- */
+
+/* shared tokens */
+$grip-size: 8px;
+$grip-border: 1px solid #999;
+$grip-bg: #fff;
+
+.input-shell .edge-grip.inner,
+.input-shell .corner-grip.inner {
+  position:absolute;
+  z-index:50;             /* above any outer handles */
+  background:$grip-bg;
+  border:$grip-border;
+  pointer-events:auto;
+}
+
+/* round dots */
+.input-shell .edge-grip.inner,
+.input-shell .corner-grip.inner { width:$grip-size; height:$grip-size; border-radius:50%; }
+
+/* edges */
+.input-shell .edge-grip.inner.n { top:-4px; left:50%; transform:translateX(-50%); cursor:ns-resize; }
+.input-shell .edge-grip.inner.s { bottom:-4px; left:50%; transform:translateX(-50%); cursor:ns-resize; }
+.input-shell .edge-grip.inner.w { left:-4px; top:50%; transform:translateY(-50%); cursor:ew-resize; }
+.input-shell .edge-grip.inner.e { right:-4px; top:50%; transform:translateY(-50%); cursor:ew-resize; }
+
+/* corners */
+.input-shell .corner-grip.inner.nw { top:-4px; left:-4px;  cursor:nwse-resize; }
+.input-shell .corner-grip.inner.ne { top:-4px; right:-4px; cursor:nesw-resize; }
+.input-shell .corner-grip.inner.sw { bottom:-4px; left:-4px; cursor:nesw-resize; }
+.input-shell .corner-grip.inner.se { bottom:-4px; right:-4px; cursor:nwse-resize; }
+
+/* optional bigger outer dots (if you still use them) */
+.corner-grip.big.nw { top:-6px; left:-6px; cursor:nw-resize; }
+.corner-grip.big.ne { top:-6px; right:-6px; cursor:ne-resize; }
+.corner-grip.big.sw { bottom:-6px; left:-6px; cursor:sw-resize; }
+.corner-grip.big.se { bottom:-6px; right:-6px; cursor:se-resize; }
+
+/* outer grey handles should never capture pointer over inputs */
+.form-row .rh { z-index:1; pointer-events:none; }
+.gform-data-grid.compact {
+  padding: 6px;
+  box-sizing: border-box;
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;        /* keeps columns tight */
+    font-size: 12px;            /* small like the PDF */
+    line-height: 1.25;
+  }
+
+  th, td {
+    border: 1px solid #9aa3ab;
+    padding: 3px 4px;           /* compact cells */
+    text-align: center;
+    vertical-align: middle;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  thead th {
+    background: #eef1f5;
+    font-weight: 600;
+  }
+
+  input[type="text"] {
+    width: 100%;
+    border: none;
+    outline: none;
+    padding: 2px 3px;           /* small input */
+    font-size: 12px;
+    background: transparent;
+    box-sizing: border-box;
+  }
+
+  .grid-actions {
+    margin-top: 6px;
+    display: flex;
+    gap: 8px;
+  }
+
+  /* tiny corner grips */
+  .corner-grip.inner {
+    width: 8px; height: 8px; background:#fff;
+    border:1px solid #999; border-radius:50%;
+    position:absolute; z-index:5;
+  }
+  .corner-grip.inner.nw { top:-4px; left:-4px;  cursor:nwse-resize; }
+  .corner-grip.inner.ne { top:-4px; right:-4px; cursor:nesw-resize; }
+  .corner-grip.inner.sw { bottom:-4px; left:-4px; cursor:nesw-resize; }
+  .corner-grip.inner.se { bottom:-4px; right:-4px; cursor:nwse-resize; }
+}

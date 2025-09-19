@@ -9,10 +9,15 @@ import { MatSelectModule }    from '@angular/material/select';
 import { MatButtonModule }    from '@angular/material/button';
 
 import { FieldRendererComponent } from './field-renderer/field-renderer.component';
+import { TextFieldComponent } from './gforms/components/text-field/text-field.component';
+import { DataGridComponent } from './gforms/components/data-grid/data-grid.component';
+
 
 @NgModule({
   declarations: [
-    FieldRendererComponent
+    FieldRendererComponent,
+    TextFieldComponent,
+    DataGridComponent
   ],
   imports: [
     CommonModule,
@@ -24,7 +29,9 @@ import { FieldRendererComponent } from './field-renderer/field-renderer.componen
     MatButtonModule
   ],
   exports: [
-    FieldRendererComponent
+    FieldRendererComponent,
+        TextFieldComponent ,
+         DataGridComponent 
   ]
 })
 export class SharedModule {}

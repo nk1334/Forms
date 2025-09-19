@@ -1,0 +1,88 @@
+.gform-field { display:flex; flex-direction:column; gap:6px; }
+.gform-label { font-weight:600; font-size:14px; }
+.text-input-shell { position:relative; display:inline-block; }
+.text-input { width:100%; height:100%; box-sizing:border-box; padding:8px 10px; }
+/* keep names you used so your global CSS still applies */
+.inner-controls { display:flex; flex-direction:column; gap:6px; }
+.editable-label { font-weight:600; outline:0; }
+.inline-resize-wrap { position:relative; display:block; }
+.input-shell.text-input-shell { position:relative; display:inline-block; }
+
+/* input */
+.resizable-input,
+.text-input {
+  width:100%;
+  height:100%;
+  box-sizing:border-box;
+  padding:8px 10px;
+}
+
+/* legacy inner grips */
+.edge-grip.inner {
+  position:absolute;
+  top:0; bottom:0;
+  width:6px;
+  cursor:ew-resize;
+}
+.edge-grip.inner.left  { left:-3px; }
+.edge-grip.inner.right { right:-3px; }
+
+.corner-grip.inner {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: #fff;
+  border: 1px solid #999;
+  border-radius: 50%;
+  z-index: 20;
+}
+.corner-grip.inner.nw { top: 2px; left: 2px; cursor: nw-resize; }
+.corner-grip.inner.ne { top: 2px; right: 2px; cursor: ne-resize; }
+.corner-grip.inner.sw { bottom: 2px; left: 2px; cursor: sw-resize; }
+.corner-grip.inner.se { bottom: 2px; right: 2px; cursor: se-resize; }
+
+/* slim side grips (just outside so they never steal clicks) */
+.edge-grip.inner {
+  position: absolute;
+  background: #fff;
+  border: 1px solid #999;
+  z-index: 20;
+  pointer-events: auto;
+}
+.edge-grip.inner.n { top: -2px; left: 50%; transform: translateX(-50%); width: 10px; height: 4px; cursor: n-resize; }
+.edge-grip.inner.s { bottom: -2px; left: 50%; transform: translateX(-50%); width: 10px; height: 4px; cursor: s-resize; }
+.edge-grip.inner.w { left: -2px; top: 50%; transform: translateY(-50%); width: 4px; height: 10px; cursor: w-resize; }
+.edge-grip.inner.e { right: -2px; top: 50%; transform: translateY(-50%); width: 4px; height: 10px; cursor: e-resize; }
+
+
+
+/* delete button inside shell */
+.inline-delete.inside {
+  position:absolute; top:4px; right:4px;
+  background:transparent; border:none; cursor:pointer; color:#d32f2f; font-size:16px;
+}
+
+.corner-grip.big.nw { top: -6px; left: -6px; cursor: nw-resize; }
+.corner-grip.big.ne { top: -6px; right: -6px; cursor: ne-resize; }
+.corner-grip.big.sw { bottom: -6px; left: -6px; cursor: sw-resize; }
+.corner-grip.big.se { bottom: -6px; right: -6px; cursor: se-resize; }
+/* inner edge grips */
+.edge-grip.inner { position:absolute; width:8px; height:8px; background:#fff; border:1px solid #999; border-radius:50%; z-index:50; }
+
+.edge-grip.inner.n { top:-4px; left:50%; transform:translateX(-50%); cursor: ns-resize; }
+.edge-grip.inner.s { bottom:-4px; left:50%; transform:translateX(-50%); cursor: ns-resize; }
+.edge-grip.inner.w { left:-4px; top:50%; transform:translateY(-50%); cursor: ew-resize; }
+.edge-grip.inner.e { right:-4px; top:50%; transform:translateY(-50%); cursor: ew-resize; }
+
+/* inner corner grips */
+.corner-grip.inner { position:absolute; width:8px; height:8px; background:#fff; border:1px solid #999; border-radius:50%; z-index:50; }
+
+.corner-grip.inner.nw { top:-4px; left:-4px;  cursor: nwse-resize; }
+.corner-grip.inner.ne { top:-4px; right:-4px; cursor: nesw-resize; }
+.corner-grip.inner.sw { bottom:-4px; left:-4px; cursor: nesw-resize; }
+.corner-grip.inner.se { bottom:-4px; right:-4px; cursor: nwse-resize; }
+
+/* make sure your outer row handles don't steal the pointer */
+.form-row .rh { z-index: 1; pointer-events: none; }   /* outer grey corners */
+.input-shell .edge-grip.inner,
+.input-shell .corner-grip.inner { pointer-events: auto; }  /* our grips win */

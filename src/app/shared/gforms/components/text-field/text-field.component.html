@@ -1,0 +1,75 @@
+<div class="gform-field" [style.width.px]="field?.width" [style.height.px]="field?.height">
+  <div class="inner-controls no-outer-handles">
+    <!-- LABEL -->
+    <label
+      class="editable-label"
+      [attr.data-id]="field?.id"
+      contenteditable="true"
+      (focus)="onLabelFocus($event)"
+      (blur)="onLabelBlur($event)"
+      (keydown)="onLabelKeydown($event)">
+      {{ field?.label || 'Text' }}
+      <span *ngIf="field?.required" aria-hidden="true" style="color:#d32f2f;">*</span>
+    </label>
+
+    <!-- INPUT WRAP (keeps your margin-left semantics) -->
+    <div
+      class="inline-resize-wrap"
+      [style.marginLeft.px]="(field?.labelDock==='left'||field?.labelDock==='right') ? (field?._textML ?? 0) : null"
+      (mousedown)="$event.stopPropagation()">
+
+      <!-- SHELL -->
+      <div class="input-shell text-input-shell"
+           [style.width.px]="field?._textW ?? field?.inputWidth ?? 240"
+           [style.height.px]="field?._textH ?? 36"
+               [style.marginLeft.px]="field?._textML ?? 0"
+     [style.marginTop.px]="field?._textMT ?? 0"
+           style="position:relative;">
+
+        <!-- auto: textarea if tall, else input -->
+        <textarea *ngIf="(field?._textH ?? 36) > 44"
+                  class="resizable-input"
+                  [(ngModel)]="field.value"
+                  [placeholder]="field?.placeholder || ''"
+                  (ngModelChange)="onInput($event)"
+                  style="width:100%; height:100%; box-sizing:border-box; resize:none; padding:8px;">
+        </textarea>
+
+        <input *ngIf="(field?._textH ?? 36) <= 44"
+               type="text"
+               class="resizable-input"
+               [(ngModel)]="field.value"
+               [placeholder]="field?.placeholder || ''"
+               (ngModelChange)="onInput($event)"
+               style="width:100%; height:100%; box-sizing:border-box; padding:8px 10px;" />
+
+        <!-- corner grips (small, inside) -->
+        <i class="corner-grip inner nw" (mousedown)="startResize($event, 'nw')"></i>
+        <i class="corner-grip inner ne" (mousedown)="startResize($event, 'ne')"></i>
+        <i class="corner-grip inner sw" (mousedown)="startResize($event, 'sw')"></i>
+        <i class="corner-grip inner se" (mousedown)="startResize($event, 'se')"></i>
+
+        <!-- side grips (slim, slightly outside so they never block typing) -->
+        <div class="edge-grip inner n" (mousedown)="startResize($event, 'n')"></div>
+        <div class="edge-grip inner s" (mousedown)="startResize($event, 's')"></div>
+        <div class="edge-grip inner w" (mousedown)="startResize($event, 'w')"></div>
+        <div class="edge-grip inner e" (mousedown)="startResize($event, 'e')"></div>
+
+        <!-- delete -->
+        <button class="inline-delete inside"
+                title="Delete field"
+                (mousedown)="$event.stopPropagation()"
+                (click)="deleteField.emit(field)">
+          &times;
+        </button>
+      </div>
+    </div>
+
+    <!-- required message -->
+    <div class="req-msg"
+         *ngIf="field?.required && !(field?.value?.length)"
+         style="width:100%; color:#d32f2f; font-size:12px;">
+      * Required: please enter {{ field?.label || 'Text' }}.
+    </div>
+  </div>
+</div>

@@ -38,7 +38,7 @@
 
     <div class="table-wrap" *ngIf="formListVisible">
       <!-- ✅ SINGLE table; use the FILTERED datasource -->
-      <table mat-table [dataSource]="filteredSavedForms" class="mat-elevation-z2 saved-forms-table">
+<table mat-table [dataSource]="filteredSavedForms" [trackBy]="trackBySavedForm" class="mat-elevation-z2 saved-forms-table">
 
         <!-- Template -->
         <ng-container matColumnDef="name">
@@ -91,7 +91,7 @@
 
         <!-- Row defs -->
         <tr mat-header-row *matHeaderRowDef="displayedColumns" class="sticky"></tr>
-        <tr mat-row *matRowDef="let row; columns: displayedColumns; trackBy: trackBySavedForm"></tr>
+     <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
 
         <!-- Proper “no data” row for MatTable -->
         <tr class="mat-row" *matNoDataRow>
@@ -281,53 +281,15 @@
                   </ng-container>
 
                   <ng-container *ngSwitchCase="'text'">
-                    <!-- (kept for legacy but won't render due to guard) -->
-                    <div class="inner-controls no-outer-handles" [ngStyle]="rowLayout(field)">
-                      <label class="editable-label"
-                             [ngStyle]="labelStyle(field)"
-                             [attr.data-id]="field.id"
-                             contenteditable="true"
-                             (focus)="startLabelEdit(field, $event)"
-                             (blur)="finishLabelEdit(field, $event)"
-                             (keydown)="onLabelKeydown(field, $event)">
-                        {{ field.label || 'Text' }}
-                        <span *ngIf="isRequiredField(field)" aria-hidden="true" style="color:#d32f2f;">*</span>
-                      </label>
-
-                      <div class="inline-resize-wrap"
-                           [ngStyle]="ctrlStyle(field)"
-                           [style.marginLeft.px]="(field.labelDock==='left'||field.labelDock==='right') ? (field._textML ?? 0) : null"
-                           (mousedown)="$event.stopPropagation()">
-
-                        <div class="input-shell text-input-shell"
-                             [style.width.px]="field._textW ?? field.inputWidth ?? 240"
-                             [style.height.px]="field._textH ?? 36">
-                          <input type="text"
-                                 class="resizable-input"
-                                 [(ngModel)]="field.value"
-                                 [placeholder]="field.placeholder || ''" />
-
-                          <div class="edge-grip inner left"  (mousedown)="startTextResize($event, field, 'left')"></div>
-                          <div class="edge-grip inner right" (mousedown)="startTextResize($event, field, 'right')"></div>
-                          <i class="corner-grip inner sw"     (mousedown)="startTextResize($event, field, 'sw')"></i>
-                          <i class="corner-grip inner se"     (mousedown)="startTextResize($event, field, 'se')"></i>
-
-                          <button class="inline-delete inside"
-                                  title="Delete field"
-                                  (mousedown)="$event.stopPropagation()"
-                                  (click)="removeField(currentPage, field)">
-                            &times;
-                          </button>
-                        </div>
-                      </div>
-
-                      <div class="req-msg"
-                           *ngIf="isRequiredField(field) && !isFieldFilled(field)"
-                           style="width:100%; color:#d32f2f; font-size:12px;">
-                        * Required: please enter {{ field.label || 'Text' }}.
-                      </div>
-                    </div>
-                  </ng-container>
+  <gform-text-field
+    [field]="field"
+    [fillMode]="isFillMode"
+ 
+    (valueChange)="field.value = $event"
+    (labelChange)="field.label = $event"
+    (deleteField)="removeField(currentPage, field)">
+  </gform-text-field>
+</ng-container>
 
                   <!-- Number -->
                   <ng-container *ngSwitchCase="'number'">

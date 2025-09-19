@@ -25,6 +25,9 @@ import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { AuthService } from 'src/app/services/auth.service';
 import { Input } from '@angular/core';
 import { MatTableDataSource } from '@angular/material/table';
+import { GformFirestoreService } from 'src/app/shared/gforms/services/gform-firestore.service';
+import { GformGridService } from 'src/app/shared/gforms/services/gform-grid.service';
+import { GformLayoutService } from 'src/app/shared/gforms/services/gform-layout.service';
 
 
 export type ColumnType = 'text' | 'number' | 'date' | 'select';
@@ -308,7 +311,10 @@ isCommonType(type?: string) { return !!type && this.commonTypes.has(type); }
     private snackBar: MatSnackBar,
     private formService: FormService,
     private fb: FormBuilder,
-    private authService: AuthService
+    private authService: AuthService,
+      private fsx: GformFirestoreService,
+        private gridSvc: GformGridService,
+          private layout: GformLayoutService
   ) { }
 
   ngOnInit(): void {
@@ -538,7 +544,7 @@ gridItemStyle(it: any, field: FormField): { [k: string]: any } {
   }
 private cloneAndRehydrate(pages: any[] | undefined): any[] {
   const copy = JSON.parse(JSON.stringify(pages || []));
-  return deserializeFromFirestorePages(copy);
+  return this.fsx.deserializeFromFirestorePages(copy);
 }
   private _activeInputResize?: {
     field: any;
@@ -658,10 +664,14 @@ private cloneAndRehydrate(pages: any[] | undefined): any[] {
   }
   async publishTemplate() {
   const payload = JSON.parse(JSON.stringify(this.formPages || []));
-  this.captureCurrentLayoutForSave(payload);
-  this.syncGridPixelsFromWrapper(payload);       // <-- for data-grid parity
- payload.forEach((p: { fields?: any[] }) => this.anchorPageToTopLeft(p, 12));  // optional
+this.layout.captureCurrentLayoutForSave(payload);
+this.gridSvc.syncGridPixelsFromWrapper(payload);   // <-- for data-grid parity
+payload.forEach((p: { fields?: any[] }) => this.layout.anchorPageToTopLeft(p, 12));
   // send to Firestore…
+  this.fsx.normalizeGridForSave(payload);
+
+// then flatten for Firestore
+const forFirestore = this.fsx.serializeForFirestorePages(payload);
 }
   rememberProblemItemSize(ev: MouseEvent, f: FormField, idx: number) {
     const el = ev.currentTarget as HTMLElement | null;

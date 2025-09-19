@@ -835,3 +835,68 @@ field-wrapper.fill-mode{
   border: 1px solid #ccc;
   border-radius: 6px;
 }
+.signature-field {
+  position: relative;
+  width: 100%;
+  height: 150px; /* overridden by inline [style.height.px] if provided */
+  border: 1px solid #bbb; border-radius: 6px; background: #fff;
+}
+.signature-canvas {
+  display: block; width: 100%; height: 100%;
+  border: 1px dashed #cfd8dc; border-radius: 6px;
+  background: #fff;
+  touch-action: none;         /* allow drawing on touch/pen */
+  pointer-events: auto;       /* ensure canvas receives events */
+  z-index: 10;                /* above decorative chrome */
+}
+.sig-clear {
+  position: absolute; top: 6px; right: 6px;
+  font-size: 12px; line-height: 1;
+}
+.signature-wrap { position: relative; }
+.signature-canvas {
+  display: block;
+  width: 100%;
+  /* height is set inline from Angular; keep it */
+  pointer-events: auto;  /* ensure it can receive events */
+}
+.sig-clear {
+  position: absolute; top: 6px; right: 6px; z-index: 10;
+}
+/* make sure nothing overlays the canvas during fill */
+.fill-mode .drag-handle,
+.fill-mode .resize-handle,
+.fill-mode .field-toolbar,
+.fill-mode .grid-guides { pointer-events: none !important; }
+.sig-canvas { display:block; pointer-events:auto !important; touch-action:none; }
+.sig-canvas { display:block; pointer-events:auto !important; touch-action:none; user-select:none; }
+.fill-mode .drag-handle, .fill-mode .resize-handle, .fill-mode .field-toolbar, .fill-mode .grid-guides {
+  pointer-events:none !important;
+}
+.fw-control.scrollable .mat-form-field {
+  overflow: auto;
+  max-height: 160px;   /* adjust as needed */
+}
+
+
+
+/* For textareas / big text inputs */
+.textarea-resizable-both {
+  resize: both;
+  max-height: 240px; /* adjust as you like */
+  overflow: auto;
+}
+
+.text-scroll {
+  height: 56px;         /* small box */
+  max-height: 120px;    /* cap */
+  overflow-y: auto;     /* show scrollbar only when needed */
+  overflow-x: hidden;   /* never show horizontal */
+  resize: vertical;     /* let user resize manually if they want */
+  line-height: 1.4;
+
+  /* Ensure cursor starts top-left */
+  padding: 4px 8px !important; 
+  text-align: left;
+  vertical-align: top;
+}

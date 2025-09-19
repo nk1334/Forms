@@ -320,7 +320,26 @@ getVisibleTemplatesForBranch$(branch: Branch): Observable<SavedForm[]> {
     } as SavedForm)))
   );
 }
-
+private deserializeFromFirestorePages(raw: any[]): any[] {
+  const pages = JSON.parse(JSON.stringify(raw || []));
+  for (const page of pages) {
+    const fields = Array.isArray(page?.fields) ? page.fields : [];
+    for (const f of fields) {
+      const gm = f?.gridMatrix;
+      if (gm && Array.isArray(gm.cellsFlat) && Number.isInteger(gm.colCount) && gm.colCount > 0) {
+        const cols = gm.colCount as number;
+        const rows: any[][] = [];
+        for (let i = 0; i < gm.cellsFlat.length; i += cols) {
+          rows.push(gm.cellsFlat.slice(i, i + cols));
+        }
+        gm.cells = rows;
+        delete gm.cellsFlat;
+        delete gm.colCount;
+      }
+    }
+  }
+  return pages;
+}
   /** List templates (normalized) from master */
   async getFormTemplates(): Promise<SavedForm[]> {
     const colRef = collection(this.afs, TEMPLATES);
@@ -455,6 +474,7 @@ async getVisibleTemplatesForBranch(branch: Branch): Promise<SavedForm[]> {
     const snap = await getDoc(ref);
     if (!snap.exists()) return null;
     const data: any = snap.data();
+     const pages = this.deserializeFromFirestorePages(data.formPagesSnapshot ?? []);
     return {
       formId: snap.id,
       formName: data.formName ?? data.name ?? '(Untitled)',
@@ -470,6 +490,7 @@ async getVisibleTemplatesForBranch(branch: Branch): Promise<SavedForm[]> {
     const snap = await getDocs(query(colRef, orderBy('createdAt', 'desc')));
     return snap.docs.map((d) => {
       const data: any = d.data();
+      const pages = this.deserializeFromFirestorePages(data.formPagesSnapshot ?? []);
       return {
         formId: d.id, // instance id
         formName: data.formName ?? data.name ?? '(Untitled)',

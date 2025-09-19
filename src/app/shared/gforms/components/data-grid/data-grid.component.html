@@ -1,0 +1,40 @@
+<div class="gform-data-grid compact"
+     [style.width.px]="field?._gridW ?? field?.width"
+     [style.height.px]="field?._gridH ?? field?.height">
+
+  <table>
+    <thead>
+      <tr>
+        <th *ngFor="let h of field?.grid?.headers; let ci = index">
+          <input type="text"
+                 [(ngModel)]="field.grid.headers[ci]"
+                 (ngModelChange)="onHeaderChange(ci, $event)"
+                 (mousedown)="$event.stopPropagation()"
+                 placeholder="Header" />
+        </th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let row of field?.grid?.cells; let ri = index; trackBy: trackByIndex">
+        <td *ngFor="let cell of row; let ci = index; trackBy: trackByIndex">
+          <input type="text"
+                 [(ngModel)]="field.grid.cells[ri][ci]"
+                 (ngModelChange)="onCellChange(ri, ci, $event)"
+                 (mousedown)="$event.stopPropagation()"
+                 placeholder="..." />
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="grid-actions">
+    <button mat-stroked-button color="primary" (click)="addRow()">+ Row</button>
+    <button mat-stroked-button color="primary" (click)="addCol()">+ Col</button>
+  </div>
+
+  <!-- four resize grips -->
+  <div class="corner-grip inner nw" (mousedown)="startResize($event,'nw')"></div>
+  <div class="corner-grip inner ne" (mousedown)="startResize($event,'ne')"></div>
+  <div class="corner-grip inner sw" (mousedown)="startResize($event,'sw')"></div>
+  <div class="corner-grip inner se" (mousedown)="startResize($event,'se')"></div>
+</div>
