@@ -262,15 +262,16 @@ textarea.form-input {
   overflow: auto;          /* add scrollbar if needed */
   box-sizing: border-box;
 }
-.form-row textarea,
+.form-row textarea:not(.desc-input),
 .form-row input {
-  flex-grow: 1;      /* take remaining space */
-  min-width: 150px;  /* minimum width */
-  max-width: calc(100% - 130px); /* prevent overflow */
-  resize: vertical;  /* allow vertical resize */
+  flex-grow: 1;
+  min-width: 150px;
+  max-width: calc(100% - 130px);
+  resize: vertical;
   height: auto;
   white-space: normal;
 }
+
 .form-row textarea {
   resize: both;          /* Allow horizontal + vertical resize */
   min-width: 150px;      /* Minimum width */
@@ -931,11 +932,6 @@ textarea.form-input {
 /* Grow only text-ish controls */
 .form-row input:not([type="radio"]):not([type="checkbox"]),
 /* generic textareas (not the problem description one) */
-.form-row textarea:not(.desc-input) {
-  flex-grow: 1;
-  max-width: calc(100% - 130px);
-  resize: vertical;
-}
 
 /* Reset radios & checkboxes so they stay compact */
 .form-row input[type="radio"],
@@ -1453,20 +1449,17 @@ textarea.form-input {
 }
 /* the wrapper that the ✕ anchors to */
 .desc-wrap {
-    display: inline-flex ;
+  display: flex;
   position: relative;
-  flex: 1 1 auto;
-  min-width: 200px;
-  display: inline-block;
-    align-items: flex-start;
+  width: 100%;
 }
 .desc-wrap > .desc-input {
-  width: 100%;
+  flex-grow: 1; /* This is the key that allows it to grow within the flex container */
+  min-width: 200px;
   min-height: 40px;
-  resize: both;          /* textarea adjustable */
+  resize: both; /* This is now free to work for both axes */
   box-sizing: border-box;
-    max-width: none;   
-      flex: 1 1 auto;
+  width: auto;
 }
 
 .desc-wrap > .desc-close {
@@ -1561,14 +1554,17 @@ textarea.form-input {
 .form-row .rh-nw { top:    -8px; left:  -8px; pointer-events: auto; }
 
 /* Compact Description box */
-.form-row.description-field textarea.desc-input {
-  min-height: 36px !important;
-  height: 36px !important;       /* fixed start height */
-  max-height: 120px;              /* optional cap */
-  resize: both;              /* still let user stretch vertically */
-  line-height: 1.3;
-  padding: 6px 8px;
-  overflow: auto;
+.form-row.description-field textarea.desc-input{
+  resize: both !important;
+  display: inline-block !important;
+  width: auto !important;      /* no 100% clamp */
+  max-width: none !important;
+  height: auto !important;
+  max-height: none !important;
+  min-width: 160px !important;
+  min-height: 60px !important;
+  overflow: auto !important;
+  flex: 0 0 auto !important;   /* stop flex from stretching it */
 }
 /* Make the "1." label narrow and remove extra left margin on the textarea */
 .form-row.description-field .form-label {
@@ -1614,17 +1610,13 @@ textarea.form-input {
 /* If you use <ol><li> for numbering, tighten list indent too */
 .form-row.description-field ol { list-style-position: inside; padding-left: 0 !important; margin: 0; }
 .form-row.description-field li { display: contents; } /* let grid place children */
-.desc-row{
-  display: grid;
-  grid-template-columns: 1.4ch 1fr max-content;
-  align-items: start;
+.desc-row {
+  display: flex;
+  align-items: flex-start; /* This aligns the items to the top */
   gap: 8px;
 }
 
-/* 2) Flatten the inner wrapper so its children (textarea + button) can occupy grid cells */
-.form-row.desc-box{
-  display: contents !important;
-}
+
 
 /* 3) Ensure the delete button participates in layout (not absolute) */
 .desc-close{
@@ -2200,52 +2192,53 @@ textarea.form-input {
   background:#16a34a!important; color:#fff!important;
 }
 .desc-row {
-  display: grid;
-  grid-template-columns: 1.4ch 1fr;
-  align-items: start;
+  display: flex !important;
+  align-items: flex-start !important;
   gap: 8px;
 }
 
-.desc-no { text-align: right; line-height: 28px; }
+/* This is the number "1." on the left */
+.desc-no {
+  flex-shrink: 0; /* Prevents it from shrinking */
+  padding-top: 8px; /* Aligns it with the top of the textarea */
+}
 
-/* Wrapper anchors the absolute delete button */
+/* This is the wrapper for the textarea and the close button */
 .desc-wrap {
+  flex: 1 !important;
   position: relative;
-  display: block;
-  width: 100%;
+  width: auto !important;
+  max-width: none !important;
+  overflow: visible !important;
 }
 
-/* The textarea itself */
+
+/* This is the textarea */
 .desc-input {
-  display: inline-block !important;  /* ✅ allows horizontal resize to be visible */
-  width: auto !important;            /* ✅ let browser calculate, don’t force */
-  min-width: 180px;                  /* safe starting width */
-  max-width: none !important;        /* don’t clamp */
-  min-height: 40px;
-  resize: both !important;           /* ✅ horizontal + vertical resize */
-  box-sizing: border-box;
-  padding: 6px 32px 6px 10px;        /* keep your padding */
-  overflow: auto;                    /* scroll if content overflows */
-  vertical-align: top;               /* aligns nicely with number/delete button */
+  /* This is the key. It enables both horizontal and vertical resizing. */
+  resize: both !important;
+  
+  /* These rules are critical to prevent other styles from clamping its width. */
+  width: auto !important;
+  max-width: none !important;
+  flex: none !important; /* Prevents flex from interfering with resize behavior */
+  
+  /* Set a baseline size and other visual properties. */
+  display: inline-block !important;
+  min-width: 150px !important;
+  min-height: 60px !important;
+  box-sizing: border-box !important;
+  overflow: auto !important;
 }
 
-/* The delete button INSIDE the box */
+/* This is the close button */
 .desc-close {
-  position: absolute;
+  position: absolute; /* Positions it relative to the desc-wrap container */
   top: 6px;
   right: 6px;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: #d32f2f;
-  font-size: 18px;
-  line-height: 1;
   cursor: pointer;
-  z-index: 2;               /* above the textarea */
-  pointer-events: auto;     /* clickable even in draggable card */
 }
+
 .desc-close:hover { color: #b71c1c; background: rgba(211,47,47,.08); }
 .desc-inline-delete.inside {
   position: absolute;    /* wherever you place it in the header */
@@ -2670,7 +2663,7 @@ checkbox-header{
 
 /* nice “over any cell” cue */
 .cdk-drag-preview { z-index: 10000; }
-.page-surface.fill-mode {
+.page-surface:not(.builder-mode) {
   .field-wrapper {
     position: relative !important;
     left: auto !important;
@@ -2679,10 +2672,23 @@ checkbox-header{
     margin: 0 0 12px 0 !important;
     transform: none !important;
   }
+}
 
   /* if you ever bind cdkDrag on field-wrapper, disable the cursor/drag look */
-  .field-wrapper[cdkdrag] {
-    cursor: default;
+.field-wrapper {
+  // This makes the wrapper a positioning container for the label
+  position: relative;
+
+  .field-label {
+    // These rules make the label "float"
+    position: absolute;
+    top: -10px;          // Move the label up
+    left: 12px;          // Indent the label from the left edge
+    background: #fff;    // Give it a white background to cover the border
+    padding: 0 5px;      // Add some space around the label text
+    font-size: 12px;     // Make the font a bit smaller
+    color: #6c757d;      // Change the color to a standard label grey
+    z-index: 2;          // Ensure it sits on top of all other elements
   }
 }
 /* Keep one handle in the same place for every field */
@@ -2876,4 +2882,315 @@ checkbox-header{
   transform: translateY(50%);
   width: 10px; height: 10px; border: 1px solid #999;
   background: #fff; border-radius: 2px; cursor: ew-resize;
+}
+field-wrapper {
+  /* This is the container for the label and the input.
+     It needs to be a positioning context for the label inside it. */
+  position: relative; 
+
+  .field-label {
+    /* These rules force the label to "float" above the input box */
+    position: absolute !important;
+    top: -10px !important;       
+    left: 10px !important;       
+    z-index: 2 !important;       
+    
+    /* This gives the label a background to cleanly cover the input box's border */
+    background: white !important;  
+    padding: 0 5px !important;   
+    
+    /* This styles the text to look like a standard floating label */
+    font-size: 12px !important;
+    font-weight: 400 !important;
+    color: #6c757d !important;
+  }
+}
+.form-row.description-field .desc-input {
+  /* This is the key change to allow resizing in all directions */
+  resize: both !important;
+
+  /* These rules allow the box to change its width */
+  width: auto !important;
+  max-width: none !important;
+}
+.desc-row {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 8px !important;
+}
+
+/* This is the "1." number - it shouldn't stretch */
+.desc-no {
+  flex-shrink: 0;
+  padding-top: 8px; /* Helps align the number with the text */
+}
+
+/* This is your textarea */
+.desc-input {
+  /* This is the most important part - it enables resizing in all directions */
+  resize: both !important;
+  overflow: auto !important;
+
+  /* This releases the textarea from its container's fixed width */
+  width: auto !important;
+  display: inline-block !important;
+
+  /* You can set a default starting size */
+  min-width: 200px;
+  min-height: 80px;
+}
+.form-row.desc-box .desc-input,
+.form-row.description-field .desc-input {
+  resize: both !important;     /* horizontal + vertical */
+  width: auto !important;      /* don’t lock to 100% */
+  max-width: none !important;  /* remove clamp */
+  display: inline-block !important;
+  min-width: 150px;
+  min-height: 60px;
+}
+.form-row.desc-box { overflow: visible !important; }
+
+/* 1) Row = number | textarea | ×  */
+.desc-row{
+  display: grid !important;
+  grid-template-columns: 1.2ch minmax(0, 1fr) auto;  /* middle column is the textarea */
+  gap: 8px;
+  align-items: start;
+  justify-items: start;  /* prevent auto-stretch */
+}
+
+/* 2) The textarea must NOT stretch to the column width */
+.desc-input{
+  resize: both !important;      /* horizontal + vertical */
+  width: 240px;                 /* start size */
+  height: 90px;
+  max-width: 100% !important;   /* don't overflow the column */
+  min-width: 140px;
+  min-height: 40px;
+  justify-self: start;          /* stop grid stretch */
+  align-self: start;
+  box-sizing: border-box;
+  display: block;
+}
+
+/* 3) Kill global rules that force 100% width / flex-grow on textareas */
+.form-row textarea.desc-input{
+  width: auto !important;
+  flex: 0 0 auto !important;
+  max-width: none !important;
+  /* if you have a global max-width clamp, neutralize it here: */
+  /* max-width: 100% !important; */
+}
+
+/* 4) X button as normal grid cell */
+.desc-close{
+  all: unset;
+  cursor: pointer;
+  color: #d32f2f;
+  line-height: 1;
+  padding: 0 6px;
+}
+/* FINAL overrides – only for description rows */
+.form-row.desc-box,
+.form-row.description-field{
+  max-width: none !important;
+  width: auto !important;
+  overflow: visible !important;
+  position: static !important;  /* avoids absolute container clipping */
+}
+
+.form-row.desc-box .desc-row,
+.form-row.description-field .desc-row{
+  display: grid !important;
+  grid-template-columns: 1.4ch max-content auto !important; /* number | textarea | × */
+  align-items: start !important;
+  column-gap: 8px !important;
+}
+
+.form-row.desc-box .desc-input,
+.form-row.description-field .desc-input{
+  display: inline-block !important;
+  resize: both !important;          /* horiz + vert */
+  width: auto !important;
+  max-width: none !important;
+  min-width: 160px !important;
+  min-height: 60px !important;
+  overflow: auto !important;
+  justify-self: start !important;   /* don’t stretch to column */
+  align-self: start !important;
+}
+.form-row textarea:not(.desc-input),
+.form-row input {
+  flex-grow: 1;
+  min-width: 150px;
+  max-width: calc(100% - 130px);
+  resize: vertical;
+  height: auto;
+  white-space: normal;
+}
+
+/* 2) Give the description textarea full control */
+.form-row textarea.desc-input {
+  resize: both !important;        /* ← forces horizontal + vertical */
+  overflow: auto !important;
+  width: auto !important;
+  max-width: none !important;
+  display: inline-block !important;
+  min-width: 160px !important;
+  min-height: 60px !important;
+  flex: 0 0 auto !important;      /* don’t stretch to fill */
+}
+
+/* 3) Let rows sit side-by-side */
+.desc-list {
+  /* This is the key change to make the fields stack vertically. */
+  display: flex;
+  flex-direction: column;
+  
+  /* You may want to adjust this to control the vertical spacing. */
+  gap: 10px;
+}
+
+/* number | textarea | X */
+.desc-row { display:grid; grid-template-columns: 1.4ch max-content max-content; gap:8px; align-items:start; }
+
+/* X as a normal cell (not absolute) */
+.desc-close { position: static; }
+#descScope {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start;
+}
+#descScope .desc-row {
+  display: grid !important;
+  grid-template-columns: 1.2ch max-content max-content !important; /* number | textarea | × */
+  gap: 8px; align-items: start; justify-items: start;
+}
+#descScope .desc-input {
+  resize: both !important;
+  display: inline-block !important;
+  width: auto !important; max-width: none !important;
+  min-width: 160px !important; min-height: 60px !important;
+  height: auto !important; max-height: none !important;
+  overflow: auto !important;
+  flex: 0 0 auto !important;
+}
+#descScope .desc-close { position: static !important; }
+
+/* Kill the two global blockers just in case they’re still present */
+/* 1) generic inputs (now EXCLUDING .desc-input) */
+.form-row textarea:not(.desc-input),
+.form-row input {
+  flex-grow: 1;
+  min-width: 150px;
+  max-width: calc(100% - 130px);
+  resize: vertical;
+  height: auto;
+  white-space: normal;
+}
+
+.form-row textarea:not(.desc-input) {
+  resize: vertical;
+  min-width: 150px;
+  max-width: 100%;
+  min-height: 80px;
+  height: auto;
+  box-sizing: border-box;
+  white-space: normal;
+}
+
+/* 2) desc-input: allow both-axis resize + don’t stretch */
+.form-row textarea.desc-input,
+.form-field textarea.desc-input {
+  resize: both !important;
+  display: inline-block;
+  width: auto !important;
+  max-width: none !important;
+  height: auto;
+  max-height: none;
+  flex: 0 0 auto !important;
+  overflow: auto;
+}
+
+/* 3) layout so rows sit side-by-side */
+.desc-list { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-start; }
+.desc-row  { display:grid; grid-template-columns: 1.2ch max-content max-content; gap:8px; align-items:start; }
+.desc-close{ position: static; }
+/* This forces the row to use a flexible layout and prevents width clamping. */
+.desc-row {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 8px !important;
+  width: auto !important;
+  max-width: none !important;
+}
+
+/* This allows the wrapper for the textarea to fill the available space. */
+.desc-wrap {
+  flex: 1 !important;
+  width: auto !important;
+  max-width: none !important;
+  position: relative !important;
+}
+
+/* This is the key. It frees the textarea from any width constraints. */
+.desc-input {
+  resize: both !important;
+  width: auto !important;
+  max-width: none !important;
+  display: block !important;
+  box-sizing: border-box !important;
+}
+
+/* Force the main scrolling container to have a height and scrollbar */
+.editor-scroll {
+  height: calc(100vh - 120px) !important;
+  overflow-y: scroll !important;
+}
+
+/* Ensure the inner page surface does not hide the scrollbar */
+.page-surface {
+  overflow: visible !important;
+}
+.tile-delete-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 3000;               /* above cdk drag overlays */
+  background: #fff;            /* make it visible on dashed cells */
+  border-radius: 9999px;
+  width: 28px;
+  height: 28px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.15);
+}
+
+.tile-delete-btn mat-icon {
+  font-size: 18px;
+  line-height: 28px;
+}
+.dg-cell-drop {
+  position: relative;          /* already in template, but ensure here */
+  overflow: visible;           /* let absolutely-positioned children show */
+}
+
+.dg-tile {
+  position: absolute;          /* already set in template */
+  overflow: visible;           /* IMPORTANT: don't clip the delete button */
+  z-index: 2;                  /* sit above grid borders */
+}
+
+.tile-head { position: relative; }
+.tile-delete-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 3000;               /* above cdk drag overlays */
+  background: #fff;            /* make it visible on dashed cells */
+  border-radius: 9999px;
+  width: 28px;
+  height: 28px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.15);
+}
+
+.tile-delete-btn mat-icon {
+  font-size: 18px;
+  line-height: 28px;
 }

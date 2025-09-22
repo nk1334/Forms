@@ -20,6 +20,8 @@
   overflow: auto;
   padding: 16px;
   background: #f5f6f8;
+  height: calc(100vh - 120px); 
+  overflow-y: scroll;
 }
 .editor-card{ width: 100%; }
 

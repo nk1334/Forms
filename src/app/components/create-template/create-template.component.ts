@@ -375,6 +375,71 @@ onDateFocus(ev: FocusEvent) {
     (ev.target as HTMLInputElement).blur();
   }
 }
+hasHeader(field: any): boolean {
+  const noHeader =
+    ['email','date','branch','checkbox','radio','file','signature','tel'].includes(field?.type) ||
+    (field?.type === 'textarea' && this.isDesc(field));
+  return !noHeader;
+}
+
+hasInlineDelete(field: any): boolean {
+  if (!field) return false;
+  // these render their own internal delete buttons already
+  if (['email','tel','date','branch','file','radio','signature','empty','checkbox'].includes(field.type)) return true;
+  if (field.type === 'textarea' && this.isDesc(field)) return true;
+  return false;
+}
+removeGridTile(field: any, r: number, c: number, i: number) {
+  const gm = field?.gridMatrix;
+  if (!gm || !gm.cells?.[r]?.[c]?.items) return;
+  gm.cells[r][c].items.splice(i, 1);
+  this.cdr?.markForCheck?.();
+}
+private dock(field: any): 'left'|'right'|'top'|'bottom' {
+  return (field?.labelDock as any) || 'left';
+}
+
+
+/** Grid columns for the container */
+emailCols(field: any): string {
+  const d = this.dock(field);
+  // two columns for left/right; single column for top/bottom
+  if (d === 'left')  return 'max-content minmax(160px, 1fr)';
+  if (d === 'right') return 'minmax(160px, 1fr) max-content';
+  return '1fr'; // top/bottom
+}
+
+/** Grid rows for the container */
+emailRows(field: any): string | null {
+  const d = this.dock(field);
+  return (d === 'top' || d === 'bottom') ? 'max-content max-content' : null;
+}
+
+/** Label placement */
+emailLabelCol(field: any): string {
+  const d = this.dock(field);
+  if (d === 'left')  return '1 / 2';
+  if (d === 'right') return '2 / 3';
+  return '1 / 2'; // top/bottom = single column
+}
+emailLabelRow(field: any): string {
+  const d = this.dock(field);
+  if (d === 'bottom') return '2 / 3';
+  return '1 / 2'; // left/right/top
+}
+
+/** Input placement */
+emailInputCol(field: any): string {
+  const d = this.dock(field);
+  if (d === 'left')  return '2 / 3';
+  if (d === 'right') return '1 / 2';
+  return '1 / 2'; // top/bottom
+}
+emailInputRow(field: any): string {
+  const d = this.dock(field);
+  if (d === 'bottom') return '1 / 2';
+  return '2 / 3'; // top OR if left/right we could keep it same row as label by returning '1 / 2'
+}
 startTelResize(downEvt: MouseEvent | TouchEvent, field: any, dir: 'left'|'right'|'sw'|'se') {
   // prevent text selection / drag interference
   downEvt.stopPropagation();

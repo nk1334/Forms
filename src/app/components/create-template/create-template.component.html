@@ -182,11 +182,19 @@
                         (field.type==='textarea' && isDesc(field)))"
                 style="display:flex; justify-content:space-between; align-items:center;">
                 <div cdkDragHandle class="drag-handle" style="cursor:move; font-size:18px;">☰</div>
-                <button (click)="removeField(currentPage, field); $event.stopPropagation()"
-                        class="delete-button" title="Delete field"
-                        style="color:red; font-size:20px; border:none; background:transparent; cursor:pointer;">
-                  &times; 
-                </button>
+                <button
+  (click)="removeField(currentPage, field); $event.stopPropagation()"
+  title="Delete field"
+  style="position:absolute; top:4px; right:4px; color:#d32f2f; font-size:20px; border:none; background:transparent; cursor:pointer; z-index:100;">
+  &times;
+</button>
+               <button
+  *ngIf="(['email','date','branch','checkbox','radio','file','signature','tel'].includes(field.type) || (field.type==='textarea' && isDesc(field)))"
+  (click)="removeField(currentPage, field); $event.stopPropagation()"
+  title="Delete field"
+  style="position: absolute; top: 4px; right: 4px; color: red; font-size: 20px; border: none; background: transparent; cursor: pointer; z-index: 10;">
+  &times;
+</button>
               </div>
 
               <!-- ================= SHARED (Material) RENDERER ================= -->
@@ -204,58 +212,62 @@
 <ng-container *ngIf="!isFillMode || !isCommonType(field.type)">
                 <!-- ================= SWITCH: RENDER TYPES ================= -->
                 <ng-container [ngSwitch]="field.type">
+<div *ngSwitchCase="'email'"
+     class="inner-controls no-outer-handles"
+     [ngStyle]="rowLayout(field)">
 
-                  <div *ngSwitchCase="'email'" class="email-inline-row inner-controls"
-                       [style.gridTemplateColumns]="'24px max-content minmax(80px, max-content)'">
+  <div class="date-inline-drag" cdkDragHandle title="Drag field">☰</div>
 
-                    <label class="editable-label"
-                           [ngStyle]="labelStyle(field)"
-                           [attr.data-id]="field.id"
-                           contenteditable="true"
-                           (focus)="startLabelEdit(field, $event)"
-                           (blur)="finishLabelEdit(field, $event)"
-                           (keydown)="onLabelKeydown(field, $event)">
-                      {{ field.label || 'Email' }}
-                      <span *ngIf="isRequiredField(field)" aria-hidden="true" style="color:#d32f2f;">*</span>
-                    </label>
+  <label class="editable-label"
+         [ngStyle]="labelStyle(field)"
+         [attr.data-id]="field.id"
+         contenteditable="true"
+         (focus)="startLabelEdit(field, $event)"
+         (blur)="finishLabelEdit(field, $event)"
+         (keydown)="onLabelKeydown(field, $event)">
+    {{ field.label || 'Email Field' }}
+    <span *ngIf="isRequiredField(field)" aria-hidden="true" style="color:#d32f2f;">*</span>
+  </label>
 
-                    <div class="inline-resize-wrap"
-                         [style.--w.px]="field._emailW ?? 220"
-                         [style.--h.px]="field._emailH ?? 32"
-                         [style.marginLeft.px]="field._emailML ?? 0">
+  <div class="inline-resize-wrap"
+       [ngStyle]="ctrlStyle(field)"
+       [style.marginLeft.px]="(field.labelDock==='left'||field.labelDock==='right') ? (field._emailML ?? 0) : null"
+       (mousedown)="$event.stopPropagation()">
 
-                      <div class="email-input-shell"
-                           [style.width.px]="field._emailW ?? 220"
-                           [style.height.px]="field._emailH ?? 32">
-                        <input type="email"
-                               class="resizable-email form-input"
-                               [(ngModel)]="field.value"
-                               [placeholder]="field.placeholder || 'Enter email'"
-                               (mousedown)="$event.stopPropagation()" />
+    <div class="input-shell email-input-shell"
+         [style.width.px]="field._emailW ?? field.inputWidth ?? 240"
+         [style.height.px]="field._emailH ?? 36"
+         style="position:relative; display:flex; align-items:center;">
 
-                        <div class="edge-grip inner right"
-                             (mousedown)="startEmailResize($event, field, 'right')"
-                             (dragstart)="$event.preventDefault()"></div>
-                        <div class="edge-grip inner left"
-                             (mousedown)="startEmailResize($event, field, 'left')"
-                             (dragstart)="$event.preventDefault()"></div>
+      <input type="email"
+             class="resizable-input form-input"
+             [(ngModel)]="field.value"
+             [placeholder]="field.placeholder || 'Enter email'"
+             (mousedown)="$event.stopPropagation()"
+             style="width:100%; height:100%; box-sizing:border-box;" />
 
-                        <i class="corner-grip inner se"
-                           (mousedown)="startEmailResize($event, field, 'se')"
-                           (dragstart)="$event.preventDefault()"></i>
-                        <i class="corner-grip inner sw"
-                           (mousedown)="startEmailResize($event, field, 'sw')"
-                           (dragstart)="$event.preventDefault()"></i>
+      <!-- grips (same as Date) -->
+      <div class="edge-grip inner left"  (mousedown)="startEmailResize($event, field, 'left')"  (dragstart)="$event.preventDefault()"></div>
+      <div class="edge-grip inner right" (mousedown)="startEmailResize($event, field, 'right')" (dragstart)="$event.preventDefault()"></div>
+      <i class="corner-grip inner sw"    (mousedown)="startEmailResize($event, field, 'sw')"    (dragstart)="$event.preventDefault()"></i>
+      <i class="corner-grip inner se"    (mousedown)="startEmailResize($event, field, 'se')"    (dragstart)="$event.preventDefault()"></i>
 
-                        <button class="email-inline-delete inside"
-                                title="Delete field"
-                                (mousedown)="$event.stopPropagation()"
-                                (click)="removeField(currentPage, field)">
-                          &times;
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+      <!-- inline delete (same as Date) -->
+      <button class="inline-delete inside"
+              title="Delete field"
+              (mousedown)="$event.stopPropagation()"
+              (click)="removeField(currentPage, field)">
+        &times;
+      </button>
+    </div>
+  </div>
+
+  <div class="req-msg"
+       *ngIf="isRequiredField(field) && !isFieldFilled(field)"
+       style="width:100%; color:#d32f2f; font-size:12px;">
+    * Required: please enter {{ field.label || 'Email' }}.
+  </div>
+</div>
 
                   <!-- Project Title -->
                   <ng-container *ngSwitchCase="'project-title'">
@@ -277,6 +289,7 @@
                       <i class="corner-grip inner se" (mousedown)="startTitleResize($event, field, 'se')"></i>
                       <div class="edge-grip inner left"  (mousedown)="startTitleResize($event, field, 'w')"></div>
                       <div class="edge-grip inner right" (mousedown)="startTitleResize($event, field, 'e')"></div>
+        
                     </div>
                   </ng-container>
 
@@ -433,6 +446,7 @@
                   <!-- Data Grid (matrix) -->
                   <ng-container *ngSwitchCase="'data-grid'">
                     <ng-container *ngIf="field.gridMode === 'matrix' && field.gridMatrix as gm">
+                 
                       <div class="data-grid-matrix"
                            [style.width.%]="100"
                            [style.height.px]="field.height">
@@ -450,7 +464,7 @@
     <div class="dg-grid"
      [style.display]="'grid'"
      [style.gridTemplateColumns]="gridColsCss($any(field))"
-     [style.gridAutoRows.px]="gridCellHFromWrapper($any(field))"
+   [style.gridAutoRows]="'auto'"
      [style.gap.px]="$any(field).gridMatrix?.gap || 12"
      [style.width.%]="100"
      [style.height.%]="100"
@@ -493,7 +507,18 @@
                                        [style.top.px]="it.pos?.y ?? 6"
                                        [style.width.px]="it.size?.w ?? 220"
                                        [style.height.px]="it.size?.h ?? 60"
-                                       (cdkDragMoved)="onDragMoved($event)">
+                                       (cdkDragMoved)="onDragMoved($event)"
+                                        style="position:absolute;">
+
+  <!-- ✅ inline delete “×” on the tile -->
+  <button class="tile-delete"
+          title="Delete component"
+          (mousedown)="$event.stopPropagation()"
+          (click)="removeGridTile(field, r, c, i)"
+          style="position:absolute; top:4px; right:4px; font-size:18px; border:none; background:transparent; color:#d32f2f; cursor:pointer; z-index:10;">
+    &times;
+  </button>
+
                                     <ng-template cdkDragPreview>
                                       <div class="drag-preview">{{ it.label }}</div>
                                     </ng-template>
@@ -505,7 +530,7 @@
                                     <div class="tile-head">
                                       <div class="tile-title">{{ it.label }}</div>
                                       <button mat-icon-button class="tile-menu"
-                                              [matMenuTriggerFor]="cellMenu"
+                                             [matMenuTriggerFor]="tileMenu"
                                               (mousedown)="$event.stopPropagation()"
                                               (click)="$event.stopPropagation()">
                                         <mat-icon>more_vert</mat-icon>
@@ -522,12 +547,13 @@
                                   </div>
                                 </div>
 
-                                <mat-menu #cellMenu="matMenu">
-                                  <button mat-menu-item (click)="removeGridRowM(field, r)">Remove Row</button>
-                                  <button mat-menu-item (click)="removeGridColM(field, c)">Remove Column</button>
-                                </mat-menu>
-
-                              </div>
+                          <mat-menu #tileMenu="matMenu">
+    <button mat-menu-item (click)="removeGridTile(field, r, c, i)">Delete Component</button>
+    <mat-divider></mat-divider>
+    <button mat-menu-item (click)="removeGridRowM(field, r)">Remove Row</button>
+    <button mat-menu-item (click)="removeGridColM(field, c)">Remove Column</button>
+  </mat-menu>
+</div>
                             </ng-container>
                           </ng-container>
                         </div>
@@ -748,32 +774,36 @@
                           </button>
                         </div>
 
-                        <div class="desc-list"
-                             style="display:flex; flex-direction:column; gap:6px;">
-                          <div class="desc-row" *ngFor="let item of (field.problemItems || []); let idx = index">
-                            <span class="desc-no">{{ item.no }}.</span>
+                       <div class="desc-list" >
+  <div class="desc-row"
+     *ngFor="let item of (field.problemItems || []); let idx = index">
+  <span class="desc-no">{{ item.no || (idx + 1) }}.</span>
 
-                            <div class="form-row desc-box">
-                              <div class="desc-wrap" style="position:relative; display:inline-block; overflow:visible;">
-                           <textarea class="desc-input"
-    (mousedown)="$event.stopPropagation()"
-                                  [ngModel]="item.text"
-                        (ngModelChange)="updateProblemText(field, idx, $event)"
-                          [ngModelOptions]="{ standalone: true }"
-                         placeholder="Write problem description..."
-                         style="display:inline-block;width:auto;height:auto;min-width:120px;min-height:60px;resize:both;overflow:auto;box-sizing:border-box;">
-                              </textarea>
+  <div class="desc-wrap">
+ 
 
-                                <button
-                                  (mousedown)="$event.stopPropagation()"
-                                  (click)="removeProblemItem(field, idx)"
-                                  style="all:unset; position:absolute; top:6px; right:6px; width:18px; height:18px; cursor:pointer; color:#d32f2f; font-size:18px; line-height:1; z-index:2;">
-                                  &times;
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+<textarea
+      class="desc-input"
+      [ngModel]="item.text"
+      (ngModelChange)="updateProblemText(field, idx, $event)"
+      [ngModelOptions]="{ standalone: true }"
+      placeholder="Write problem description..."
+      [style.resize]="'both'"
+      [style.display]="'block'"
+      [style.width]="'100%'"
+      [style.box-sizing]="'border-box'"
+      [style.overflow]="'auto'">
+</textarea>
+
+    <button class="desc-close"
+            (mousedown)="$event.stopPropagation()"
+            (click)="removeProblemItem(field, idx)">
+      &times;
+    </button>
+  </div>
+</div>   
+                       </div>    
+                  
 
                         <div *ngIf="isRequiredField(field) && !(field.problemItems?.length)"
                              style="color:#d32f2f; font-size:12px; margin-top:6px;">
@@ -921,15 +951,21 @@
                   </ng-container>
 
                   <!-- Empty / Spacer -->
-                  <div *ngSwitchCase="'empty'"
-                       [style.width.px]="field.width"
-                       class="resizable-container"
-                       style="border:1px dashed #ccc;">
-                    <div contenteditable="true" (input)="onEmptyLabelInput($event, field)"
-                         style="width:100%; min-height:24px; outline:none; font-weight:bold; color:#555;">
-                      {{ field.label || 'Spacer / Heading (click to edit)' }}
-                    </div>
-                  </div>
+              <div *ngSwitchCase="'empty'"
+                       [style.width.px]="field.width"
+                       class="resizable-container"
+                       style="border:1px dashed #ccc; position: relative;">                                         <button
+                      (click)="removeField(currentPage, field); $event.stopPropagation()"
+                      class="delete-button"
+                      title="Delete field"
+                      style="position: absolute; top: 4px; right: 4px; color:red; font-size:20px; border:none; background:transparent; cursor:pointer;">
+                      &times;
+                    </button>
+                    <div contenteditable="true" (input)="onEmptyLabelInput($event, field)"
+                         style="width:100%; min-height:24px; outline:none; font-weight:bold; color:#555;">
+                      {{ field.label || 'Spacer / Heading (click to edit)' }}
+                    </div>
+                  </div>
 
                   <!-- Submit button -->
                   <button *ngSwitchCase="'submit'"
